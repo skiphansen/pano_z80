@@ -53,9 +53,9 @@
 #include "part.h"
 #include "usb.h"
 #include "term.h"
+#include "string.h"
 
-#define USB_DEBUG
-#undef USB_DEBUG
+// #define USB_DEBUG
 
 //#define printf(fmt, args...)      term_print(fmt , ##args)
 

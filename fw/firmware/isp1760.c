@@ -24,10 +24,11 @@
 #include "usb.h"
 #include "isp1760.h"
 #include "isp_roothub.h"
+#include "string.h"
 
 #undef USE_ROOT_HUB
 
-#undef ISP_DEBUG
+// #define ISP_DEBUG
 
 #ifdef ISP_DEBUG
 #define debug_print(x) printf(x)
@@ -588,9 +589,7 @@ static int isp_submit(struct usb_device *dev, unsigned long pipe,
        dev->status = USB_ST_CRC_ERR;
        break;
     }
-    debug_print("AL");
-    debug_print_hex(actual_length, 4);
-    debug_print("\n");
+    debug_printf("AL%d\n",actual_length);
     /*printf("dev=%u, usbsts=%04x, p[1]=%04x\n",
             dev->devnum, isp_read_dword(ISP_USBSTS), isp_read_dword(ISP_PORTSC1));*/
     
@@ -962,7 +961,7 @@ int usb_lowlevel_init(void) {
     rootdev = 0;
 #endif
 
-    for (int i = 0; i < USB_MAX_DEVICE; i++) {
+    for (int i = 0; i < MAX_REG_INT_TRANSFER_NUM; i++) {
     // be handled by the stack I guess...)
         registered_transfers[i].device = NULL;
     }

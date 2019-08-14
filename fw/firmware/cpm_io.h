@@ -27,6 +27,8 @@
 extern int gMountedDrives;
 
 int MountCpmDrive(char *Filename,FSIZE_t ImageSize);
+void HandleIoIn(uint8_t IoPort);
+void HandleIoOut(uint8_t IoPort,uint8_t Data);
 
 #endif // _CPM_IO_H_
 

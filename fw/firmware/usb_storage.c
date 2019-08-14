@@ -50,6 +50,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
 #include "misc.h"
 #include "part.h"
 #include "usb.h"
@@ -577,7 +579,7 @@ int usb_stor_CBI_get_status(ccb *srb, struct us_data *us)
    }
    USB_STOR_PRINTF
       ("Got interrupt data 0x%x, transfered %d status 0x%lX\n",
-       us->ip_data, us->pusb_dev->irq_act_len,
+       us->ip_data, us->pusb_dev->act_len,
        us->pusb_dev->irq_status);
    /* UFI gives us ASC and ASCQ, like a request sense */
    if (us->subclass == US_SC_UFI) {

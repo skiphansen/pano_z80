@@ -1,5 +1,5 @@
 OBJS = start.o firmware.o stdlib.o term.o isp1760.o i2c.o misc.o ff.o 
-OBJS += ffsystem.o diskio.o usb.o usb_storage.o cpm_io.o printf.o
+OBJS += ffsystem.o diskio.o usb.o usb_storage.o cpm_io.o printf.o usb_kbd.o
 
 CFLAGS = -MD -O1 -march=rv32ic -ffreestanding -nostdlib -Wl,--no-relax
 TOOLCHAIN_PREFIX = riscv32-unknown-elf-

@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include "misc.h"
 #include "term.h"
 #include "part.h"
@@ -52,14 +53,11 @@ void irq_handler(uint32_t pc) {
 void main() 
 {
    FATFS FatFs;           /* File system object for each logical drive */
-   FIL File[2];           /* File objects */
    DIR Dir;               /* Directory object */
    FILINFO Finfo;
    FRESULT res;
-   int result;
    const char root[] = "USB:/";
    char directory[18] = "";
-   char filename[32] = "0:/";
    char DriveSave;
 
    dly_tap = 0x03;
@@ -76,8 +74,8 @@ void main()
    ALOG_R("Compiled " __DATE__ " " __TIME__ "\n");
    usb_init();
    term_clear();
-
    term_enable_uart(true);
+   drv_usb_kbd_init();
 
    do {
       // Main loop
@@ -127,6 +125,11 @@ void main()
       }
       ALOG_R("%d CP/M drives mounted\n",gMountedDrives);
    } while(false);
+
+   for( ; ; ) {
+      usb_event_poll();
+   }
+
 
    led_red = 1;
    while(1);

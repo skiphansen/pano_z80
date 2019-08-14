@@ -38,6 +38,7 @@
 
 #include "ff.h"
 #include "cpm_io.h"
+#include "term.h"
 
 #define DEBUG_LOGGING
 #define VERBOSE_DEBUG_LOGGING
@@ -81,6 +82,12 @@ uint8_t gTrack;
 uint16_t gSector;
 uint16_t gDmaAdr;
 
+#define KBD_BUF_LEN  8
+
+int gKbdWr;
+int gKbdRd;
+char KbdBuf[KBD_BUF_LEN];
+
 static void fdco_out(uint8_t Data);
 
 // This routine is called when the Z80 performs an IO read operation
@@ -90,7 +97,9 @@ void HandleIoIn(uint8_t IoPort)
    uint8_t Data;
 
    switch(IoPort) {
-      case 0:  // console status
+      case 0:  
+      // console status, 0xff: input available, 0x00: no input available
+         Data = (gKbdWr == gKbdRd) ? 0 : 0xff;
          break;
 
       case 1:  // console data
@@ -170,6 +179,7 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data)
          break;
 
       case 1:  // console data
+         term_putchar(Data);
          break;
 
       case 10: // FDC drive
