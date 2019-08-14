@@ -10,7 +10,7 @@
 
 extern long insn();
 
-extern int printf(const char *format, ...);
+// extern int printf(const char *format, ...);
 
 extern void *memcpy(void *dest, const void *src, long n);
 extern char *strcpy(char *dest, const char *src);

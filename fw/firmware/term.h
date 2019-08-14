@@ -21,6 +21,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "printf.h"
 
 void term_clear();
 void term_goto(uint8_t x, uint8_t y);

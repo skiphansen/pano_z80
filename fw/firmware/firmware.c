@@ -31,6 +31,11 @@
 #include "part.h"
 #include "usb.h"
 #include "ff.h"
+#include "cpm_io.h"
+
+#define DEBUG_LOGGING
+#define VERBOSE_DEBUG_LOGGING
+#include "log.h"
 
 #define dly_tap *((volatile uint32_t *)0x03000000)
 #define led_grn *((volatile uint32_t *)0x03000004)
@@ -55,6 +60,7 @@ void main()
    const char root[] = "USB:/";
    char directory[18] = "";
    char filename[32] = "0:/";
+   char DriveSave;
 
    dly_tap = 0x03;
    led_red = 0;
@@ -66,82 +72,61 @@ void main()
 
    term_clear();
    term_goto(0,0);
-   printf("Pano Logic G1, PicoRV32 @ 25MHz, LPDDR @ 100MHz\n");
-   printf("Compiled " __DATE__ " " __TIME__ "\n");
+   ALOG_R("Pano Logic G1, PicoRV32 @ 25MHz, LPDDR @ 100MHz\n");
+   ALOG_R("Compiled " __DATE__ " " __TIME__ "\n");
    usb_init();
    term_clear();
 
    term_enable_uart(true);
 
-
-
-   while(1) {
+   do {
       // Main loop
       res = f_mount(&FatFs, "", 1);
       if(res != FR_OK) {
-         printf("Unable to mount filesystem: %d\n", (int)res);
+         ELOG("Unable to mount filesystem: %d\n", (int)res);
          break;
       }
 
-      // Clear screen
-      term_goto(8, 5);
-      printf("Current directory: %s%s", root, directory);
-      term_goto(12, 7);
-      printf("Filename");
-      term_goto(28, 7);
-      printf("Size");
-      term_goto(40, 7);
-      printf("Attrib");
-      term_goto(52, 7);
-      printf("Last modified");
+      LOG("Current directory: %s%s\n", root, directory);
 
       // First list all files
       res = f_opendir(&Dir, directory);
       if(res != FR_OK) {
-         printf("Unable to open directory: %d\n", (int)res);
+         ELOG("Unable to open directory: %d\n", (int)res);
          break;
       }
-      uint32_t filecount = 0;
-      uint32_t dircount = 0;
-      uint32_t line = 8;
       for(;;) {
          res = f_readdir(&Dir, &Finfo);
-         if((res != FR_OK) || !Finfo.fname[0]) break;
-         if(Finfo.fattrib & AM_DIR) {
-            dircount++;
-         }
-         else {
-            filecount++;
+         if((res != FR_OK) || !Finfo.fname[0]) {
+            break;
          }
 
-         term_goto(12, line);
-         printf("%s", Finfo.fname);
-         term_goto(28, line);
-         printf("%d", Finfo.fsize);
-         term_goto(40, line);
-         printf("%c%c%c%c%c",
+         LOG_R("%-12s ", Finfo.fname);
+         LOG_R("%7d ", Finfo.fsize);
+         LOG_R("%c%c%c%c%c ",
                 (Finfo.fattrib & AM_DIR) ? 'D' : '-',
                 (Finfo.fattrib & AM_RDO) ? 'R' : '-',
                 (Finfo.fattrib & AM_HID) ? 'H' : '-',
                 (Finfo.fattrib & AM_SYS) ? 'S' : '-',
                 (Finfo.fattrib & AM_ARC) ? 'A' : '-');
-         term_goto(52, line);
-         printf("0000/00/00 00:00");
-         term_goto(52, line);
-         printf("%d", (Finfo.fdate >> 9) + 1980);
-         term_goto(57, line);
-         printf("%d", (Finfo.fdate >> 5) & 15);
-         term_goto(60, line);
-         printf("%d", (Finfo.fdate & 31));
-         term_goto(63, line);
-         printf("%d", (Finfo.ftime >> 11));
-         term_goto(66, line);
-         printf("%d", (Finfo.ftime >> 5) & 63);
-         line++;
+         LOG_R("%2d/%02d/%d %2d:%02d:%02d\n",
+                (Finfo.fdate >> 5) & 0xf,
+                (Finfo.fdate & 31),
+                (Finfo.fdate >> 9) + 1980,
+                (Finfo.ftime >> 11),
+                (Finfo.ftime >> 5) & 0x3f);
+
+      // This is a kludge to avoid strncmp
+         DriveSave = Finfo.fname[5];
+         Finfo.fname[5] = 'A';
+         if(strcmp(Finfo.fname,"DRIVEA.DSK") == 0) {
+            LOG("Calling MountCpmDrive\n");
+            Finfo.fname[5] = DriveSave;
+            MountCpmDrive(Finfo.fname,Finfo.fsize);
+         }
       }
-      printf("\nDirectory listing complete\n");
-      break;
-   }
+      ALOG_R("%d CP/M drives mounted\n",gMountedDrives);
+   } while(false);
 
    led_red = 1;
    while(1);

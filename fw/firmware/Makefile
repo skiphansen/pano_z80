@@ -1,16 +1,18 @@
-OBJS = start.o firmware.o stdlib.o term.o isp1760.o i2c.o misc.o ff.o ffsystem.o diskio.o usb.o usb_storage.o
+OBJS = start.o firmware.o stdlib.o term.o isp1760.o i2c.o misc.o ff.o 
+OBJS += ffsystem.o diskio.o usb.o usb_storage.o cpm_io.o printf.o
+
 CFLAGS = -MD -O1 -march=rv32ic -ffreestanding -nostdlib -Wl,--no-relax
 TOOLCHAIN_PREFIX = riscv32-unknown-elf-
 BIN2MIF:= ../../tools/bin2mif/bin2mif
 XC3SPROG := xc3sprog
 XC3SPROG_OPTS := -c jtaghs2 -v
 
-all: firmware.bin firmware.asm
+all: firmware.bin firmware.lst
 
 firmware.bin: firmware.elf
 	$(TOOLCHAIN_PREFIX)objcopy -O binary $< $@
 
-firmware.asm: firmware.elf
+firmware.lst : firmware.elf
 	$(TOOLCHAIN_PREFIX)objdump -d $< > $@
 
 firmware.mif: firmware.bin
@@ -37,7 +39,7 @@ reload:
 	$(XC3SPROG) $(XC3SPROG_OPTS) ../../fpga/pano_top.bit
 
 clean:
-	rm -rf *.o *.d *.elf *.bin *.map
+	rm -rf *.o *.d *.elf *.bin *.map *.lst
 
 .PHONY: clean
 

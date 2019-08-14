@@ -43,11 +43,11 @@ void term_newline() {
     else {
         term_y ++;
     }
-	// Clear next line
-	vram_ptr = vram + term_y * 80 + term_x;
-	for (int i = 0; i < 80; i++) {
-		*vram_ptr++ = 0x20;
-	}
+   // Clear next line
+   vram_ptr = vram + term_y * 80 + term_x;
+   for (int i = 0; i < 80; i++) {
+      *vram_ptr++ = 0x20;
+   }
 }
 
 void term_clear() {
@@ -59,12 +59,12 @@ void term_clear() {
 }
 
 void term_enable_uart(bool en) {
-	uart_en = en;
+   uart_en = en;
 }
 
 void term_putchar(char c) {
-	if (uart_en)
-    	*uart_ptr = (uint32_t)c;
+   if (uart_en)
+      *uart_ptr = (uint32_t)c;
     if (c == '\n') {
         term_newline();
     }
@@ -96,50 +96,52 @@ void term_print_hex(uint32_t v, int digits) {
 }
 
 static void printf_d(int val) {
-	char buffer[32];
-	char *p = buffer;
-	if (val < 0) {
-		term_putchar('-');
-		val = -val;
-	}
-	while (val || p == buffer) {
-		*(p++) = '0' + val % 10;
-		val = val / 10;
-	}
-	while (p != buffer)
-		term_putchar(*(--p));
+   char buffer[32];
+   char *p = buffer;
+   if (val < 0) {
+      term_putchar('-');
+      val = -val;
+   }
+   while (val || p == buffer) {
+      *(p++) = '0' + val % 10;
+      val = val / 10;
+   }
+   while (p != buffer)
+      term_putchar(*(--p));
 }
 
+#if 0
 int printf(const char *format, ...) {
-	int i;
-	va_list ap;
+   int i;
+   va_list ap;
 
-	va_start(ap, format);
+   va_start(ap, format);
 
-	for (i = 0; format[i]; i++)
-		if (format[i] == '%') {
-			while (format[++i]) {
-				if (format[i] == 'c') {
-					term_putchar(va_arg(ap,int));
-					break;
-				}
-				if (format[i] == 's') {
-					term_print_string(va_arg(ap,char*));
-					break;
-				}
-				if (format[i] == 'd') {
-					printf_d(va_arg(ap,int));
-					break;
-				}
-				if (format[i] == 'x') {
-					term_print_hex(va_arg(ap,int), 4);
-					break;
-				}
-			}
-		} else
-			term_putchar(format[i]);
+   for (i = 0; format[i]; i++)
+      if (format[i] == '%') {
+         while (format[++i]) {
+            if (format[i] == 'c') {
+               term_putchar(va_arg(ap,int));
+               break;
+            }
+            if (format[i] == 's') {
+               term_print_string(va_arg(ap,char*));
+               break;
+            }
+            if (format[i] == 'd') {
+               printf_d(va_arg(ap,int));
+               break;
+            }
+            if (format[i] == 'x') {
+               term_print_hex(va_arg(ap,int), 4);
+               break;
+            }
+         }
+      } else
+         term_putchar(format[i]);
 
-	va_end(ap);
+   va_end(ap);
 }
+#endif
 
 
