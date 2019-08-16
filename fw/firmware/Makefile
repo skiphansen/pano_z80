@@ -33,10 +33,10 @@ firmware.elf: $(OBJS) sections.lds
 
 prog: firmware.bin
 	$(XC3SPROG) $(XC3SPROG_OPTS) -I../../fpga/xc3sprog/pano_g1.bit firmware.bin:W:786432:BIN
-	$(XC3SPROG) $(XC3SPROG_OPTS) ../../fpga/pano_top.bit
+	$(XC3SPROG) $(XC3SPROG_OPTS) ../../xilinx/work/pano_top.bit
 
 reload:
-	$(XC3SPROG) $(XC3SPROG_OPTS) ../../fpga/pano_top.bit
+	$(XC3SPROG) $(XC3SPROG_OPTS) ../../xilinx/work/pano_top.bit
 
 clean:
 	rm -rf *.o *.d *.elf *.bin *.map *.lst
