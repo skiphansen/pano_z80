@@ -246,22 +246,6 @@ module pano_top(
     
     wire rst_dqs_div_in;
     
-    // Bus master signal from RV
-    wire [23:0] rv_ddr_addr;
-    wire [31:0] rv_ddr_wdata;
-    wire [31:0] rv_ddr_rdata;
-    wire [3:0] rv_ddr_wstrb;
-    wire rv_ddr_valid;
-    wire rv_ddr_ready;
-    
-    reg [31:0] rv_ddr_rdata_buf;
-    reg rv_ddr_ready_buf;
-    always @(posedge clk_rv) begin
-        rv_ddr_rdata_buf <= rv_ddr_rdata;
-        rv_ddr_ready_buf <= rv_ddr_ready;
-    end
-    
-    // Bus master signal after arbitrator
     wire [23:0] ddr_addr;
     wire [31:0] ddr_wdata;
     wire [31:0] ddr_rdata;
@@ -281,6 +265,13 @@ module pano_top(
     wire init_done;
     wire ar_done;
     
+    reg [31:0] ddr_rdata_buf;
+    reg ddr_ready_buf;
+    always @(posedge clk_rv) begin
+        ddr_rdata_buf <= ddr_rdata;
+        ddr_ready_buf <= ddr_ready;
+    end
+        
     mig_top_0 mig_top_0(
         .auto_ref_req          (auto_ref_req),
         .wait_200us            (wait_200us),
@@ -322,30 +313,6 @@ module pano_top(
     assign LPDDR_DQS[3:2] = 2'b00;
     assign LPDDR_DQ[31:16] = 16'bz;
 
-    // Memory arbiter
-    rv_vbc_ddr_arbitrator rv_vbc_ddr_arbitrator(
-        .rst(rst),
-        .clkrv(clk_100),
-        .clkgb(clk_4),
-        .rv_addr(rv_ddr_addr),
-        .rv_wdata(rv_ddr_wdata),
-        .rv_rdata(rv_ddr_rdata),
-        .rv_wstrb(rv_ddr_wstrb),
-        .rv_valid(rv_ddr_valid),
-        .rv_ready(rv_ddr_ready),
-        .ddr_addr(ddr_addr),
-        .ddr_wdata(ddr_wdata),
-        .ddr_rdata(ddr_rdata),
-        .ddr_wstrb(ddr_wstrb),
-        .ddr_valid(ddr_valid),
-        .ddr_ready(ddr_ready),
-        .vb_a(23'b0),
-//      .vb_din(8'b0),
-        .vb_dout(8'h00),
-        .vb_rd(1'b0),
-        .vb_wr(1'b0)
-    );
-    
     mig_picorv_bridge mig_picorv_bridge(
         .clk0(clk_100),
         .clk90(clk_100_90),
@@ -528,7 +495,7 @@ module pano_top(
     wire vram_valid = (mem_valid) && (!mem_ready) && (addr_in_vram);
     wire gpio_valid = (mem_valid) && (!mem_ready) && (addr_in_gpio);
     wire uart_valid = (mem_valid) && (addr_in_uart);
-    assign rv_ddr_valid = (mem_valid) && (addr_in_ddr);
+    assign ddr_valid = (mem_valid) && (addr_in_ddr);
     assign usb_valid = (mem_valid) && (addr_in_usb);
     assign spi_valid = (mem_valid) && (addr_in_spi);
     wire general_valid = (mem_valid) && (!mem_ready) && (!addr_in_ddr) && (!addr_in_uart) && (!addr_in_usb) && (!addr_in_spi);
@@ -541,12 +508,12 @@ module pano_top(
     end
     
     wire uart_ready;
-    assign mem_ready = uart_ready || rv_ddr_ready_buf || usb_ready || spi_ready || default_ready;
+    assign mem_ready = uart_ready || ddr_ready_buf || usb_ready || spi_ready || default_ready;
     
     reg mem_valid_last;
     always @(posedge clk_rv) begin
         mem_valid_last <= mem_valid;
-        if (mem_valid && !mem_valid_last && !(ram_valid || spi_valid || vram_valid || gpio_valid || usb_valid || uart_valid || rv_ddr_valid))
+        if (mem_valid && !mem_valid_last && !(ram_valid || spi_valid || vram_valid || gpio_valid || usb_valid || uart_valid || ddr_valid))
             cpu_irq <= 1'b1;
         //else
         //    cpu_irq <= 1'b0;
@@ -554,9 +521,9 @@ module pano_top(
             cpu_irq <= 1'b0;
     end
     
-    assign rv_ddr_addr = mem_addr[23:0];
-    assign rv_ddr_wstrb = mem_wstrb;
-    assign rv_ddr_wdata = mem_wdata;
+    assign ddr_addr = mem_addr[23:0];
+    assign ddr_wstrb = mem_wstrb;
+    assign ddr_wdata = mem_wdata;
     
     assign usb_addr = mem_addr[18:0];
     assign usb_wstrb = mem_wstrb;
@@ -686,7 +653,7 @@ module pano_top(
     
     assign mem_rdata = 
         (addr_in_ram) ? (ram_rdata) : 
-        ((addr_in_ddr) ? (rv_ddr_rdata_buf) : 
+        ((addr_in_ddr) ? (ddr_rdata_buf) : 
         ((addr_in_gpio) ? (gpio_rdata) : 
         ((addr_in_usb) ? (usb_rdata) :
         ((addr_in_spi) ? (spi_rdata) : (32'hFFFFFFFF)))));
