@@ -20,7 +20,6 @@
 #include <stddef.h>
 #include "misc.h"
 #include "term.h"
-#include "part.h"
 #include "usb.h"
 #include "isp1760.h"
 #include "isp_roothub.h"

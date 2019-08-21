@@ -1,20 +1,15 @@
 `timescale 1ns / 1ps
 `default_nettype none
 //////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: Wenting Zhang
-// 
-// Create Date:    21:43:15 11/21/2018 
-// Design Name: 
-// Module Name:    pano_top 
-// Project Name:   VerilogBoy
-// Description: 
-//   Top level file for Pano Logic G1
-// Dependencies: 
-// 
-// Additional Comments: 
-//   
+// pano_z80pack top level 
+// Copyright (C) 2019  Skip Hansen
+//
+// This file is derived from Verilogboy project:
+// Copyright (C) 2019  Wenting Zhang <zephray@outlook.com>
 ////////////////////////////////////////////////////////////////////////////////
+
+`define Z80_RAM_2K
+
 module pano_top(
     // Global Clock Input
     input wire CLK_OSC,
@@ -220,7 +215,112 @@ module pano_top(
         .I(clk_4_raw)
     );
     
+    // ----------------------------------------------------------------------
+    // T80 CPU core
+    wire [7:0] z80di;
+    wire [7:0] z80do;
+    wire [15:0] z80adr;
+    wire [7:0] z80_io_read_data;
+    reg z80_rst;
+    wire z80_M1_n;
+    wire z80_MREQ_n;
+    wire z80_IORQ_n;
+    wire z80_RD_n;
+    wire z80_WR_n;
+    wire z80_RFSH_n;
+    wire z80_HALT_n;
+    wire z80_BUSAK_n;
+    wire z80_Ready;
+    wire io_ready;
     
+    T80sed T80sed(
+        .RESET_n(!z80_rst),
+        .CLK_n(clk_4),
+        .CLKEN(1'b1),
+        .WAIT_n(z80_Ready),
+        .INT_n(1'b1),
+        .NMI_n(1'b1),
+        .BUSRQ_n(1'b1),
+        .DI(z80di),
+        .DO(z80do),
+        .A(z80adr),
+        .M1_n(z80_M1_n),
+        .MREQ_n(z80_MREQ_n),
+        .IORQ_n(z80_IORQ_n),
+        .RD_n(z80_RD_n),
+        .WR_n(z80_WR_n),
+        .RFSH_n(z80_RFSH_n),
+        .HALT_n(z80_HALT_n),
+        .BUSAK_n(z80_BUSAK_n)
+    );
+
+    wire z80_io_wr = !z80_IORQ_n && !z80_WR_n;
+    wire z80_io_rd = !z80_IORQ_n && !z80_RD_n;
+    wire z80_mem_wr = !z80_MREQ_n && !z80_WR_n;
+    wire z80_mem_rd = (!z80_MREQ_n || !z80_M1_n) && !z80_RD_n;
+    wire z80_ram_valid;
+    wire z80_io_valid;
+    wire [7:0] z80ram_do;
+    wire [7:0] z80ram_do_b;
+    wire [7:0] z80io_rdata;
+    wire [3:0] mem_wstrb;
+    wire [31:0] mem_addr;
+    wire [31:0] mem_wdata;
+
+`ifdef Z80_RAM_2K
+    // RAMB16_S9_S9: Spartan-3/3E/3A/3AN/3AD 2k x 8 + 1 Parity bit Dual-Port RAM
+    // Xilinx HDL Libraries Guide, version 11.2
+    RAMB16_S9_S9 #(
+    .INIT_A(9'h000), // Value of output RAM registers on Port A at startup
+    .INIT_B(9'h000), // Value of output RAM registers on Port B at startup
+    .SRVAL_A(9'h000), // Port A output value upon SSR assertion
+    .SRVAL_B(9'h000), // Port B output value upon SSR assertion
+    .WRITE_MODE_A("WRITE_FIRST"), // WRITE_FIRST, READ_FIRST or NO_CHANGE
+    .WRITE_MODE_B("WRITE_FIRST"), // WRITE_FIRST, READ_FIRST or NO_CHANGE
+    .SIM_COLLISION_CHECK("ALL"), // "NONE", "WARNING_ONLY", "GENERATE_X_ONLY", "ALL"
+    .INIT_00(256'hd30025cab77e000321000a0d21646c726f77206f6e6150206f6c6c65480017c3),
+    .INIT_01(256'h0000000000000000000000000000000000000000000000000076f3001ac32301)
+
+    ) RAMB16_S9_S9_inst (
+    .DOA(z80ram_do), // Port A 8-bit Data Output
+    .DOB(z80ram_do_b), // Port B 8-bit Data Output
+    // .DOPA(DOPA), // Port A 1-bit Parity Output
+    // .DOPB(DOPB), // Port B 1-bit Parity Output
+    .ADDRA(z80adr[10:0]), // Port A 11-bit Address Input
+    .ADDRB(mem_addr[12:2]), // Port B 11-bit Address Input
+    .CLKA(clk_4), // Port A Clock
+    .CLKB(clk_rv), // Port B Clock
+    .DIA(z80do), // Port A 8-bit Data Input
+    .DIB(mem_wdata[7:0]), // Port B 8-bit Data Input
+    .DIPA(1'b0), // Port A 1-bit parity Input
+    .DIPB(1'b0), // Port-B 1-bit parity Input
+    .ENA(1'b1), // Port A RAM Enable Input
+    .ENB(1'b1), // Port B RAM Enable Input
+    .SSRA(1'b0), // Port A Synchronous Set/Reset Input
+    .SSRB(1'b0), // Port B Synchronous Set/Reset Input
+    .WEA(z80_mem_wr), // Port A Write Enable Input
+    .WEB(z80_ram_valid ? mem_wstrb[0] : 1'b0) // Port B Write Enable Input
+    );
+`else
+    z80_mem z80_mem(
+     // Z80 interface
+        .clka(clk_4),
+        .wea(z80_mem_wr),
+        .addra(z80adr),
+        .dina(z80do),
+        .douta(z80ram_do),
+     // RISC V interface
+        .clkb(clk_rv),
+        .web(z80_ram_valid ? mem_wstrb[0] : 1'b0),
+        .addrb(mem_addr[17:2]),
+        .dinb(mem_wdata[7:0]),
+        .doutb(z80ram_do_b)
+    );
+`endif
+
+    assign z80di = !z80_IORQ_n ? z80_io_read_data : z80ram_do;
+
+
     // ----------------------------------------------------------------------
     // MIG
     
@@ -443,8 +543,10 @@ module pano_top(
     
     // Memory Map
     // 03000000 - 03000100 GPIO          See description below
-    // 03000100 - 03000104 UART          (4B)
+    // 03000100 - 03000100 UART          (4B)
+    // 03000200 - 030002FF Z80 I/O       (256B)
     // 04000000 - 04080000 USB           (512KB)
+    // 05000000 - 0503FFFF Z80 RAM       (256KB, data in low byte only)
     // 08000000 - 08000FFF Video RAM     (4KB)
     // 0C000000 - 0CFFFFFF LPDDR SDRAM   (16MB)
     // 0E000000 - 0E01FFFF SPI Flash     (128KB, mapped from Flash 768K - 896K)
@@ -457,9 +559,6 @@ module pano_top(
     wire mem_valid;
     wire mem_instr;
     wire mem_ready;
-    wire [31:0] mem_addr;
-    wire [31:0] mem_wdata;
-    wire [3:0] mem_wstrb;
     wire [31:0] mem_rdata;
     wire [31:0] mem_la_addr;
     
@@ -469,7 +568,9 @@ module pano_top(
     wire la_addr_in_vram = (mem_la_addr >= 32'h08000000) && (mem_la_addr < 32'h08004000);
     wire la_addr_in_gpio = (mem_la_addr >= 32'h03000000) && (mem_la_addr < 32'h03000100);
     wire la_addr_in_uart = (mem_la_addr == 32'h03000100);
+    wire la_addr_in_z80_io = (mem_la_addr >= 32'h03000200) && (mem_la_addr < 32'h030002ff);
     wire la_addr_in_usb = (mem_la_addr >= 32'h04000000) && (mem_la_addr < 32'h04080000);
+    wire la_addr_in_z80 = (mem_la_addr >= 32'h05000000) && (mem_la_addr < 32'h05040000);
     wire la_addr_in_ddr = (mem_la_addr >= 32'h0C000000) && (mem_la_addr < 32'h0D000000);
     wire la_addr_in_spi = (mem_la_addr >= 32'h0E000000) && (mem_la_addr < 32'h0E020000);
     
@@ -478,6 +579,8 @@ module pano_top(
     reg addr_in_gpio;
     reg addr_in_uart;
     reg addr_in_usb;
+    reg addr_in_z80;
+    reg addr_in_z80_io;
     reg addr_in_ddr;
     reg addr_in_spi;
     
@@ -487,23 +590,26 @@ module pano_top(
         addr_in_gpio <= la_addr_in_gpio;
         addr_in_uart <= la_addr_in_uart;
         addr_in_usb <= la_addr_in_usb;
+        addr_in_z80 <= la_addr_in_z80;
+        addr_in_z80_io <= la_addr_in_z80_io;
         addr_in_ddr <= la_addr_in_ddr;
         addr_in_spi <= la_addr_in_spi;
     end
     
     wire ram_valid = (mem_valid) && (!mem_ready) && (addr_in_ram);
     wire vram_valid = (mem_valid) && (!mem_ready) && (addr_in_vram);
-    wire gpio_valid = (mem_valid) && (!mem_ready) && (addr_in_gpio);
+    wire gpio_valid = (mem_valid) && (addr_in_gpio);
     wire uart_valid = (mem_valid) && (addr_in_uart);
     assign ddr_valid = (mem_valid) && (addr_in_ddr);
     assign usb_valid = (mem_valid) && (addr_in_usb);
+    assign z80_ram_valid = (mem_valid) && (addr_in_z80);
+    assign z80_io_valid = (mem_valid) && (addr_in_z80_io);
     assign spi_valid = (mem_valid) && (addr_in_spi);
     wire general_valid = (mem_valid) && (!mem_ready) && (!addr_in_ddr) && (!addr_in_uart) && (!addr_in_usb) && (!addr_in_spi);
     
     reg default_ready;
     
     always @(posedge clk_rv) begin
-        //default_ready <= ram_valid || vram_valid || gpio_valid || usb_valid || uart_valid;
         default_ready <= general_valid;
     end
     
@@ -513,7 +619,7 @@ module pano_top(
     reg mem_valid_last;
     always @(posedge clk_rv) begin
         mem_valid_last <= mem_valid;
-        if (mem_valid && !mem_valid_last && !(ram_valid || spi_valid || vram_valid || gpio_valid || usb_valid || uart_valid || ddr_valid))
+        if (mem_valid && !mem_valid_last && !(ram_valid || spi_valid || vram_valid || gpio_valid || usb_valid || uart_valid || ddr_valid || z80_ram_valid || z80_io_valid))
             cpu_irq <= 1'b1;
         //else
         //    cpu_irq <= 1'b0;
@@ -593,18 +699,40 @@ module pano_top(
         .dat(mem_wdata[7:0]),
         .txd(LED_BLUE)
     );
+
+    // Z80 I/O
+    // 
+
+    cpm_io cpm_io(
+        .clk(clk_rv),
+     // Z80 interface
+        .z80_iord(z80_io_rd),
+        .z80_iowr(z80_io_wr),
+        .z80adr(z80adr[7:0]),
+        .z80di(z80_io_read_data),
+        .z80do(z80do),
+        .z80_io_ready(io_ready),
+
+    // RISC V interface
+        .io_valid(z80_io_valid),
+        .rv_wdata(mem_wdata[7:0]),
+        .rv_adr(mem_addr[5:2]),
+        .rv_wstr(mem_wstrb[0]),
+        .rv_rdata(z80io_rdata)
+        );
+    assign z80_Ready = !z80_MREQ_n || (!z80_IORQ_n && io_ready);
     
     // GPIO
     // ----------------------------------------------------------------------
     
-    // 03000000 (0) - R:  delay_sel_det / W: delay_sel_val
-    // 03000004 (1) - W:  led_green
-    // 03000008 (2) - W:  led_red
-    // 0300000c (3) - W:  vb_rst
-    // 03000010 (4) - W:  vb_keyin
-    // 03000014 (5) - W:  i2c_scl
-    // 03000018 (6) - RW: i2c_sda
-    // 0300001c (7) - W:  usb_rst_n
+    // 03000000 (0)  - R:  delay_sel_det / W: delay_sel_val
+    // 03000004 (1)  - W:  led_green
+    // 03000008 (2)  - W:  led_red
+    // 0300000c (3)  - W:  z80_rst
+    // 03000010 (4)  - W:  not used
+    // 03000014 (5)  - W:  i2c_scl
+    // 03000018 (6)  - RW: i2c_sda
+    // 0300001c (7)  - W:  usb_rst_n
     
     reg [31:0] gpio_rdata;
     reg led_green;
@@ -616,22 +744,22 @@ module pano_top(
     always@(posedge clk_rv) begin
         if (gpio_valid)
              if (mem_wstrb != 0) begin
-                case (mem_addr[4:2])
-                    3'd0: delay_sel_val[4:0] <= mem_wdata[4:0];
-                    3'd1: led_green <= mem_wdata[0];
-                    3'd2: led_red <= mem_wdata[0];
-                    // 3'd3: vb_rst <= mem_wdata[0];
-                    // 3'd4: vb_key <= mem_wdata[7:0];
-                    3'd5: i2c_scl <= mem_wdata[0];
-                    3'd6: i2c_sda <= mem_wdata[0];
-                    3'd7: usb_rstn <= mem_wdata[0];
+                case (mem_addr[5:2])
+                    4'd0: delay_sel_val[4:0] <= mem_wdata[4:0];
+                    4'd1: led_green <= mem_wdata[0];
+                    4'd2: led_red <= mem_wdata[0];
+                    4'd3: z80_rst <= mem_wdata[0];
+                    // 4'd4: vb_key <= mem_wdata[7:0];
+                    4'd5: i2c_scl <= mem_wdata[0];
+                    4'd6: i2c_sda <= mem_wdata[0];
+                    4'd7: usb_rstn <= mem_wdata[0];
                 endcase
              end
              else begin
-                case (mem_addr[4:2])
-                    3'd0: gpio_rdata <= {27'd0, delay_sel_val_det};
-                    3'd6: gpio_rdata <= {31'd0, AUDIO_SDA};
-                    default: gpio_rdata <= 32'd0;
+                case (mem_addr[5:2])
+                    4'd0: gpio_rdata <= {27'd0, delay_sel_val_det};
+                    4'd3: gpio_rdata <= {31'd0, z80_rst};
+                    4'd6: gpio_rdata <= {31'd0, AUDIO_SDA};
                 endcase
              end
          if (!rst_rv) begin
@@ -639,12 +767,13 @@ module pano_top(
             led_green <= 1'b0;
             led_red <= 1'b0;
             // vb_key <= 8'd0;
-            // vb_rst <= 1'b1;
+            z80_rst <= 1'b1;
             i2c_scl <= 1'b1;
             i2c_sda <= 1'b1;
         end
     end
     
+        
     assign AUDIO_SCL = i2c_scl;
     assign AUDIO_SDA = (i2c_sda) ? 1'bz : 1'b0;
     
@@ -652,11 +781,14 @@ module pano_top(
     assign USB_HUB_RESET_B = usb_rstn;
     
     assign mem_rdata = 
-        (addr_in_ram) ? (ram_rdata) : 
-        ((addr_in_ddr) ? (ddr_rdata_buf) : 
-        ((addr_in_gpio) ? (gpio_rdata) : 
-        ((addr_in_usb) ? (usb_rdata) :
-        ((addr_in_spi) ? (spi_rdata) : (32'hFFFFFFFF)))));
+        addr_in_ram ? ram_rdata : (
+        addr_in_ddr ? ddr_rdata_buf : (
+        addr_in_gpio ? gpio_rdata : (
+        addr_in_z80 ? {24'b0, z80ram_do_b} : (
+        addr_in_z80_io ? {24'b0, z80io_rdata} : (
+        addr_in_usb ? usb_rdata : (
+        addr_in_spi ? spi_rdata : (
+        32'hFFFFFFFF)))))));
 
     // ----------------------------------------------------------------------
     // VGA Controller

@@ -207,6 +207,28 @@ struct usb_device {
    struct usb_device *children[USB_MAXCHILDREN];
 };
 
+typedef struct block_dev_desc {
+   int      dev;     /* device number */
+   unsigned char  target;     /* target SCSI ID */
+   unsigned char  lun;     /* target LUN */
+   unsigned char  type;    /* device type */
+   unsigned char  removable;  /* removable device */
+   unsigned long  lba;     /* number of blocks */
+   unsigned long  blksz;      /* block size */
+   char     vendor [40+1]; /* IDE model, SCSI Vendor */
+   char     product[20+1]; /* IDE Serial no, SCSI product */
+   char     revision[8+1]; /* firmware revision */
+   unsigned long  (*block_read)(int dev,
+                  unsigned long start,
+                  unsigned long blkcnt,
+                  void *buffer);
+   unsigned long  (*block_write)(int dev,
+                   unsigned long start,
+                   unsigned long blkcnt,
+                   const void *buffer);
+   void     *priv;      /* driver private struct pointer */
+}block_dev_desc_t;
+
 /**********************************************************************
  * this is how the lowlevel part communicate with the outer world
  */
@@ -225,33 +247,25 @@ void usb_event_poll(void);
 #define USB_UHCI_VEND_ID   0x8086
 #define USB_UHCI_DEV_ID    0x7112
 
-#ifdef CONFIG_USB_STORAGE
-
+// USB Mass stoarge device
 #define USB_MAX_STOR_DEV 1
 block_dev_desc_t *usb_stor_get_dev(int index);
 int usb_stor_scan(int mode);
 int usb_stor_info(void);
 
-#endif
-
-#ifdef CONFIG_USB_KEYBOARD
-
+// USB Keyboard
 int drv_usb_kbd_init(void);
 int usb_kbd_deregister(void);
+int usb_kbd_testc(void);
+char usb_kbd_getc(void);
 
-#endif
-
-#ifdef CONFIG_USB_GAMEPAD
-
+// USB Game pad
 int drv_usb_gp_init(void);
 int usb_gp_deregister(void);
-
-#endif
 
 /* routines */
 int usb_init(void); /* initialize the USB Controller */
 int usb_stop(void); /* stop the USB Controller */
-
 
 int usb_set_protocol(struct usb_device *dev, int ifnum, int protocol);
 int usb_set_idle(struct usb_device *dev, int ifnum, int duration,

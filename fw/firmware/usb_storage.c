@@ -53,7 +53,6 @@
 #include <string.h>
 
 #include "misc.h"
-#include "part.h"
 #include "usb.h"
 #include "term.h"
 

@@ -38,5 +38,8 @@ extern long insn();
 
 
 void * memscan(void * addr, int c, uint32_t size);
+// This is here because including <ctype.h> defines isprint as a macro which
+// references __locale_ctype_ptr.  So we can't use the standard header
+int isprint(int c);
 
 #endif

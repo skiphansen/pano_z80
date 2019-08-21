@@ -29,7 +29,6 @@
 #include <string.h>
 #include "misc.h"
 #include "term.h"
-#include "part.h"
 #include "usb.h"
 #include "ff.h"
 #include "cpm_io.h"
@@ -41,8 +40,7 @@
 #define dly_tap *((volatile uint32_t *)0x03000000)
 #define led_grn *((volatile uint32_t *)0x03000004)
 #define led_red *((volatile uint32_t *)0x03000008)
-#define vb_key  *((volatile uint32_t *)0x03000010)
-#define vb_rst  *((volatile uint32_t *)0x0300000c)
+#define z80_rst *((volatile uint32_t *)0x0300000c)
 
 void irq_handler(uint32_t pc) {
    term_print_string("HARD FAULT PC = ");
@@ -59,6 +57,8 @@ void main()
    const char root[] = "USB:/";
    char directory[18] = "";
    char DriveSave;
+   bool BootImageLoaded = false;
+   uint8_t LastIoState = 0xff;
 
    dly_tap = 0x03;
    led_red = 0;
@@ -72,6 +72,9 @@ void main()
    term_goto(0,0);
    ALOG_R("Pano Logic G1, PicoRV32 @ 25MHz, LPDDR @ 100MHz\n");
    ALOG_R("Compiled " __DATE__ " " __TIME__ "\n");
+   Z80IoTest();
+#if 0
+   Z80MemTest();
    usb_init();
    term_clear();
    term_enable_uart(true);
@@ -122,14 +125,38 @@ void main()
             Finfo.fname[5] = DriveSave;
             MountCpmDrive(Finfo.fname,Finfo.fsize);
          }
+         else if(strcmp(Finfo.fname,"BOOT.IMG") == 0) {
+            LOG("Calling LoadImage\n");
+            if(LoadImage(Finfo.fname,Finfo.fsize) == 0) {
+               BootImageLoaded = true;
+            }
+         }
       }
       ALOG_R("%d CP/M drives mounted\n",gMountedDrives);
    } while(false);
+   if(!BootImageLoaded) {
+      LOG("Loading default Z80 boot image\n");
+      LoadDefaultBoot();
+   }
+#endif
 
+   z80_rst = 1;
+   LOG("z80_rst: %d\n",z80_rst);
+   LOG("Releasing Z80 reset\n");
+   z80_rst = 0;   // release Z80 reset
+   LOG("z80_rst: %d\n",z80_rst);
    for( ; ; ) {
       usb_event_poll();
-   }
+      switch(z80_io_state) {
+         case IO_STAT_WRITE:  // Z80 out
+            HandleIoOut(z80_io_adr,z80_out_data);
+            break;
 
+         case IO_STAT_READ:   // z80 In
+            HandleIoIn(z80_io_adr);
+            break;
+      }
+   }
 
    led_red = 1;
    while(1);

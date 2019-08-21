@@ -35,19 +35,21 @@
 // #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "ff.h"
 #include "cpm_io.h"
 #include "term.h"
+#include "usb.h"
 
 #define DEBUG_LOGGING
-#define VERBOSE_DEBUG_LOGGING
+// #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
 #define CPM_SECTOR_SIZE       128
 #define MAX_MOUNTED_DRIVES    4
 #define MAX_LOGICAL_DRIVES    16 // A: -> P: 
-#define Z80_MEMORY_BASE       0
+#define Z80_MEMORY_BASE       0x05000000
 
 const struct {
    const char *Desc;
@@ -82,13 +84,31 @@ uint8_t gTrack;
 uint16_t gSector;
 uint16_t gDmaAdr;
 
-#define KBD_BUF_LEN  8
-
-int gKbdWr;
-int gKbdRd;
-char KbdBuf[KBD_BUF_LEN];
-
 static void fdco_out(uint8_t Data);
+void CopyToZ80(uint8_t *pTo,uint8_t *pFrom,int Len);
+void CopyFromZ80(uint8_t *pTo,uint8_t *pFrom,int Len);
+
+void CopyToZ80(uint8_t *pTo,uint8_t *pFrom,int Len)
+{
+   LOG("Copying %d bytes from 0x%x to 0x%x\n",Len,(unsigned int) pFrom,
+       (unsigned int) pTo);
+
+   while(Len -- > 0) {
+      *pTo = *pFrom++;
+      pTo += 4;
+   }
+}
+
+void CopyFromZ80(uint8_t *pTo,uint8_t *pFrom,int Len)
+{
+   LOG("Copying %d bytes from 0x%x to 0x%x\n",Len,(unsigned int) pFrom,
+       (unsigned int) pTo);
+
+   while(Len -- > 0) {
+      *pTo++ = *pFrom;
+      pFrom += 4;
+   }
+}
 
 // This routine is called when the Z80 performs an IO read operation
 void HandleIoIn(uint8_t IoPort)
@@ -99,41 +119,32 @@ void HandleIoIn(uint8_t IoPort)
    switch(IoPort) {
       case 0:  
       // console status, 0xff: input available, 0x00: no input available
-         Data = (gKbdWr == gKbdRd) ? 0 : 0xff;
+         Data = usb_kbd_testc() ? 0 : 0xff;
          break;
 
       case 1:  // console data
+         if(usb_kbd_testc()) {
+            Data = (uint8_t) usb_kbd_getc();
+         }
+         else {
+            Data = 0xff;
+         }
+         z80_in_data = Data;
+         VLOG("0x%x <- 0x%x\n",IoPort,Data);
          break;
-               
+
+// The following are implemented in hardware so we should never see them here
       case 10: // FDC drive
-         Data = gDrive;
-         break;
-
       case 11: // FDC track
-         Data = gTrack;
-         break;
-
       case 12: // FDC sector (low)
-         Data = (uint8_t) (gSector & 0xff);
-         break;
-
-      case 13: // FDC command
-         break;
-
       case 14: // FDC status
-         Data = gDiskStatus;
-         break;
-
       case 15: // DMA destination address low
-         Data = (uint8_t) (gDmaAdr & 0xff);
-         break;
-
       case 16: // DMA destination address high
-         Data = (uint8_t) ((gDmaAdr  >> 8) & 0xff);
-         break;
-
       case 17: // FDC sector high
-         Data = (uint8_t) ((gSector >> 8) & 0xff);
+// We don't expect these ports to be read
+      case 13: // FDC command
+         ELOG("Unexpected input from port 0x%x\n",IoPort);
+         z80_in_data = 0;
          break;
 
    // The following are not used implemented
@@ -165,6 +176,7 @@ void HandleIoIn(uint8_t IoPort)
       case 51: // client socket #1 data
       default:
          ELOG("Input from port 0x%x ignored\n",IoPort);
+         z80_in_data = 0;
          break;
    }
 }
@@ -175,42 +187,24 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data)
    uint8_t Ret;
 
    switch(IoPort) {
-      case 0:  // console status
-         break;
-
       case 1:  // console data
+         VLOG("0x%x -> 0x%x\n",IoPort,Data);
          term_putchar(Data);
-         break;
-
-      case 10: // FDC drive
-         gDrive = Data;
-         break;
-
-      case 11: // FDC track
-         gTrack = Data;
-         break;
-
-      case 12: // FDC sector (low)
-         gSector = (gSector & 0xff00) | Data;
          break;
 
       case 13: // FDC command
          fdco_out(Data);
          break;
 
+// The following are implemented in hardware so we should never see them here
+      case 10: // FDC drive
+      case 11: // FDC track
+      case 12: // FDC sector (low)
       case 14: // FDC status
-         break;
-
       case 15: // DMA destination address low
-         gDmaAdr = (gDmaAdr & 0xff00) | Data;
-         break;
-
       case 16: // DMA destination address high
-         gDmaAdr = (gDmaAdr & 0xff) | (Data << 8);
-         break;
-
       case 17: // FDC sector high
-         gSector = (gSector & 0xff) | (Data << 8);
+         ELOG("Unexpected output of 0x%x to port 0x%x\n",Data,IoPort);
          break;
 
    // The following are not used implemented
@@ -246,7 +240,6 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data)
    }
 }
 
-
 /*
  * I/O handler for write FDC command:
  * transfer one sector in the wanted direction,
@@ -267,11 +260,12 @@ static void fdco_out(uint8_t Data)
    register int i;
    unsigned long pos;
    uint8_t status = 0;  // Assume the best
-   void *pBuf = (void *) (gDmaAdr + Z80_MEMORY_BASE);
+   void *pBuf = (void *) ((gDmaAdr << 2) + Z80_MEMORY_BASE);
    FIL *fp = gDisks[gDrive].fp;
    FRESULT Err;
    UINT Wrote;
    UINT Read;
+   uint8_t Buf[CPM_SECTOR_SIZE];
 
    do {
       if(fp == NULL) {
@@ -298,19 +292,23 @@ static void fdco_out(uint8_t Data)
 
       switch(Data) {
          case 0:  /* read */
-            if((Err = f_read(fp,pBuf,CPM_SECTOR_SIZE,&Read)) != FR_OK) {
+            if((Err = f_read(fp,&Buf,CPM_SECTOR_SIZE,&Read)) != FR_OK) {
                ELOG("f_read failed: %d\n",Err);
                status = 5;
             }
-            else if(Wrote != CPM_SECTOR_SIZE) {
-               ELOG("Short read failure, read%d, requested %d\n",Read,
+            else if(Read != CPM_SECTOR_SIZE) {
+               ELOG("Short read failure, read %d, requested %d\n",Read,
                     CPM_SECTOR_SIZE);
                status = 5;
+            }
+            else {
+               CopyToZ80(pBuf,Buf,CPM_SECTOR_SIZE);
             }
             break;
 
          case 1:  /* write */
-            if((Err = f_write(fp,pBuf,CPM_SECTOR_SIZE,&Wrote)) != FR_OK) {
+            CopyFromZ80(Buf,pBuf,CPM_SECTOR_SIZE);
+            if((Err = f_write(fp,Buf,CPM_SECTOR_SIZE,&Wrote)) != FR_OK) {
                ELOG("f_write failed: %d\n",Err);
                status = 6;
             }
@@ -380,3 +378,153 @@ int MountCpmDrive(char *Filename,FSIZE_t ImageSize)
 
    return Ret;
 }
+
+int LoadImage(const char *Filename,FSIZE_t Len)
+{
+   FIL File;
+   FIL *Fp = &File;
+   FRESULT Err;
+   uint8_t Buf[CPM_SECTOR_SIZE];
+   int Bytes2Read;
+   int BytesRead = 0;
+   UINT Read;
+   uint8_t *pBuf = (uint8_t *) Z80_MEMORY_BASE;
+   bool bFileOpen = false;
+
+   do {
+      if((Err = f_open(Fp,Filename,FA_READ)) != FR_OK) {
+         ELOG("Couldn't open %s, %d\n",Filename,Err);
+         break;
+      }
+      bFileOpen = true;
+      while(BytesRead < Len) {
+         Bytes2Read = Len - BytesRead;
+         if(Bytes2Read > sizeof(Buf)) {
+            Bytes2Read = sizeof(Buf);
+         }
+         if((Err = f_read(Fp,&Buf,Bytes2Read,&Read)) != FR_OK) {
+            ELOG("f_read failed: %d\n",Err);
+            break;
+         }
+         else if(Read != Bytes2Read) {
+            ELOG("Short read failure, read %d, requested %d\n",Read,
+                 Bytes2Read);
+            Err = -1;
+            break;
+         }
+         CopyToZ80(pBuf,Buf,Read);
+         BytesRead += Bytes2Read;
+         pBuf += Bytes2Read << 2;
+      }
+   } while(false);
+
+   if(bFileOpen) {
+      if((Err = f_close(Fp)) != FR_OK) {
+         ELOG("f_close failed: %d\n",Err);
+      }
+   }
+
+   return Err;
+}
+
+void Z80MemTest()
+{
+   uint8_t *pBuf = (uint8_t *) Z80_MEMORY_BASE;
+   uint8_t Buf[CPM_SECTOR_SIZE];
+   uint8_t i;
+
+   LOG("Reading Z80 memory\n");
+
+   for(i = 0; i < 16; i++) {
+      LOG_R("%02x ",pBuf[i*4]);
+      pBuf[i * 4] = (uint8_t) i;
+   }
+   LOG_R("\n");
+   for(i = 0; i < 16; i++) {
+     LOG_R("%02x ",pBuf[i * 4]);
+   }
+   LOG_R("\n");
+
+
+   for(i = 0; i < CPM_SECTOR_SIZE; i++) {
+      Buf[i] = i;
+   }
+   CopyToZ80(pBuf,Buf,sizeof(Buf));
+   memset(Buf,0x55,sizeof(Buf));
+   CopyFromZ80(Buf,pBuf,sizeof(Buf));
+   for(i = 0; i < CPM_SECTOR_SIZE; i++) {
+      if(Buf[i] != i) {
+         LOG("Failure @ %d, read: %d\n",i,Buf[i]);
+         break;
+      }
+   }
+
+   if(i == CPM_SECTOR_SIZE) {
+      LOG("Mem test passed\n");
+   }
+}
+
+void Z80IoTest()
+{
+   uint32_t Data;
+   LOG("Write 0x55 to z80_drive\n");
+   z80_drive = 0x55;
+   LOG("Write 0xaa to z80_track\n");
+   z80_track = 0xaa;
+
+   LOG("Write 0x1 to z80_sector_lsb\n");
+   z80_sector_lsb = 0x1;
+
+   LOG("Write 0x2 to z80_disk_status\n");
+   z80_disk_status = 0x2;
+
+   LOG("Write 0x4 to z80_dma_lsb\n");
+   z80_dma_lsb = 0x4;
+
+   LOG("Write 0x8 to z80_dma_msb\n");
+   z80_dma_msb = 0x8;
+
+   LOG("Write 0x10 to z80_sector_msb\n");
+   z80_sector_msb = 0x10;
+
+   LOG("z80_drive: 0x%x\n",z80_drive);
+   LOG("z80_track: 0x%x\n",z80_track);
+   LOG("z80_sector_lsb: 0x%x\n",z80_sector_lsb);
+   LOG("z80_disk_status: 0x%x\n",z80_disk_status);
+   LOG("z80_dma_lsb: 0x%x\n",z80_dma_lsb);
+   LOG("z80_dma_msb: 0x%x\n",z80_dma_msb);
+   LOG("z80_sector_msb: 0x%x\n",z80_sector_msb);
+}
+
+
+#include "z80_boot.h"
+
+void LoadDefaultBoot()
+{
+   uint8_t Buf[16];
+   uint8_t i;
+   int BytesRead = 0;
+   int Bytes2Read;
+   uint8_t *p = (uint8_t *) Z80_MEMORY_BASE;
+
+   CopyToZ80(p,z80_boot_img,sizeof(z80_boot_img));
+
+   while(BytesRead < sizeof(z80_boot_img)) {
+      Bytes2Read = sizeof(z80_boot_img) - BytesRead;
+      if(Bytes2Read > sizeof(Buf)) {
+         Bytes2Read = sizeof(Buf);
+      }
+      CopyFromZ80(Buf,p,Bytes2Read);
+      for(i = 0; i < Bytes2Read; i++) {
+         if(Buf[i] != z80_boot_img[BytesRead + i]) {
+            ELOG("Verify error, data at 0x%x is 0x%x, should be 0x%x\n",
+                 BytesRead + i,Buf[i],z80_boot_img[BytesRead + i]);
+            BytesRead = sizeof(z80_boot_img);
+            break;
+         }
+      }
+      BytesRead += Bytes2Read;
+      p += Bytes2Read << 2;
+   }
+}
+

@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="/home/skip/pano/working/pano_z80pack/xilinx/pano_z80_isim.wdb" id="1" type="auto">
+         <top_modules>
+            <top_module name="glbl" />
+            <top_module name="numeric_std" />
+            <top_module name="std_logic_1164" />
+            <top_module name="t80_pack" />
+            <top_module name="test" />
+            <top_module name="vl_types" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <WVObjectSize size="7" />
+   <wave_markers>
+      <marker time="2420000000" label="" />
+   </wave_markers>
+   <wvobject fp_name="/test/DUT/reset" type="logic" db_ref_id="1">
+      <obj_property name="ElementShortName">reset</obj_property>
+      <obj_property name="ObjectShortName">reset</obj_property>
+   </wvobject>
+   <wvobject fp_name="/test/DUT/clk_4" type="logic" db_ref_id="1">
+      <obj_property name="ElementShortName">clk_4</obj_property>
+      <obj_property name="ObjectShortName">clk_4</obj_property>
+   </wvobject>
+   <wvobject fp_name="group420" type="group">
+      <obj_property name="label">T80</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <wvobject fp_name="/test/DUT/T80sed/reset_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">reset_n</obj_property>
+         <obj_property name="ObjectShortName">reset_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/clk_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">clk_n</obj_property>
+         <obj_property name="ObjectShortName">clk_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/clken" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">clken</obj_property>
+         <obj_property name="ObjectShortName">clken</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/wait_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">wait_n</obj_property>
+         <obj_property name="ObjectShortName">wait_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/int_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">int_n</obj_property>
+         <obj_property name="ObjectShortName">int_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/nmi_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">nmi_n</obj_property>
+         <obj_property name="ObjectShortName">nmi_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/busrq_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">busrq_n</obj_property>
+         <obj_property name="ObjectShortName">busrq_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/m1_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">m1_n</obj_property>
+         <obj_property name="ObjectShortName">m1_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/mreq_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">mreq_n</obj_property>
+         <obj_property name="ObjectShortName">mreq_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/iorq_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">iorq_n</obj_property>
+         <obj_property name="ObjectShortName">iorq_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/rd_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">rd_n</obj_property>
+         <obj_property name="ObjectShortName">rd_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/wr_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">wr_n</obj_property>
+         <obj_property name="ObjectShortName">wr_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/rfsh_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">rfsh_n</obj_property>
+         <obj_property name="ObjectShortName">rfsh_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/halt_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">halt_n</obj_property>
+         <obj_property name="ObjectShortName">halt_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/busak_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">busak_n</obj_property>
+         <obj_property name="ObjectShortName">busak_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/a" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">a[15:0]</obj_property>
+         <obj_property name="ObjectShortName">a[15:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/di" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">di[7:0]</obj_property>
+         <obj_property name="ObjectShortName">di[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/do" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">do[7:0]</obj_property>
+         <obj_property name="ObjectShortName">do[7:0]</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject fp_name="group437" type="group">
+      <obj_property name="label">picrorv</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <wvobject fp_name="/test/DUT/cpu/clk" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">clk</obj_property>
+         <obj_property name="ObjectShortName">clk</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpu/resetn" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">resetn</obj_property>
+         <obj_property name="ObjectShortName">resetn</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpu/mem_valid" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">mem_valid</obj_property>
+         <obj_property name="ObjectShortName">mem_valid</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpu/mem_instr" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">mem_instr</obj_property>
+         <obj_property name="ObjectShortName">mem_instr</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpu/mem_ready" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">mem_ready</obj_property>
+         <obj_property name="ObjectShortName">mem_ready</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpu/mem_addr" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">mem_addr[31:0]</obj_property>
+         <obj_property name="ObjectShortName">mem_addr[31:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpu/mem_wdata" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">mem_wdata[31:0]</obj_property>
+         <obj_property name="ObjectShortName">mem_wdata[31:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpu/mem_wstrb" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">mem_wstrb[3:0]</obj_property>
+         <obj_property name="ObjectShortName">mem_wstrb[3:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpu/mem_rdata" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">mem_rdata[31:0]</obj_property>
+         <obj_property name="ObjectShortName">mem_rdata[31:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpu/irq[0]" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">[0]</obj_property>
+         <obj_property name="ObjectShortName">irq[0]</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject fp_name="group106" type="group">
+      <obj_property name="label">cpm_io</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <wvobject fp_name="/test/DUT/cpm_io/clk" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">clk</obj_property>
+         <obj_property name="ObjectShortName">clk</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/io_port_status" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">io_port_status[1:0]</obj_property>
+         <obj_property name="ObjectShortName">io_port_status[1:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/z80_iord" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">z80_iord</obj_property>
+         <obj_property name="ObjectShortName">z80_iord</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/z80_iowr" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">z80_iowr</obj_property>
+         <obj_property name="ObjectShortName">z80_iowr</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/z80adr" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">z80adr[7:0]</obj_property>
+         <obj_property name="ObjectShortName">z80adr[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/z80do" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">z80do[7:0]</obj_property>
+         <obj_property name="ObjectShortName">z80do[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/z80di" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">z80di[7:0]</obj_property>
+         <obj_property name="ObjectShortName">z80di[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/io_valid" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">io_valid</obj_property>
+         <obj_property name="ObjectShortName">io_valid</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/rv_adr" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">rv_adr[3:0]</obj_property>
+         <obj_property name="ObjectShortName">rv_adr[3:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/rv_wstr" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">rv_wstr</obj_property>
+         <obj_property name="ObjectShortName">rv_wstr</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/rv_wdata" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">rv_wdata[7:0]</obj_property>
+         <obj_property name="ObjectShortName">rv_wdata[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/rv_rdata" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">rv_rdata[7:0]</obj_property>
+         <obj_property name="ObjectShortName">rv_rdata[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/z80_io_ready" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">z80_io_ready</obj_property>
+         <obj_property name="ObjectShortName">z80_io_ready</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/io_port_adr" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">io_port_adr[7:0]</obj_property>
+         <obj_property name="ObjectShortName">io_port_adr[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/out_port_data" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">out_port_data[7:0]</obj_property>
+         <obj_property name="ObjectShortName">out_port_data[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/in_port_data" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">in_port_data[7:0]</obj_property>
+         <obj_property name="ObjectShortName">in_port_data[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/disk_drive" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">disk_drive[7:0]</obj_property>
+         <obj_property name="ObjectShortName">disk_drive[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/disk_track" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">disk_track[7:0]</obj_property>
+         <obj_property name="ObjectShortName">disk_track[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/disk_sector_lsb" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">disk_sector_lsb[7:0]</obj_property>
+         <obj_property name="ObjectShortName">disk_sector_lsb[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/disk_sector_msb" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">disk_sector_msb[7:0]</obj_property>
+         <obj_property name="ObjectShortName">disk_sector_msb[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/disk_dma_adr_lsb" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">disk_dma_adr_lsb[7:0]</obj_property>
+         <obj_property name="ObjectShortName">disk_dma_adr_lsb[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/disk_dma_adr_msb" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">disk_dma_adr_msb[7:0]</obj_property>
+         <obj_property name="ObjectShortName">disk_dma_adr_msb[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/disk_status" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">disk_status[7:0]</obj_property>
+         <obj_property name="ObjectShortName">disk_status[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/console_status" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">console_status[7:0]</obj_property>
+         <obj_property name="ObjectShortName">console_status[7:0]</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject fp_name="group447" type="group">
+      <obj_property name="label">picorv_ram</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <wvobject fp_name="/test/DUT/RAMB16_S36_inst/DO" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">DO[31:0]</obj_property>
+         <obj_property name="ObjectShortName">DO[31:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S36_inst/DOP" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">DOP[3:0]</obj_property>
+         <obj_property name="ObjectShortName">DOP[3:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S36_inst/ADDR" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">ADDR[8:0]</obj_property>
+         <obj_property name="ObjectShortName">ADDR[8:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S36_inst/DI" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">DI[31:0]</obj_property>
+         <obj_property name="ObjectShortName">DI[31:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S36_inst/DIP" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">DIP[3:0]</obj_property>
+         <obj_property name="ObjectShortName">DIP[3:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S36_inst/EN" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">EN</obj_property>
+         <obj_property name="ObjectShortName">EN</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S36_inst/CLK" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">CLK</obj_property>
+         <obj_property name="ObjectShortName">CLK</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S36_inst/WE" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">WE</obj_property>
+         <obj_property name="ObjectShortName">WE</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S36_inst/SSR" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">SSR</obj_property>
+         <obj_property name="ObjectShortName">SSR</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject fp_name="group453" type="group">
+      <obj_property name="label">z80_ram</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <wvobject fp_name="/test/DUT/RAMB16_S9_S9_inst/DOA" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">DOA[7:0]</obj_property>
+         <obj_property name="ObjectShortName">DOA[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S9_S9_inst/ADDRA" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">ADDRA[10:0]</obj_property>
+         <obj_property name="ObjectShortName">ADDRA[10:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S9_S9_inst/ENA" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">ENA</obj_property>
+         <obj_property name="ObjectShortName">ENA</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S9_S9_inst/CLKA" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">CLKA</obj_property>
+         <obj_property name="ObjectShortName">CLKA</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/RAMB16_S9_S9_inst/WEA" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">WEA</obj_property>
+         <obj_property name="ObjectShortName">WEA</obj_property>
+      </wvobject>
+   </wvobject>
+</wave_config>
