@@ -15,23 +15,23 @@
 // 
 // RISC V  Z80
 // Adr     Adr   Usage              Read    Write      Notes
-// 0       0  - Console status      Z80     RISC V      
-// --      1  - Console in          Z80     ---         1
-// --      1  - Console out         ---     Z80         2
-// 1       10 - Drive               Both    Z80
-// 2       11 - Track               Both    Z80
-// 3       12 - Sector low          Both    Z80
-// --      13 - Disk command        ---     Z80         2
-// --      13 - Disk command        Z80     ---
-// ---     14 - Disk status         Z80     RISC V      4
-// 5       15 - DMA Adr LSB         Both    Z80
-// 6       16 - DMA Adr MSB         Both    Z80
-// 7       17 - Sector high         Both    Z80
-// --      xx - Other               Z80
-// 8       -- - Z80 I/O Adr         RISC V  ---
-// 9       -- - Z80 Out Data        RISC V  ---
-// 10      -- - Z80 In Data         ---     RISC V
-// 11      -- - Z80 I/O State       RISC V  ---         3
+// 0x00 (0)       0  - Console status      Z80     RISC V      
+//        --      1  - Console in          Z80     ---         1
+//        --      1  - Console out         ---     Z80         2
+// 0x04 (1)       10 - Drive               Both    Z80
+// 0x08 (2)       11 - Track               Both    Z80
+// 0x0c (3)       12 - Sector low          Both    Z80
+// --             13 - Disk command        ---     Z80         2
+// --             13 - Disk command        Z80     ---
+// ---            14 - Disk status         Z80     RISC V      4
+// 0x14 (5)       15 - DMA Adr LSB         Both    Z80
+// 0x18 (6)       16 - DMA Adr MSB         Both    Z80
+// 0x1c (7)       17 - Sector high         Both    Z80
+// --             xx - Other               Z80
+// 0x20 (8)       -- - Z80 I/O Adr         RISC V  ---
+// 0x24 (9)       -- - Z80 Out Data        RISC V  ---
+// 0x28 (10)      -- - Z80 In Data         ---     RISC V
+// 0x2c (11)      -- - Z80 I/O State       RISC V  ---         3
 
 // Notes:
 //  1 - Z80 held in wait until RISC V write the data to complete the Z80 I/O 
@@ -91,7 +91,7 @@ module cpm_io(
             z80di <= 8'h55;
         end
         else if (io_valid)
-             if (rv_wstr!= 0) begin
+             if (rv_wstr != 0) begin
                 case (rv_adr)
                     4'd0: console_status <= rv_wdata;
                     4'd1: disk_drive <= rv_wdata;
@@ -112,6 +112,7 @@ module cpm_io(
              end
              else begin
                 case (rv_adr)
+                    4'd0: rv_rdata <= console_status;
                     4'd1: rv_rdata <= disk_drive;
                     4'd2: rv_rdata <= disk_track;
                     4'd3: rv_rdata <= disk_sector_lsb;
@@ -165,8 +166,8 @@ module cpm_io(
                     // synthesis translate_off
                     $display("Z80 input port 0x%02x", z80adr);
                     // synthesis translate_on
-                     io_port_status <= IO_STAT_READ;
                      io_port_adr <= z80adr;
+                     io_port_status <= IO_STAT_READ;
                  end
              endcase
          end

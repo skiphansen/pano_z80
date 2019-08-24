@@ -12,6 +12,10 @@
 
 #include "usb.h"
 
+#define DEBUG_LOGGING
+// #define VERBOSE_DEBUG_LOGGING
+#include "log.h"
+
 /* Definitions of physical drive number for each drive */
 #define DEV_USB      0  /* Map USB MSD to physical drive 0 */
 
@@ -82,12 +86,15 @@ DRESULT disk_read (
    switch (pdrv) {
    case DEV_USB :
       result = msd->block_read(msd->dev, sector, count, buff);
-      if (result != count)
+      if (result != count) {
+         ELOG("block_read returned %d\n",result);
          return RES_NOTRDY;
+      }
       else
          return RES_OK;
    }
 
+   ELOG("Error - Device not DEV_USB\n");
    return RES_PARERR;
 }
 

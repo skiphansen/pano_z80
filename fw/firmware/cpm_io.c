@@ -114,19 +114,21 @@ void HandleIoIn(uint8_t IoPort)
    static uint8_t LastData;
 
    switch(IoPort) {
-      case 0:  
-      // console status, 0xff: input available, 0x00: no input available
-         Data = usb_kbd_testc() ? 0xff : 0;
-         break;
-
       case 1:  // console data
-         if(usb_kbd_testc()) {
-            Data = (uint8_t) usb_kbd_getc();
-            LastData = Data;
+         if(!usb_kbd_testc()) {
+            VLOG("Waiting for console input, z80_con_status: 0x%x\n",
+                z80_con_status);
+            while(!usb_kbd_testc()) {
+               usb_event_poll();
+            }
+            VLOG("Continuing\n");
          }
-         else {
-            LOG("Called when console was empty\n");
-            Data = LastData;
+         Data = (uint8_t) usb_kbd_getc();
+         LastData = Data;
+         if(!usb_kbd_testc()) {
+            z80_con_status = 0;
+            VLOG("No more data available, z80_con_status: 0x%x\n",
+                 z80_con_status);
          }
          break;
 
@@ -135,15 +137,17 @@ void HandleIoIn(uint8_t IoPort)
          break;
 
 // The following are implemented in hardware so we should never see them here
+      case 0:  // console status
       case 10: // FDC drive
       case 11: // FDC track
       case 12: // FDC sector (low)
       case 15: // DMA destination address low
       case 16: // DMA destination address high
       case 17: // FDC sector high
+
 // We don't expect these ports to be read
       case 13: // FDC command
-         ELOG("Unexpected input from port 0x%x\n",IoPort);
+         ELOG("\nUnexpected input from port 0x%x\n",IoPort);
          break;
 
    // The following are not used implemented
@@ -174,7 +178,7 @@ void HandleIoIn(uint8_t IoPort)
       case 50: // client socket #1 status
       case 51: // client socket #1 data
       default:
-         ELOG("Input from port 0x%x ignored\n",IoPort);
+         ELOG("\nInput from port 0x%x ignored\n",IoPort);
          break;
    }
    z80_in_data = Data;
@@ -186,7 +190,9 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data)
 {
    switch(IoPort) {
       case 1:  // console data
-         term_putchar(Data);
+         if(Data != '\r') {
+            term_putchar(Data);
+         }
          break;
 
       case 13: // FDC command
@@ -202,7 +208,7 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data)
       case 15: // DMA destination address low
       case 16: // DMA destination address high
       case 17: // FDC sector high
-         ELOG("Unexpected output of 0x%x to port 0x%x\n",Data,IoPort);
+         ELOG("\nUnexpected output of 0x%x to port 0x%x\n",Data,IoPort);
          break;
 
    // The following are not used implemented
@@ -233,7 +239,7 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data)
       case 50: // client socket #1 status
       case 51: // client socket #1 data
       default:
-         ELOG("Output of 0x%x to port 0x%x ignored\n",Data,IoPort);
+         ELOG("\nOutput of 0x%x to port 0x%x ignored\n",Data,IoPort);
          break;
    }
 }
@@ -272,30 +278,30 @@ static void fdco_out(uint8_t Data)
 
    do {
       if(Data > 1) {
-         ELOG("Invalid command %d\n",Data);
+         ELOG("\nInvalid command %d\n",Data);
          status = 7;
          break;
       }
       VLOG("Disk %s %d:%d:%d @ 0x%x\n",Data == 0 ? "read" : "write",
            Drive,Track,Sector,DmaAdr);
       if(Drive >= MAX_LOGICAL_DRIVES || (fp = pDisk->fp) == NULL) {
-         ELOG("Invalid drive %d\n",Drive);
+         ELOG("\nInvalid drive %d\n",Drive);
          status = 1;
          break;
       }
       if(Track > pDisk->tracks) {
-         ELOG("Invalid track %d\n",Track);
+         ELOG("\nInvalid track %d\n",Track);
          status = 2;
          break;
       }
       if(Sector > pDisk->sectors) {
-         ELOG("Invalid sector %d\n",Sector);
+         ELOG("\nInvalid sector %d\n",Sector);
          status = 3;
          break;
       }
       pos = (((long)Track) * ((long)pDisk->sectors) + Sector - 1) << 7;
       if((Err = f_lseek(fp,pos)) != FR_OK) {
-         ELOG("f_lseek failed: %d\n",Err);
+         ELOG("\nf_lseek failed: %d\n",Err);
          status = 4;
          break;
       }
@@ -303,11 +309,11 @@ static void fdco_out(uint8_t Data)
       switch(Data) {
          case 0:  /* read */
             if((Err = f_read(fp,&Buf,CPM_SECTOR_SIZE,&Read)) != FR_OK) {
-               ELOG("f_read failed: %d\n",Err);
+               ELOG("\nf_read failed: %d\n",Err);
                status = 5;
             }
             else if(Read != CPM_SECTOR_SIZE) {
-               ELOG("Short read failure, read %d, requested %d\n",Read,
+               ELOG("\nShort read failure, read %d, requested %d\n",Read,
                     CPM_SECTOR_SIZE);
                status = 5;
             }
@@ -319,18 +325,18 @@ static void fdco_out(uint8_t Data)
          case 1:  /* write */
             CopyFromZ80(Buf,pBuf,CPM_SECTOR_SIZE);
             if((Err = f_write(fp,Buf,CPM_SECTOR_SIZE,&Wrote)) != FR_OK) {
-               ELOG("f_write failed: %d\n",Err);
+               ELOG("\nf_write failed: %d\n",Err);
                status = 6;
             }
             else if(Wrote != CPM_SECTOR_SIZE) {
-               ELOG("Short write failure, wrote %d, requested %d\n",Wrote,
+               ELOG("\nShort write failure, wrote %d, requested %d\n",Wrote,
                     CPM_SECTOR_SIZE);
                status = 6;
             }
             break;
 
          default:    /* illegal command */
-            ELOG("Invalid command 0x%x\n",Data);
+            ELOG("\nInvalid command 0x%x\n",Data);
             status = 7;
             break;
       }
@@ -338,7 +344,7 @@ static void fdco_out(uint8_t Data)
 
    gDiskStatus = status;
    if(status != 0) {
-      ELOG("%s command failed, Disk %s %d:%d:%d, status %d\n",
+      ELOG("\n%s command failed, Disk %c T:%d, S:%d, status: %d\n",
            Data == 0 ? "Read" : "Write",'A' + Drive,Track,Sector,status);
    }
 }

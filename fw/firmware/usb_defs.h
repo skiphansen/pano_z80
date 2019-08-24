@@ -29,11 +29,11 @@
 /* USB constants */
 
 /* Device and/or Interface Class codes */
-#define USB_CLASS_PER_INTERFACE  0	/* for DeviceClass */
+#define USB_CLASS_PER_INTERFACE  0  /* for DeviceClass */
 #define USB_CLASS_AUDIO          1
 #define USB_CLASS_COMM           2
 #define USB_CLASS_HID            3
-#define USB_CLASS_PRINTER	       7
+#define USB_CLASS_PRINTER         7
 #define USB_CLASS_MASS_STORAGE   8
 #define USB_CLASS_HUB            9
 #define USB_CLASS_DATA           10
@@ -50,19 +50,19 @@
 
 
 /* Sub STORAGE Classes */
-#define US_SC_RBC              1		/* Typically, flash devices */
-#define US_SC_8020             2		/* CD-ROM */
-#define US_SC_QIC              3		/* QIC-157 Tapes */
-#define US_SC_UFI              4		/* Floppy */
-#define US_SC_8070             5		/* Removable media */
-#define US_SC_SCSI             6		/* Transparent */
+#define US_SC_RBC              1    /* Typically, flash devices */
+#define US_SC_8020             2    /* CD-ROM */
+#define US_SC_QIC              3    /* QIC-157 Tapes */
+#define US_SC_UFI              4    /* Floppy */
+#define US_SC_8070             5    /* Removable media */
+#define US_SC_SCSI             6    /* Transparent */
 #define US_SC_MIN              US_SC_RBC
 #define US_SC_MAX              US_SC_SCSI
 
 /* STORAGE Protocols */
-#define US_PR_CB               1		/* Control/Bulk w/o interrupt */
-#define US_PR_CBI              0		/* Control/Bulk/Interrupt */
-#define US_PR_BULK             0x50		/* bulk only */
+#define US_PR_CB               1    /* Control/Bulk w/o interrupt */
+#define US_PR_CBI              0    /* Control/Bulk/Interrupt */
+#define US_PR_BULK             0x50    /* bulk only */
 
 /* USB types */
 #define USB_TYPE_STANDARD   (0x00 << 5)
@@ -81,10 +81,10 @@
 #define USB_DIR_IN            0x80
 
 /* USB device speeds */
-#define USB_SPEED_FULL		0x0	/* 12Mbps */
-#define USB_SPEED_LOW		0x1	/* 1.5Mbps */
-#define USB_SPEED_HIGH		0x2	/* 480Mbps */
-#define USB_SPEED_RESERVED	0x3
+#define USB_SPEED_FULL     0x0   /* 12Mbps */
+#define USB_SPEED_LOW      0x1   /* 1.5Mbps */
+#define USB_SPEED_HIGH     0x2   /* 480Mbps */
+#define USB_SPEED_RESERVED 0x3
 
 /* Descriptor types */
 #define USB_DT_DEVICE        0x01
@@ -103,15 +103,15 @@
 #define USB_DT_CONFIG_SIZE      9
 #define USB_DT_INTERFACE_SIZE   9
 #define USB_DT_ENDPOINT_SIZE    7
-#define USB_DT_ENDPOINT_AUDIO_SIZE  9	/* Audio extension */
+#define USB_DT_ENDPOINT_AUDIO_SIZE  9  /* Audio extension */
 #define USB_DT_HUB_NONVAR_SIZE  7
 #define USB_DT_HID_SIZE         9
 
 /* Endpoints */
-#define USB_ENDPOINT_NUMBER_MASK  0x0f	/* in bEndpointAddress */
+#define USB_ENDPOINT_NUMBER_MASK  0x0f /* in bEndpointAddress */
 #define USB_ENDPOINT_DIR_MASK     0x80
 
-#define USB_ENDPOINT_XFERTYPE_MASK 0x03	/* in bmAttributes */
+#define USB_ENDPOINT_XFERTYPE_MASK 0x03   /* in bmAttributes */
 #define USB_ENDPOINT_XFER_CONTROL  0
 #define USB_ENDPOINT_XFER_ISOC     1
 #define USB_ENDPOINT_XFER_BULK     2
@@ -171,14 +171,15 @@
 #define USB_BULK           3
 
 /* USB-status codes: */
-#define USB_ST_ACTIVE           0x1		/* TD is active */
-#define USB_ST_STALLED          0x2		/* TD is stalled */
-#define USB_ST_BUF_ERR          0x4		/* buffer error */
-#define USB_ST_BABBLE_DET       0x8		/* Babble detected */
-#define USB_ST_NAK_REC          0x10	/* NAK Received*/
-#define USB_ST_CRC_ERR          0x20	/* CRC/timeout Error */
-#define USB_ST_BIT_ERR          0x40	/* Bitstuff error */
-#define USB_ST_NOT_PROC         0x80000000L	/* Not yet processed */
+#define USB_ST_ACTIVE           0x1    /* TD is active */
+#define USB_ST_STALLED          0x2    /* TD is stalled */
+#define USB_ST_BUF_ERR          0x4    /* buffer error */
+#define USB_ST_BABBLE_DET       0x8    /* Babble detected */
+#define USB_ST_NAK_REC          0x10   /* NAK Received*/
+#define USB_ST_CRC_ERR          0x20   /* CRC/timeout Error */
+#define USB_ST_BIT_ERR          0x40   /* Bitstuff error */
+#define USB_ST_NAK_TO           0x10   /* NAK timeout */
+#define USB_ST_NOT_PROC         0x80000000L  /* Not yet processed */
 
 
 /*************************************************************************
@@ -189,8 +190,8 @@
  * Hub request types
  */
 
-#define USB_RT_HUB	(USB_TYPE_CLASS | USB_RECIP_DEVICE)
-#define USB_RT_PORT	(USB_TYPE_CLASS | USB_RECIP_OTHER)
+#define USB_RT_HUB   (USB_TYPE_CLASS | USB_RECIP_DEVICE)
+#define USB_RT_PORT  (USB_TYPE_CLASS | USB_RECIP_OTHER)
 
 /*
  * Hub Class feature numbers
@@ -223,9 +224,9 @@
 #define USB_PORT_STAT_RESET         0x0010
 #define USB_PORT_STAT_POWER         0x0100
 #define USB_PORT_STAT_LOW_SPEED     0x0200
-#define USB_PORT_STAT_HIGH_SPEED    0x0400	/* support for EHCI */
-#define USB_PORT_STAT_SPEED	\
-	(USB_PORT_STAT_LOW_SPEED | USB_PORT_STAT_HIGH_SPEED)
+#define USB_PORT_STAT_HIGH_SPEED    0x0400   /* support for EHCI */
+#define USB_PORT_STAT_SPEED   \
+   (USB_PORT_STAT_LOW_SPEED | USB_PORT_STAT_HIGH_SPEED)
 
 /* wPortChange bits */
 #define USB_PORT_STAT_C_CONNECTION  0x0001
@@ -242,10 +243,10 @@
 /*
  *Hub Status & Hub Change bit masks
  */
-#define HUB_STATUS_LOCAL_POWER	0x0001
-#define HUB_STATUS_OVERCURRENT	0x0002
+#define HUB_STATUS_LOCAL_POWER   0x0001
+#define HUB_STATUS_OVERCURRENT   0x0002
 
-#define HUB_CHANGE_LOCAL_POWER	0x0001
-#define HUB_CHANGE_OVERCURRENT	0x0002
+#define HUB_CHANGE_LOCAL_POWER   0x0001
+#define HUB_CHANGE_OVERCURRENT   0x0002
 
 #endif /*_USB_DEFS_H_ */

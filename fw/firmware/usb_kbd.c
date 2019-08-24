@@ -348,6 +348,7 @@ static int usb_kbd_probe(struct usb_device *dev, unsigned int ifnum)
    dev->irq_handle=usb_kbd_irq;
    LOG("USB KBD enable interrupt pipe...\n");
    usb_submit_int_msg(dev,pipe,&new[0], maxp > 8 ? 8 : maxp,ep->bInterval);
+   ALOG("USB KBD found\n");
    return 1;
 }
 

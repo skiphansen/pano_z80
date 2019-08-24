@@ -19,15 +19,7 @@ DMAH    EQU     16              ;dma-port: dma address high
 TSTMSG: DEFM    'Hello Pano world!'
         DEFB    13,10,0
 
-COLD:   LD      HL,1
-        LD      BC,2
-        ADD     HL,BC
-        LD      DE,3
-        ADD     HL,DE
-        LD      SP,4
-        ADD     HL,SP
-
-        LD     A,055H
+COLD:   LD      A,055H
         OUT     (DRIVE),A
         INC     A
         OUT     (TRACK),A

@@ -36,9 +36,9 @@ void irq_handler(uint32_t pc) {
 
 void main() 
 {
-   uint8_t InData = 0x55;
    uint8_t Dummy;
 
+   z80_con_status = 0x12;
    z80_drive = 0x55;
    Dummy = z80_drive;
    z80_track = Dummy;
@@ -50,7 +50,7 @@ void main()
             break;
 
          case IO_STAT_READ:   // z80 In
-            z80_in_data = 0;
+            z80_in_data = 0xaa;
             break;
       }
    }

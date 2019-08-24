@@ -60,6 +60,7 @@ void main()
    bool BootImageLoaded = false;
    uint8_t LastIoState = 0xff;
    uint8_t IoState;
+   uint32_t Timeout;
 
    dly_tap = 0x03;
    led_red = 0;
@@ -136,28 +137,45 @@ void main()
       LOG("Loading default Z80 boot image\n");
       LoadDefaultBoot();
    }
+   z80_con_status = 0;  // No console input yet
 
    LOG("Releasing Z80 reset\n");
    z80_rst = 0;   // release Z80 reset
+
+#if 0
+   LOG("Disabling serial port\n");
+   term_enable_uart(false);
+#endif
+
+   Timeout = time(); 
    for( ; ; ) {
       usb_event_poll();
-      IoState = z80_io_state;
-
-      if(LastIoState != IoState) {
-         LastIoState = IoState;
-         VLOG("z80_io_state: %d\n",IoState);
+      if(usb_kbd_testc()) {
+         z80_con_status = 0xff;  // console input ready
       }
-      switch(IoState) {
-         case IO_STAT_WRITE:  // Z80 out
-            HandleIoOut(z80_io_adr,z80_out_data);
-            break;
 
-         case IO_STAT_READ:   // z80 In
-            HandleIoIn(z80_io_adr);
-            // z80_in_data = 0;
+      do {
+         IoState = z80_io_state;
 
-            break;
-      }
+         if(LastIoState != IoState) {
+            LastIoState = IoState;
+            VLOG("z80_io_state: %d\n",IoState);
+         }
+         switch(IoState) {
+            case IO_STAT_WRITE:  // Z80 out
+               HandleIoOut(z80_io_adr,z80_out_data);
+               break;
+
+            case IO_STAT_READ:   // z80 In
+               HandleIoIn(z80_io_adr);
+               break;
+         }
+         if(IoState != IO_STAT_IDLE) {
+         // Give the z80 a chance to output another character before
+         // we break out of this loop and call usb_event_poll again...
+            Timeout = time() + (CYCLE_PER_US * 1000);
+         }
+      } while(time() < Timeout);
    }
 
    led_red = 1;

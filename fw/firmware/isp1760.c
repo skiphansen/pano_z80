@@ -39,7 +39,7 @@
 #define  debug_printf(fmt, args...)
 #endif
 
-#undef ISP_IRQ_DRIVEN
+// #define ISP_IRQ_DRIVEN
 
 interrupt_transfer_t registered_transfers[MAX_REG_INT_TRANSFER_NUM];
 
@@ -581,7 +581,7 @@ static int isp_submit(struct usb_device *dev, unsigned long pipe,
         break;
 
     case ISP_NACK_TIMEOUT:
-       dev->status = USB_ST_NAK_REC;
+       dev->status = USB_ST_NAK_TO;
        break;
 
     default:
