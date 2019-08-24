@@ -46,7 +46,7 @@ ram_init.txt: $(BIN2RAM_INIT) firmware.bin
 	$(TOOLCHAIN_PREFIX)gcc -c $(CFLAGS) $<
 
 clean:
-	rm -rf *.o *.d *.elf *.bin *.map *.lst z80_boot.h
+	rm -rf *.o *.d *.elf *.bin *.map *.lst 
 
 .PHONY: clean
 

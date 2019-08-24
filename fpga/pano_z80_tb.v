@@ -104,8 +104,9 @@ module pano_top_tb (
     .WRITE_MODE_A("WRITE_FIRST"), // WRITE_FIRST, READ_FIRST or NO_CHANGE
     .WRITE_MODE_B("WRITE_FIRST"), // WRITE_FIRST, READ_FIRST or NO_CHANGE
     .SIM_COLLISION_CHECK("ALL"), // "NONE", "WARNING_ONLY", "GENERATE_X_ONLY", "ALL"
-    .INIT_00(256'hd30025cab77e000321000a0d21646c726f77206f6e6150206f6c6c65480017c3),
-    .INIT_01(256'h0000000000000000000000000000000000000000000000000076f3001ac32301)
+    .INIT_00(256'h031109000201000121000a0d21646c726f77206f6e6150206f6c6c65480017c3),
+    .INIT_01(256'h210ad3aa3e0edb0dd3af10d33c0fd33c0cd33c0bd33c0ad3553e390004311900),
+    .INIT_02(256'h000000000000000000000000000000000076f30042c32301d3004dcab77e0003)
     ) RAMB16_S9_S9_inst (
     .DOA(z80ram_do), // Port A 8-bit Data Output
     // .DOB(z80ram_do_b), // Port B 8-bit Data Output
@@ -215,9 +216,8 @@ module pano_top_tb (
     .SRVAL(36'h000000000), // Output value upon SSR assertion
     .WRITE_MODE("WRITE_FIRST"), // WRITE_FIRST, READ_FIRST or NO_CHANGE
     .INIT_00(256'h07b7a00100a080e700000097010080e70000009700018513000100010001a811),
-    .INIT_01(256'h4605030007370550059320e784230ff777132047c70320e78223055007130300),
-    .INIT_02(256'h22b7042300158793fed79ae3fec78ae30ff7f79322c7478322474783a0194689),
-    .INIT_03(256'h0000000000000000000000000000000000000000000000000000b7d50ff7f593)
+    .INIT_01(256'ha019468946050300073720e784230ff777132047c70320e78223055007130300),
+    .INIT_02(256'h000000000000b7f522070423fed79ae3fec78ae30ff7f79322c7478322474783)
     ) RAMB16_S36_inst (
     .DO(ram_rdata), // 32-bit Data Output
     //.DOP(DOP), // 4-bit parity Output
@@ -233,7 +233,7 @@ module pano_top_tb (
     // Z80 I/O
     // 
 
-    assign z80_Ready = !z80_MREQ_n || (!z80_IORQ_n && io_ready);
+    assign z80_Ready = !(!z80_IORQ_n && !io_ready);
 
     assign mem_rdata = 
         addr_in_ram ? ram_rdata : (
@@ -242,6 +242,7 @@ module pano_top_tb (
 
     cpm_io cpm_io(
         .clk(clk_4),
+        .reset(reset),
      // Z80 interface
         .z80_iord(z80_io_rd),
         .z80_iowr(z80_io_wr),

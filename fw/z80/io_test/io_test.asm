@@ -19,13 +19,38 @@ DMAH    EQU     16              ;dma-port: dma address high
 TSTMSG: DEFM    'Hello Pano world!'
         DEFB    13,10,0
 
-COLD:   LD      HL,TSTMSG
+COLD:   LD      HL,1
+        LD      BC,2
+        ADD     HL,BC
+        LD      DE,3
+        ADD     HL,DE
+        LD      SP,4
+        ADD     HL,SP
+
+        LD     A,055H
+        OUT     (DRIVE),A
+        INC     A
+        OUT     (TRACK),A
+        INC     A
+        OUT     (SECTOR),A
+        INC     A
+        OUT     (DMAL),A
+        INC     A
+        OUT     (DMAH),A
+        XOR     A               ;read sector
+        OUT     (FDCOP),A
+        IN      a,(FDCST)       ;read status
+        LD      A,0AAH
+        OUT     (DRIVE),A
+
+        LD      HL,TSTMSG
 PRTMSG: LD      A,(HL)
         OR      A
         JP      Z,STOP
         OUT     (CONDAT),A
         INC     HL
         JP      PRTMSG
+
 STOP:   DI
         HALT                    ;and halt cpu
 ;

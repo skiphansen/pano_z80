@@ -34,7 +34,7 @@
 #include "cpm_io.h"
 
 #define DEBUG_LOGGING
-#define VERBOSE_DEBUG_LOGGING
+// #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
 #define dly_tap *((volatile uint32_t *)0x03000000)
@@ -59,6 +59,7 @@ void main()
    char DriveSave;
    bool BootImageLoaded = false;
    uint8_t LastIoState = 0xff;
+   uint8_t IoState;
 
    dly_tap = 0x03;
    led_red = 0;
@@ -72,9 +73,6 @@ void main()
    term_goto(0,0);
    ALOG_R("Pano Logic G1, PicoRV32 @ 25MHz, LPDDR @ 100MHz\n");
    ALOG_R("Compiled " __DATE__ " " __TIME__ "\n");
-   Z80IoTest();
-#if 0
-   Z80MemTest();
    usb_init();
    term_clear();
    term_enable_uart(true);
@@ -138,22 +136,26 @@ void main()
       LOG("Loading default Z80 boot image\n");
       LoadDefaultBoot();
    }
-#endif
 
-   z80_rst = 1;
-   LOG("z80_rst: %d\n",z80_rst);
    LOG("Releasing Z80 reset\n");
    z80_rst = 0;   // release Z80 reset
-   LOG("z80_rst: %d\n",z80_rst);
    for( ; ; ) {
       usb_event_poll();
-      switch(z80_io_state) {
+      IoState = z80_io_state;
+
+      if(LastIoState != IoState) {
+         LastIoState = IoState;
+         VLOG("z80_io_state: %d\n",IoState);
+      }
+      switch(IoState) {
          case IO_STAT_WRITE:  // Z80 out
             HandleIoOut(z80_io_adr,z80_out_data);
             break;
 
          case IO_STAT_READ:   // z80 In
             HandleIoIn(z80_io_adr);
+            // z80_in_data = 0;
+
             break;
       }
    }

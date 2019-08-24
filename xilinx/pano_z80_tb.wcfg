@@ -26,82 +26,6 @@
       <obj_property name="ElementShortName">clk_4</obj_property>
       <obj_property name="ObjectShortName">clk_4</obj_property>
    </wvobject>
-   <wvobject fp_name="group420" type="group">
-      <obj_property name="label">T80</obj_property>
-      <obj_property name="DisplayName">label</obj_property>
-      <wvobject fp_name="/test/DUT/T80sed/reset_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">reset_n</obj_property>
-         <obj_property name="ObjectShortName">reset_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/clk_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">clk_n</obj_property>
-         <obj_property name="ObjectShortName">clk_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/clken" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">clken</obj_property>
-         <obj_property name="ObjectShortName">clken</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/wait_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">wait_n</obj_property>
-         <obj_property name="ObjectShortName">wait_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/int_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">int_n</obj_property>
-         <obj_property name="ObjectShortName">int_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/nmi_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">nmi_n</obj_property>
-         <obj_property name="ObjectShortName">nmi_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/busrq_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">busrq_n</obj_property>
-         <obj_property name="ObjectShortName">busrq_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/m1_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">m1_n</obj_property>
-         <obj_property name="ObjectShortName">m1_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/mreq_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">mreq_n</obj_property>
-         <obj_property name="ObjectShortName">mreq_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/iorq_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">iorq_n</obj_property>
-         <obj_property name="ObjectShortName">iorq_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/rd_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">rd_n</obj_property>
-         <obj_property name="ObjectShortName">rd_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/wr_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">wr_n</obj_property>
-         <obj_property name="ObjectShortName">wr_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/rfsh_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">rfsh_n</obj_property>
-         <obj_property name="ObjectShortName">rfsh_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/halt_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">halt_n</obj_property>
-         <obj_property name="ObjectShortName">halt_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/busak_n" type="logic" db_ref_id="1">
-         <obj_property name="ElementShortName">busak_n</obj_property>
-         <obj_property name="ObjectShortName">busak_n</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/a" type="array" db_ref_id="1">
-         <obj_property name="ElementShortName">a[15:0]</obj_property>
-         <obj_property name="ObjectShortName">a[15:0]</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/di" type="array" db_ref_id="1">
-         <obj_property name="ElementShortName">di[7:0]</obj_property>
-         <obj_property name="ObjectShortName">di[7:0]</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/T80sed/do" type="array" db_ref_id="1">
-         <obj_property name="ElementShortName">do[7:0]</obj_property>
-         <obj_property name="ObjectShortName">do[7:0]</obj_property>
-      </wvobject>
-   </wvobject>
    <wvobject fp_name="group437" type="group">
       <obj_property name="label">picrorv</obj_property>
       <obj_property name="DisplayName">label</obj_property>
@@ -209,10 +133,6 @@
          <obj_property name="ElementShortName">out_port_data[7:0]</obj_property>
          <obj_property name="ObjectShortName">out_port_data[7:0]</obj_property>
       </wvobject>
-      <wvobject fp_name="/test/DUT/cpm_io/in_port_data" type="array" db_ref_id="1">
-         <obj_property name="ElementShortName">in_port_data[7:0]</obj_property>
-         <obj_property name="ObjectShortName">in_port_data[7:0]</obj_property>
-      </wvobject>
       <wvobject fp_name="/test/DUT/cpm_io/disk_drive" type="array" db_ref_id="1">
          <obj_property name="ElementShortName">disk_drive[7:0]</obj_property>
          <obj_property name="ObjectShortName">disk_drive[7:0]</obj_property>
@@ -236,10 +156,6 @@
       <wvobject fp_name="/test/DUT/cpm_io/disk_dma_adr_msb" type="array" db_ref_id="1">
          <obj_property name="ElementShortName">disk_dma_adr_msb[7:0]</obj_property>
          <obj_property name="ObjectShortName">disk_dma_adr_msb[7:0]</obj_property>
-      </wvobject>
-      <wvobject fp_name="/test/DUT/cpm_io/disk_status" type="array" db_ref_id="1">
-         <obj_property name="ElementShortName">disk_status[7:0]</obj_property>
-         <obj_property name="ObjectShortName">disk_status[7:0]</obj_property>
       </wvobject>
       <wvobject fp_name="/test/DUT/cpm_io/console_status" type="array" db_ref_id="1">
          <obj_property name="ElementShortName">console_status[7:0]</obj_property>
@@ -308,6 +224,110 @@
       <wvobject fp_name="/test/DUT/RAMB16_S9_S9_inst/WEA" type="logic" db_ref_id="1">
          <obj_property name="ElementShortName">WEA</obj_property>
          <obj_property name="ObjectShortName">WEA</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject fp_name="group99" type="group">
+      <obj_property name="label">t80-sed</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <wvobject fp_name="/test/DUT/T80sed/reset_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">reset_n</obj_property>
+         <obj_property name="ObjectShortName">reset_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/clk_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">clk_n</obj_property>
+         <obj_property name="ObjectShortName">clk_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/clken" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">clken</obj_property>
+         <obj_property name="ObjectShortName">clken</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/wait_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">wait_n</obj_property>
+         <obj_property name="ObjectShortName">wait_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/int_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">int_n</obj_property>
+         <obj_property name="ObjectShortName">int_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/nmi_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">nmi_n</obj_property>
+         <obj_property name="ObjectShortName">nmi_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/busrq_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">busrq_n</obj_property>
+         <obj_property name="ObjectShortName">busrq_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/m1_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">m1_n</obj_property>
+         <obj_property name="ObjectShortName">m1_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/mreq_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">mreq_n</obj_property>
+         <obj_property name="ObjectShortName">mreq_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/iorq_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">iorq_n</obj_property>
+         <obj_property name="ObjectShortName">iorq_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/rd_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">rd_n</obj_property>
+         <obj_property name="ObjectShortName">rd_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/wr_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">wr_n</obj_property>
+         <obj_property name="ObjectShortName">wr_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/rfsh_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">rfsh_n</obj_property>
+         <obj_property name="ObjectShortName">rfsh_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/halt_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">halt_n</obj_property>
+         <obj_property name="ObjectShortName">halt_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/busak_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">busak_n</obj_property>
+         <obj_property name="ObjectShortName">busak_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/a" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">a[15:0]</obj_property>
+         <obj_property name="ObjectShortName">a[15:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/di" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">di[7:0]</obj_property>
+         <obj_property name="ObjectShortName">di[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/do" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">do[7:0]</obj_property>
+         <obj_property name="ObjectShortName">do[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/intcycle_n" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">intcycle_n</obj_property>
+         <obj_property name="ObjectShortName">intcycle_n</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/noread" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">noread</obj_property>
+         <obj_property name="ObjectShortName">noread</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/write" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">write</obj_property>
+         <obj_property name="ObjectShortName">write</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/iorq" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">iorq</obj_property>
+         <obj_property name="ObjectShortName">iorq</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/di_reg" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">di_reg[7:0]</obj_property>
+         <obj_property name="ObjectShortName">di_reg[7:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/mcycle" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">mcycle[2:0]</obj_property>
+         <obj_property name="ObjectShortName">mcycle[2:0]</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/T80sed/tstate" type="array" db_ref_id="1">
+         <obj_property name="ElementShortName">tstate[2:0]</obj_property>
+         <obj_property name="ObjectShortName">tstate[2:0]</obj_property>
       </wvobject>
    </wvobject>
 </wave_config>

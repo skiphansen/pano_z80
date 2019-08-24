@@ -79,10 +79,6 @@ int gMountedDrives;
 struct dskdef gDisks[MAX_LOGICAL_DRIVES];
 
 uint8_t gDiskStatus;
-uint8_t gDrive;
-uint8_t gTrack;
-uint16_t gSector;
-uint16_t gDmaAdr;
 
 static void fdco_out(uint8_t Data);
 void CopyToZ80(uint8_t *pTo,uint8_t *pFrom,int Len);
@@ -90,7 +86,7 @@ void CopyFromZ80(uint8_t *pTo,uint8_t *pFrom,int Len);
 
 void CopyToZ80(uint8_t *pTo,uint8_t *pFrom,int Len)
 {
-   LOG("Copying %d bytes from 0x%x to 0x%x\n",Len,(unsigned int) pFrom,
+   VLOG("Copying %d bytes from 0x%x to 0x%x\n",Len,(unsigned int) pFrom,
        (unsigned int) pTo);
 
    while(Len -- > 0) {
@@ -101,7 +97,7 @@ void CopyToZ80(uint8_t *pTo,uint8_t *pFrom,int Len)
 
 void CopyFromZ80(uint8_t *pTo,uint8_t *pFrom,int Len)
 {
-   LOG("Copying %d bytes from 0x%x to 0x%x\n",Len,(unsigned int) pFrom,
+   VLOG("Copying %d bytes from 0x%x to 0x%x\n",Len,(unsigned int) pFrom,
        (unsigned int) pTo);
 
    while(Len -- > 0) {
@@ -114,37 +110,40 @@ void CopyFromZ80(uint8_t *pTo,uint8_t *pFrom,int Len)
 void HandleIoIn(uint8_t IoPort)
 {
    uint8_t Ret;
-   uint8_t Data;
+   uint8_t Data = 0;
+   static uint8_t LastData;
 
    switch(IoPort) {
       case 0:  
       // console status, 0xff: input available, 0x00: no input available
-         Data = usb_kbd_testc() ? 0 : 0xff;
+         Data = usb_kbd_testc() ? 0xff : 0;
          break;
 
       case 1:  // console data
          if(usb_kbd_testc()) {
             Data = (uint8_t) usb_kbd_getc();
+            LastData = Data;
          }
          else {
-            Data = 0xff;
+            LOG("Called when console was empty\n");
+            Data = LastData;
          }
-         z80_in_data = Data;
-         VLOG("0x%x <- 0x%x\n",IoPort,Data);
+         break;
+
+      case 14: // FDC status
+         Data = gDiskStatus;
          break;
 
 // The following are implemented in hardware so we should never see them here
       case 10: // FDC drive
       case 11: // FDC track
       case 12: // FDC sector (low)
-      case 14: // FDC status
       case 15: // DMA destination address low
       case 16: // DMA destination address high
       case 17: // FDC sector high
 // We don't expect these ports to be read
       case 13: // FDC command
          ELOG("Unexpected input from port 0x%x\n",IoPort);
-         z80_in_data = 0;
          break;
 
    // The following are not used implemented
@@ -176,23 +175,22 @@ void HandleIoIn(uint8_t IoPort)
       case 51: // client socket #1 data
       default:
          ELOG("Input from port 0x%x ignored\n",IoPort);
-         z80_in_data = 0;
          break;
    }
+   z80_in_data = Data;
+   VLOG("%d <- 0x%x\n",IoPort,Data);
 }
 
 // This routine is called when the Z80 performs an IO write operation
 void HandleIoOut(uint8_t IoPort,uint8_t Data)
 {
-   uint8_t Ret;
-
    switch(IoPort) {
       case 1:  // console data
-         VLOG("0x%x -> 0x%x\n",IoPort,Data);
          term_putchar(Data);
          break;
 
       case 13: // FDC command
+         VLOG("0x%x -> %d\n",Data,IoPort);
          fdco_out(Data);
          break;
 
@@ -260,30 +258,42 @@ static void fdco_out(uint8_t Data)
    register int i;
    unsigned long pos;
    uint8_t status = 0;  // Assume the best
-   void *pBuf = (void *) ((gDmaAdr << 2) + Z80_MEMORY_BASE);
-   FIL *fp = gDisks[gDrive].fp;
+   FIL *fp = NULL;
    FRESULT Err;
    UINT Wrote;
    UINT Read;
    uint8_t Buf[CPM_SECTOR_SIZE];
+   uint8_t Drive = z80_drive;
+   uint8_t Track = z80_track;
+   uint16_t Sector = (z80_sector_msb << 8) + z80_sector_lsb;
+   uint16_t DmaAdr = (z80_dma_msb << 8) + z80_dma_lsb;
+   void *pBuf = (void *) ((DmaAdr << 2) + Z80_MEMORY_BASE);
+   struct dskdef *pDisk = &gDisks[Drive];
 
    do {
-      if(fp == NULL) {
-         ELOG("Invalid drive %d\n",gDrive);
+      if(Data > 1) {
+         ELOG("Invalid command %d\n",Data);
+         status = 7;
+         break;
+      }
+      VLOG("Disk %s %d:%d:%d @ 0x%x\n",Data == 0 ? "read" : "write",
+           Drive,Track,Sector,DmaAdr);
+      if(Drive >= MAX_LOGICAL_DRIVES || (fp = pDisk->fp) == NULL) {
+         ELOG("Invalid drive %d\n",Drive);
          status = 1;
          break;
       }
-      if(gTrack > gDisks[gDrive].tracks) {
-         ELOG("Invalid track %d\n",gTrack);
+      if(Track > pDisk->tracks) {
+         ELOG("Invalid track %d\n",Track);
          status = 2;
          break;
       }
-      if(gSector > gDisks[gDrive].sectors) {
-         ELOG("Invalid sector %d\n",gSector);
+      if(Sector > pDisk->sectors) {
+         ELOG("Invalid sector %d\n",Sector);
          status = 3;
          break;
       }
-      pos = (((long)gTrack) * ((long)gDisks[gDrive].sectors) + gSector - 1) << 7;
+      pos = (((long)Track) * ((long)pDisk->sectors) + Sector - 1) << 7;
       if((Err = f_lseek(fp,pos)) != FR_OK) {
          ELOG("f_lseek failed: %d\n",Err);
          status = 4;
@@ -328,7 +338,8 @@ static void fdco_out(uint8_t Data)
 
    gDiskStatus = status;
    if(status != 0) {
-      ELOG("%s command failed, status %d\n",Data == 0 ? "Read" : "Write",status);
+      ELOG("%s command failed, Disk %s %d:%d:%d, status %d\n",
+           Data == 0 ? "Read" : "Write",'A' + Drive,Track,Sector,status);
    }
 }
 
@@ -425,75 +436,6 @@ int LoadImage(const char *Filename,FSIZE_t Len)
    }
 
    return Err;
-}
-
-void Z80MemTest()
-{
-   uint8_t *pBuf = (uint8_t *) Z80_MEMORY_BASE;
-   uint8_t Buf[CPM_SECTOR_SIZE];
-   uint8_t i;
-
-   LOG("Reading Z80 memory\n");
-
-   for(i = 0; i < 16; i++) {
-      LOG_R("%02x ",pBuf[i*4]);
-      pBuf[i * 4] = (uint8_t) i;
-   }
-   LOG_R("\n");
-   for(i = 0; i < 16; i++) {
-     LOG_R("%02x ",pBuf[i * 4]);
-   }
-   LOG_R("\n");
-
-
-   for(i = 0; i < CPM_SECTOR_SIZE; i++) {
-      Buf[i] = i;
-   }
-   CopyToZ80(pBuf,Buf,sizeof(Buf));
-   memset(Buf,0x55,sizeof(Buf));
-   CopyFromZ80(Buf,pBuf,sizeof(Buf));
-   for(i = 0; i < CPM_SECTOR_SIZE; i++) {
-      if(Buf[i] != i) {
-         LOG("Failure @ %d, read: %d\n",i,Buf[i]);
-         break;
-      }
-   }
-
-   if(i == CPM_SECTOR_SIZE) {
-      LOG("Mem test passed\n");
-   }
-}
-
-void Z80IoTest()
-{
-   uint32_t Data;
-   LOG("Write 0x55 to z80_drive\n");
-   z80_drive = 0x55;
-   LOG("Write 0xaa to z80_track\n");
-   z80_track = 0xaa;
-
-   LOG("Write 0x1 to z80_sector_lsb\n");
-   z80_sector_lsb = 0x1;
-
-   LOG("Write 0x2 to z80_disk_status\n");
-   z80_disk_status = 0x2;
-
-   LOG("Write 0x4 to z80_dma_lsb\n");
-   z80_dma_lsb = 0x4;
-
-   LOG("Write 0x8 to z80_dma_msb\n");
-   z80_dma_msb = 0x8;
-
-   LOG("Write 0x10 to z80_sector_msb\n");
-   z80_sector_msb = 0x10;
-
-   LOG("z80_drive: 0x%x\n",z80_drive);
-   LOG("z80_track: 0x%x\n",z80_track);
-   LOG("z80_sector_lsb: 0x%x\n",z80_sector_lsb);
-   LOG("z80_disk_status: 0x%x\n",z80_disk_status);
-   LOG("z80_dma_lsb: 0x%x\n",z80_dma_lsb);
-   LOG("z80_dma_msb: 0x%x\n",z80_dma_msb);
-   LOG("z80_sector_msb: 0x%x\n",z80_sector_msb);
 }
 
 

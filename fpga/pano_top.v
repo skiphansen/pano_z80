@@ -8,7 +8,7 @@
 // Copyright (C) 2019  Wenting Zhang <zephray@outlook.com>
 ////////////////////////////////////////////////////////////////////////////////
 
-`define Z80_RAM_2K
+// `define Z80_RAM_2K
 
 module pano_top(
     // Global Clock Input
@@ -278,8 +278,6 @@ module pano_top(
     .WRITE_MODE_A("WRITE_FIRST"), // WRITE_FIRST, READ_FIRST or NO_CHANGE
     .WRITE_MODE_B("WRITE_FIRST"), // WRITE_FIRST, READ_FIRST or NO_CHANGE
     .SIM_COLLISION_CHECK("ALL"), // "NONE", "WARNING_ONLY", "GENERATE_X_ONLY", "ALL"
-    .INIT_00(256'hd30025cab77e000321000a0d21646c726f77206f6e6150206f6c6c65480017c3),
-    .INIT_01(256'h0000000000000000000000000000000000000000000000000076f3001ac32301)
 
     ) RAMB16_S9_S9_inst (
     .DOA(z80ram_do), // Port A 8-bit Data Output
@@ -720,7 +718,7 @@ module pano_top(
         .rv_wstr(mem_wstrb[0]),
         .rv_rdata(z80io_rdata)
         );
-    assign z80_Ready = !z80_MREQ_n || (!z80_IORQ_n && io_ready);
+    assign z80_Ready = !(!z80_IORQ_n && !io_ready);
     
     // GPIO
     // ----------------------------------------------------------------------

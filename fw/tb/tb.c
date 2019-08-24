@@ -50,7 +50,7 @@ void main()
             break;
 
          case IO_STAT_READ:   // z80 In
-            z80_in_data = InData++;
+            z80_in_data = 0;
             break;
       }
    }

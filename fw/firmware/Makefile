@@ -5,7 +5,7 @@ CFLAGS = -MD -O1 -march=rv32ic -ffreestanding -nostdlib -Wl,--no-relax
 TOOLCHAIN_PREFIX = riscv32-unknown-elf-
 BIN2MIF := ../../tools/bin2mif/bin2mif
 BIN2C := ../../tools/bin2c/bin2c
-Z80_BOOT_BIN := ../z80/io_test/io_test.bin
+Z80_BOOT_BIN := ../z80/srccpm2/boot.bin
 
 XC3SPROG := xc3sprog
 XC3SPROG_OPTS := -c jtaghs2 -v
