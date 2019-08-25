@@ -118,8 +118,14 @@ DRESULT disk_write (
 
    switch (pdrv) {
    case DEV_USB :
-      // not supported, yet.
-      return RES_NOTRDY;
+      result = msd->block_write(msd->dev, sector, count, buff);
+      if (result != count) {
+         ELOG("block_write returned %d\n",result);
+         return RES_NOTRDY;
+      }
+      else {
+         return RES_OK;
+      }
    }
 
    return RES_PARERR;

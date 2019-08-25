@@ -170,6 +170,8 @@ int usb_storage_probe(struct usb_device *dev, unsigned int ifnum,
             struct us_data *ss);
 unsigned long usb_stor_read(int device, unsigned long blknr,
              unsigned long blkcnt, void *buffer);
+static unsigned long usb_stor_write(int device, unsigned long blknr,
+                unsigned long  blkcnt, const void *buffer);
 struct usb_device * usb_get_dev_index(int index);
 void uhci_show_temp_int_td(void);
 void DumpHex(void *Data,int Len);
@@ -208,6 +210,7 @@ int usb_stor_scan(int mode)
       usb_dev_desc[i].target = 0xff;
       usb_dev_desc[i].dev = i;
       usb_dev_desc[i].block_read = usb_stor_read;
+      usb_dev_desc[i].block_write = usb_stor_write;
    }
 
    usb_max_devs = 0;
@@ -936,6 +939,23 @@ static int usb_read_10(ccb *srb, struct us_data *ss, unsigned long start,
    return ss->transport(srb, ss);
 }
 
+static int usb_write_10(ccb *srb, struct us_data *ss,
+         unsigned long start, unsigned short blocks)
+{
+   memset(&srb->cmd[0], 0, 12);
+   srb->cmd[0] = SCSI_WRITE10;
+   srb->cmd[1] = srb->lun << 5;
+   srb->cmd[2] = ((unsigned char) (start >> 24)) & 0xff;
+   srb->cmd[3] = ((unsigned char) (start >> 16)) & 0xff;
+   srb->cmd[4] = ((unsigned char) (start >> 8)) & 0xff;
+   srb->cmd[5] = ((unsigned char) (start)) & 0xff;
+   srb->cmd[7] = ((unsigned char) (blocks >> 8)) & 0xff;
+   srb->cmd[8] = (unsigned char) blocks & 0xff;
+   srb->cmdlen = 10;
+   LOG("write10: start %lx blocks %x\n", start, blocks);
+   return ss->transport(srb, ss);
+}
+
 
 #ifdef CONFIG_USB_BIN_FIXUP
 /*
@@ -961,6 +981,7 @@ static void usb_bin_fixup(struct usb_device_descriptor descriptor,
 #endif /* CONFIG_USB_BIN_FIXUP */
 
 #define USB_MAX_READ_BLK 20
+#define USB_MAX_WRITE_BLK 20
 
 unsigned long usb_stor_read(int device, unsigned long blknr,
              unsigned long blkcnt, void *buffer)
@@ -1045,6 +1066,85 @@ retry_it:
    return blkcnt;
 }
 
+static unsigned long usb_stor_write(int device, unsigned long blknr,
+                unsigned long  blkcnt, const void *buffer)
+{
+   unsigned long start, blks;
+   uintptr_t buf_addr;
+   unsigned short smallblks;
+   struct usb_device *udev;
+   int retry;
+   ccb *srb = &usb_ccb;
+   struct usb_device *dev;
+   int i;
+
+   if (blkcnt == 0)
+      return 0;
+
+   /* Setup  device */
+   LOG("\nusb_write: dev %d \n", device);
+   dev = NULL;
+   for (i = 0; i < USB_MAX_DEVICE; i++) {
+      dev = usb_get_dev_index(i);
+      if (dev == NULL) {
+         ELOG("Error - Device not found\n");
+         return 0;
+      }
+      if (dev->devnum == usb_dev_desc[device].target)
+         break;
+   }
+   // ss = (struct us_data *)udev->privptr;
+
+   usb_disable_asynch(1); /* asynch transfer not allowed */
+
+   srb->lun = usb_dev_desc[device].lun;
+   buf_addr = (uintptr_t)buffer;
+   start = blknr;
+   blks = blkcnt;
+
+   LOG("\nusb_write: dev %d startblk %lx, blccnt %lx buffer %lx\n",
+         device, start, blks, buf_addr);
+
+   do {
+      /* If write fails retry for max retry count else
+       * return with number of blocks written successfully.
+       */
+      retry = 2;
+      srb->pdata = (unsigned char *)buf_addr;
+      if (blks > USB_MAX_WRITE_BLK)
+         smallblks = USB_MAX_WRITE_BLK;
+      else
+         smallblks = (unsigned short) blks;
+retry_it:
+      if (smallblks == USB_MAX_WRITE_BLK)
+         usb_show_progress();
+      srb->datalen = usb_dev_desc[device].blksz * smallblks;
+      srb->pdata = (unsigned char *)buf_addr;
+      if (usb_write_10(srb, (struct us_data *)dev->privptr, start, smallblks)) {
+         ELOG("Write ERROR\n");
+         usb_request_sense(srb, (struct us_data *)dev->privptr);
+         ELOG("Request Sense returned %02X %02X %02X\n",
+               srb->sense_buf[2], srb->sense_buf[12],
+               srb->sense_buf[13]);
+         if (retry--)
+            goto retry_it;
+         blkcnt -= blks;
+         break;
+      }
+      start += smallblks;
+      blks -= smallblks;
+      buf_addr += srb->datalen;
+   } while (blks != 0);
+   // ss->flags &= ~USB_READY;
+
+   LOG("usb_write: end startblk %lx, blccnt %x buffer %lx\n",
+         start, smallblks, buf_addr);
+
+   usb_disable_asynch(0); /* asynch transfer allowed */
+   if (blkcnt >= USB_MAX_WRITE_BLK)
+      LOG("\n");
+   return blkcnt;
+}
 
 /* Probe to see if a new device is actually a Storage device */
 int usb_storage_probe(struct usb_device *dev, unsigned int ifnum,
