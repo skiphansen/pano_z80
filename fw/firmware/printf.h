@@ -34,7 +34,6 @@
 
 #include <stdarg.h>
 #include <stddef.h>
-#include "term.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,7 +46,8 @@ extern "C" {
  * \param character Character to output
  */
 // void _putchar(char character);
-#define _putchar term_putchar
+#include "vt100.h"
+#define _putchar vt100_putc
 
 /**
  * Tiny printf implementation

@@ -51,7 +51,6 @@
 #include <stdlib.h>
 #include "misc.h"
 #include "usb.h"
-#include "term.h"
 #include "string.h"
 
 // #define DEBUG_LOGGING

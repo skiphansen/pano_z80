@@ -54,7 +54,6 @@
 
 #include "misc.h"
 #include "usb.h"
-#include "term.h"
 // #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
@@ -174,7 +173,6 @@ static unsigned long usb_stor_write(int device, unsigned long blknr,
                 unsigned long  blkcnt, const void *buffer);
 struct usb_device * usb_get_dev_index(int index);
 void uhci_show_temp_int_td(void);
-void DumpHex(void *Data,int Len);
 
 block_dev_desc_t *usb_stor_get_dev(int index)
 {
@@ -458,7 +456,7 @@ int usb_stor_BBB_comdat(ccb *srb, struct us_data *us)
    LOG("dir %d lun %d cmdlen %d datalen %d\n",
       dir_in, srb->lun, srb->cmdlen,srb->datalen);
    if (srb->cmdlen) {
-      DumpHex(srb->cmd,srb->cmdlen);
+      LogHex(srb->cmd,srb->cmdlen);
    }
 #endif
    /* sanity checks */
@@ -670,7 +668,7 @@ int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
    }
 #ifdef BBB_XPORT_TRACE
    LOG("pdata:\n");
-   DumpHex(srb->pdata,data_actlen);
+   LogHex(srb->pdata,data_actlen);
 #endif
    /* STATUS phase + error handling */
 st:
@@ -699,7 +697,7 @@ again:
 #ifdef BBB_XPORT_TRACE
    ptr = (unsigned char *)&csw;
    LOG("ptr:");
-   DumpHex(ptr,UMASS_BBB_CSW_SIZE);
+   LogHex(ptr,UMASS_BBB_CSW_SIZE);
 #endif
    /* misuse pipe to get the residue */
    pipe = le32_to_cpu(csw.dCSWDataResidue);
@@ -1395,22 +1393,4 @@ int usb_stor_get_info(struct usb_device *dev, struct us_data *ss,
    return 1;
 }
 
-void DumpHex(void *Data,int Len)
-{
-   int i;
-   uint8_t *cp = (uint8_t *) Data;
-
-   for(i = 0; i < Len; i++) {
-      if(i != 0 && (i & 0xf) == 0) {
-         printf("\n");
-      }
-      else if(i != 0) {
-         printf(" ");
-      }
-      term_print_hex(cp[i],2);
-   }
-   if(((i - 1) & 0xf) != 0) {
-      printf("\n");
-   }
-}
 

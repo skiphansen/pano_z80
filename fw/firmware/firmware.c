@@ -28,23 +28,19 @@
 #include <stdbool.h>
 #include <string.h>
 #include "misc.h"
-#include "term.h"
 #include "usb.h"
 #include "ff.h"
 #include "cpm_io.h"
+#include "vt100.h"
 
 #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
-#define dly_tap *((volatile uint32_t *)0x03000000)
-#define led_grn *((volatile uint32_t *)0x03000004)
-#define led_red *((volatile uint32_t *)0x03000008)
-#define z80_rst *((volatile uint32_t *)0x0300000c)
 
-void irq_handler(uint32_t pc) {
-   term_print_string("HARD FAULT PC = ");
-   term_print_hex(pc, 8);
+void irq_handler(uint32_t pc) 
+{
+   printf("HARD FAULT PC = %0x08x\n",pc);
    while(1);
 }
 
@@ -70,13 +66,10 @@ void main()
    // This is a PicoRV32 custom instruction 
    asm(".word 0x0600000b");
 
-   term_clear();
-   term_goto(0,0);
+   vt100_init();
    ALOG_R("Pano Logic G1, PicoRV32 @ 25MHz, LPDDR @ 100MHz\n");
    ALOG_R("Compiled " __DATE__ " " __TIME__ "\n");
    usb_init();
-   term_clear();
-   term_enable_uart(true);
    drv_usb_kbd_init();
 
    do {

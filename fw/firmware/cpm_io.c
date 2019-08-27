@@ -31,16 +31,14 @@
  *
  */
 
-// #include <stdio.h>
-// #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 
 #include "ff.h"
 #include "cpm_io.h"
-#include "term.h"
 #include "usb.h"
+#include "vt100.h"
 
 #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
@@ -190,9 +188,7 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data)
 {
    switch(IoPort) {
       case 1:  // console data
-         if(Data != '\r') {
-            term_putchar(Data);
-         }
+         vt100_putc(Data);
          break;
 
       case 13: // FDC command
@@ -473,6 +469,24 @@ void LoadDefaultBoot()
       }
       BytesRead += Bytes2Read;
       p += Bytes2Read << 2;
+   }
+}
+
+void UartPutc(char c)
+{
+   uart = (uint32_t) c;
+}
+
+void LogPutc(char c,void *arg)
+{
+   int LogFlags = *((int *) arg);
+
+   if(LogFlags & LOG_SERIAL) {
+      UartPutc(c);
+   }
+
+   if(LogFlags & LOG_MONITOR) {
+      vt100_putc((uint8_t) c);
    }
 }
 

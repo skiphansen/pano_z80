@@ -24,6 +24,23 @@
 #ifndef _CPM_IO_H_
 #define _CPM_IO_H_
 
+#define SCREEN_X    80
+#define SCREEN_Y    30
+
+#define VRAM_ADR     0x08000000
+#define DLY_TAP_ADR  0x03000000
+#define LED_GRN_ADR  0x03000004
+#define LED_RED_ADR  0x03000008
+#define Z80_RST_ADR  0x0300000c
+#define UART_ADR     0x03000100
+
+#define VRAM    *((volatile uint32_t *)VRAM_ADR)
+#define dly_tap *((volatile uint32_t *)DLY_TAP_ADR)
+#define led_grn *((volatile uint32_t *)LED_GRN_ADR)
+#define led_red *((volatile uint32_t *)LED_RED_ADR)
+#define z80_rst *((volatile uint32_t *)Z80_RST_ADR)
+#define uart    *((volatile uint32_t *)UART_ADR)
+
 #define Z80_INTERFACE(x)   *((volatile uint8_t *)(0x03000200 + x ))
 #define z80_con_status  Z80_INTERFACE(0x0)
 #define z80_drive       Z80_INTERFACE(0x4)
@@ -50,6 +67,6 @@ void HandleIoIn(uint8_t IoPort);
 void HandleIoOut(uint8_t IoPort,uint8_t Data);
 void Z80MemTest(void);
 void LoadDefaultBoot(void);
-
+void UartPutc(char c);
 #endif // _CPM_IO_H_
 
