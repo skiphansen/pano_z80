@@ -36,6 +36,8 @@ module vga_mixer(
     output wire [4:0] dbg_y,
     input wire [6:0] dbg_char,
     output wire dbg_sync,
+    input wire [24:0] font_fg_color,
+    input wire [24:0] font_bg_color,
     // VGA signal Output
     output wire vga_hs,
     output wire vga_vs,
@@ -84,16 +86,14 @@ module vga_mixer(
     
     // Font
     wire signal_in_text_range = ((vga_y <= 20) || (vga_y >= 460));
-    localparam font_fg_color = 8'hFF;
-    localparam font_bg_color = 8'h20;
     assign dbg_x[6:0] = vga_x[9:3];
     assign dbg_y[4:0] = vga_y[8:4];
     assign font_ascii[6:0] = dbg_char[6:0];
     assign font_row[3:0] = vga_y[3:0];
     assign font_col[2:0] = vga_x[2:0];
-    wire [7:0] text_r = (font_pixel) ? (font_fg_color) : (font_bg_color);
-    wire [7:0] text_g = (font_pixel) ? (font_fg_color) : (font_bg_color);
-    wire [7:0] text_b = (font_pixel) ? (font_fg_color) : (font_bg_color);
+    wire [7:0] text_r = (font_pixel) ? (font_fg_color[23:16]) : (font_bg_color);
+    wire [7:0] text_g = (font_pixel) ? (font_fg_color[15:8]) : (font_bg_color);
+    wire [7:0] text_b = (font_pixel) ? (font_fg_color[7:0]) : (font_bg_color);
     assign dbg_sync = vga_vs;
     assign bg_r[7:0] = (signal_in_text_range) ? (text_r) : (GB_BACK[23:16]);
     assign bg_g[7:0] = (signal_in_text_range) ? (text_g) : (GB_BACK[15:8]);

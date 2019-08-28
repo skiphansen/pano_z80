@@ -1,9 +1,22 @@
 `timescale 1ns / 1ps
 
+// Z80 I/O 
 // z80pack compatible I/O 
 // Copyright (C) 2019  Skip Hansen
 
-// Z80 I/O 
+//  This program is free software; you can redistribute it and/or modify it
+//  under the terms and conditions of the GNU General Public License,
+//  version 2, as published by the Free Software Foundation.
+//
+//  This program is distributed in the hope it will be useful, but WITHOUT
+//  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+//  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+//  more details.
+//
+//  You should have received a copy of the GNU General Public License along
+//  with this program; if not, write to the Free Software Foundation, Inc.,
+//  51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
+
 // When the Z80 reads an I/O port the io_port_adr register is updated,
 // the io_port_status register is set to IO_STAT_READ and then the z80 
 // is held in wait until the riscv writes the requested data to the 
@@ -78,7 +91,7 @@ module cpm_io(
     localparam IO_STAT_READY = 2'd3;
     
     always@(posedge clk) begin
-        if (reset)begin
+        if (reset) begin
             io_port_status <= IO_STAT_IDLE;
             console_status <= 8'd0;
             disk_drive <= 8'd0;

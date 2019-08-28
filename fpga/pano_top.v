@@ -797,6 +797,9 @@ module pano_top(
     wire [4:0] dbg_y;
     wire [6:0] dbg_char;
     wire dbg_clk;
+
+    localparam GREEN = 24'h00ff00;
+    localparam WHITE = 24'hffffff;
     
     vga_mixer vga_mixer(
         .clk(clk_vga),
@@ -813,6 +816,8 @@ module pano_top(
         .dbg_y(dbg_y),
         .dbg_char(dbg_char),
         .dbg_sync(dbg_clk),
+        .font_fg_color(GREEN),
+        .font_bg_color(24'h202020),
         // VGA signal Output
         .vga_hs(vga_hs),
         .vga_vs(vga_vs),
