@@ -103,6 +103,7 @@ module pano_top(
     wire clk_25_in;        // 25MHz clock divided from 100MHz, for VGA and RV
     wire clk_25_raw;
     wire clk_25;
+    wire clk_z80 = clk_25;
     wire clk_rv = clk_25;
     wire clk_vga = clk_25;
     wire dcm_locked_12;
@@ -235,7 +236,7 @@ module pano_top(
     
     T80sed T80sed(
         .RESET_n(!z80_rst),
-        .CLK_n(clk_4),
+        .CLK_n(clk_z80),
         .CLKEN(1'b1),
         .WAIT_n(z80_Ready),
         .INT_n(1'b1),
@@ -286,7 +287,7 @@ module pano_top(
     // .DOPB(DOPB), // Port B 1-bit Parity Output
     .ADDRA(z80adr[10:0]), // Port A 11-bit Address Input
     .ADDRB(mem_addr[12:2]), // Port B 11-bit Address Input
-    .CLKA(clk_4), // Port A Clock
+    .CLKA(clk_z80), // Port A Clock
     .CLKB(clk_rv), // Port B Clock
     .DIA(z80do), // Port A 8-bit Data Input
     .DIB(mem_wdata[7:0]), // Port B 8-bit Data Input
@@ -302,7 +303,7 @@ module pano_top(
 `else
     z80_mem z80_mem(
      // Z80 interface
-        .clka(clk_4),
+        .clka(clk_z80),
         .wea(z80_mem_wr),
         .addra(z80adr),
         .dina(z80do),

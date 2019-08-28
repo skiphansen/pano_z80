@@ -90,132 +90,132 @@ module cpm_io(
             io_port_adr <= 8'd0;
             z80di <= 8'h55;
         end
-        else if (io_valid)
-             if (rv_wstr != 0) begin
-                case (rv_adr)
-                    4'd0: console_status <= rv_wdata;
-                    4'd1: disk_drive <= rv_wdata;
-                    4'd2: disk_track <= rv_wdata;
-                    4'd3: disk_sector_lsb <= rv_wdata;
-                    4'd5: disk_dma_adr_lsb <= rv_wdata;
-                    4'd6: disk_dma_adr_msb <= rv_wdata;
-                    4'd7: disk_sector_msb <= rv_wdata;
-                    4'd8: io_port_adr <= rv_wdata;
-                    4'd10: begin
-                       // synthesis translate_off
-                       $display("riscv wrote Z80 input data 0x%02x", rv_wdata);
-                       // synthesis translate_on
-                        z80di <= rv_wdata;
+        else begin
+            if (io_valid) begin
+                 if (rv_wstr != 0) begin
+                    case (rv_adr)
+                        4'd0: console_status <= rv_wdata;
+                        4'd1: disk_drive <= rv_wdata;
+                        4'd2: disk_track <= rv_wdata;
+                        4'd3: disk_sector_lsb <= rv_wdata;
+                        4'd5: disk_dma_adr_lsb <= rv_wdata;
+                        4'd6: disk_dma_adr_msb <= rv_wdata;
+                        4'd7: disk_sector_msb <= rv_wdata;
+                        4'd8: io_port_adr <= rv_wdata;
+                        4'd10: begin
+                           // synthesis translate_off
+                           $display("riscv wrote Z80 input data 0x%02x", rv_wdata);
+                           // synthesis translate_on
+                            z80di <= rv_wdata;
+                            io_port_status <= IO_STAT_READY;
+                        end
+                    endcase
+                 end
+                 else begin
+                    case (rv_adr)
+                        4'd0: rv_rdata <= console_status;
+                        4'd1: rv_rdata <= disk_drive;
+                        4'd2: rv_rdata <= disk_track;
+                        4'd3: rv_rdata <= disk_sector_lsb;
+                        4'd5: rv_rdata <= disk_dma_adr_lsb;
+                        4'd6: rv_rdata <= disk_dma_adr_msb;
+                        4'd7: rv_rdata <= disk_sector_msb;
+                        4'd8: rv_rdata <= io_port_adr;
+                        4'd9: begin
+                            // synthesis translate_off
+                            $display("riscv read Z80 output data 0x%02x", out_port_data);
+                            // synthesis translate_on
+                            rv_rdata <= out_port_data;
+                            io_port_status <= IO_STAT_READY;
+                        end
+                        5'd11: rv_rdata <= {6'd0, io_port_status};
+                        default: rv_rdata <= 8'd0;
+                    endcase
+                 end
+            end
+            if (z80_iord) begin
+                 case (z80adr)
+                     8'd0: begin
+                        z80di <= console_status;
                         io_port_status <= IO_STAT_READY;
-                    end
-                endcase
+                     end
+                     8'd10: begin
+                        z80di <= disk_drive;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     8'd11: begin
+                        z80di <= disk_track;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     8'd12: begin
+                        z80di <= disk_sector_lsb;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     8'd15: begin
+                        z80di <= disk_dma_adr_lsb;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     8'd16: begin
+                        z80di <= disk_dma_adr_msb;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     8'd17: begin
+                        z80di <= disk_sector_msb;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     default: if (io_port_status == IO_STAT_IDLE) begin
+                        // synthesis translate_off
+                        $display("Z80 input port 0x%02x", z80adr);
+                        // synthesis translate_on
+                         io_port_adr <= z80adr;
+                         io_port_status <= IO_STAT_READ;
+                     end
+                 endcase
+             end
+             else if (z80_iowr) begin
+                 case (z80adr)
+                     8'd10: begin
+                        disk_drive <= z80do;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     8'd11: begin
+                        disk_track <= z80do;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     8'd12: begin
+                        disk_sector_lsb <= z80do;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     8'd15: begin
+                        disk_dma_adr_lsb <= z80do;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     8'd16: begin
+                        disk_dma_adr_msb <= z80do;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     8'd17: begin
+                        disk_sector_msb <= z80do;
+                        io_port_status <= IO_STAT_READY;
+                     end
+                     default: if (io_port_status == IO_STAT_IDLE) begin
+                         // synthesis translate_off
+                         $display("Z80 output 0x%02x to port 0x%02x",z80do,z80adr);
+                         // synthesis translate_on
+                         io_port_status <= IO_STAT_WRITE;
+                         io_port_adr <= z80adr;
+                         out_port_data <= z80do;
+                     end
+                 endcase
              end
              else begin
-                case (rv_adr)
-                    4'd0: rv_rdata <= console_status;
-                    4'd1: rv_rdata <= disk_drive;
-                    4'd2: rv_rdata <= disk_track;
-                    4'd3: rv_rdata <= disk_sector_lsb;
-                    4'd5: rv_rdata <= disk_dma_adr_lsb;
-                    4'd6: rv_rdata <= disk_dma_adr_msb;
-                    4'd7: rv_rdata <= disk_sector_msb;
-                    4'd8: rv_rdata <= io_port_adr;
-                    4'd9: begin
-                        // synthesis translate_off
-                        $display("riscv read Z80 output data 0x%02x", out_port_data);
-                        // synthesis translate_on
-                        rv_rdata <= out_port_data;
-                        io_port_status <= IO_STAT_READY;
-                    end
-                    5'd11: rv_rdata <= {6'd0, io_port_status};
-                    default: rv_rdata <= 8'd0;
-                endcase
+                io_port_status <= IO_STAT_IDLE;
+                z80_io_ready <= 0;
              end
-
-        else if (z80_iord) begin
-             case (z80adr)
-                 8'd0: begin
-                    z80di <= console_status;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 8'd10: begin
-                    z80di <= disk_drive;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 8'd11: begin
-                    z80di <= disk_track;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 8'd12: begin
-                    z80di <= disk_sector_lsb;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 8'd15: begin
-                    z80di <= disk_dma_adr_lsb;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 8'd16: begin
-                    z80di <= disk_dma_adr_msb;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 8'd17: begin
-                    z80di <= disk_sector_msb;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 default: if (io_port_status == IO_STAT_IDLE) begin
-                    // synthesis translate_off
-                    $display("Z80 input port 0x%02x", z80adr);
-                    // synthesis translate_on
-                     io_port_adr <= z80adr;
-                     io_port_status <= IO_STAT_READ;
-                 end
-             endcase
-         end
-         else if (z80_iowr) begin
-             case (z80adr)
-                 8'd10: begin
-                    disk_drive <= z80do;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 8'd11: begin
-                    disk_track <= z80do;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 8'd12: begin
-                    disk_sector_lsb <= z80do;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 8'd15: begin
-                    disk_dma_adr_lsb <= z80do;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 8'd16: begin
-                    disk_dma_adr_msb <= z80do;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 8'd17: begin
-                    disk_sector_msb <= z80do;
-                    io_port_status <= IO_STAT_READY;
-                 end
-                 default: if (io_port_status == IO_STAT_IDLE) begin
-                     // synthesis translate_off
-                     $display("Z80 output 0x%02x to port 0x%02x",z80do,z80adr);
-                     // synthesis translate_on
-                     io_port_status <= IO_STAT_WRITE;
-                     io_port_adr <= z80adr;
-                     out_port_data <= z80do;
-                 end
-             endcase
-         end
-         else begin
-            io_port_status <= IO_STAT_IDLE;
-            z80_io_ready <= 0;
-         end
-
-         if (io_port_status == IO_STAT_READY)
-             z80_io_ready <= 1;
-         else
-             z80_io_ready <= 0;
-
+             if (io_port_status == IO_STAT_READY)
+                 z80_io_ready <= 1;
+             else
+                 z80_io_ready <= 0;
+        end
     end
 endmodule
