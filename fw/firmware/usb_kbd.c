@@ -35,10 +35,13 @@
 #include "misc.h"
 #include "usb.h"
 
+// #define LOG_TO_SERIAL
 // #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
+// Define the following to swap the caps lock and control keys (yes I'm that old)
+// #define CAPS_LOCK_SWAP
 
 // #define USB_KBD_DEBUG
 /*
@@ -254,8 +257,9 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
          keycode=usb_kbd_numkey[scancode-0x1e];
    }
 
-   if(ctrl)
+   if(ctrl) {
       keycode = scancode - 0x3;
+   }
 
    if(pressed==1) {
       if(scancode==NUM_LOCK) {
@@ -272,7 +276,7 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
       }
    }
    if(keycode!=0) {
-      LOG("%c",keycode);
+      VLOG("put 0x%x into queue\n",keycode);
       usb_kbd_put_queue(keycode);
    }
    return 0;
@@ -282,6 +286,7 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
 static int usb_kbd_irq(struct usb_device *dev)
 {
    int i,res;
+   unsigned char Modifiers = new[0];
 
    if((dev->irq_status!=0)||(dev->act_len!=8)) {
       LOG("usb_keyboard Error %lX, len %d\n",dev->irq_status,dev->act_len);
@@ -289,6 +294,20 @@ static int usb_kbd_irq(struct usb_device *dev)
    }
    res=0;
 
+#ifdef VERBOSE_DEBUG_LOGGING
+   for(i = 0; i < 8; i++) {
+      if(old[i] != new[i]) {
+         break;
+      }
+   }
+
+   if(i < 8) {
+      LOG("\n");
+      LOG_HEX(new,8);
+   }
+#endif
+
+#ifndef CAPS_LOCK_SWAP
    switch(new[0]) {
       case 0x0:   /* No combo key pressed */
          ctrl = 0;
@@ -298,19 +317,64 @@ static int usb_kbd_irq(struct usb_device *dev)
          ctrl = 1;
          break;
    }
+#else
+// Swap caps lock and left control key, disable right control key
+   Modifiers &= ~1;
+   Modifiers |= ctrl;
+
+   if((old[0] & 1) != (new[0] & 1)) {
+      // Left control changed state
+      VLOG("Ctrl translated to caps lock %s\n",
+           (new[0] & 1) ? "pressed" : "released");
+      res |= usb_kbd_translate(CAPS_LOCK,0,new[0] & 1);
+   }
+
 
    for(i = 2; i < 8; i++) {
-      if(old[i] > 3 && memscan(&new[2], old[i], 6) == &new[8]) {
-         res|=usb_kbd_translate(old[i],new[0],0);
+      if(old[i] == CAPS_LOCK && memscan(&new[2], old[i], 6) == &new[8]) {
+         VLOG("caps lock translated to ctrl released\n");
+         ctrl = 0;
       }
-      if(new[i] > 3 && memscan(&old[2], new[i], 6) == &old[8]) {
-         res|=usb_kbd_translate(new[i],new[0],1);
+      if(new[i] == CAPS_LOCK && memscan(&old[2], new[i], 6) == &old[8]) {
+         VLOG("caps lock translated to ctrl pressed\n");
+         ctrl = 1;
       }
    }
-   if((new[2]>3) && (old[2]==new[2])) /* still pressed */
-      res|=usb_kbd_translate(new[2],new[0],2);
-   if(res==1)
+#endif
+
+   for(i = 2; i < 8; i++) {
+      if(old[i] > 3 && 
+#ifdef CAPS_LOCK_SWAP
+        old[i] != CAPS_LOCK &&
+#endif
+         memscan(&new[2], old[i], 6) == &new[8]) 
+      {
+         res|=usb_kbd_translate(old[i],Modifiers,0);
+      }
+      if(new[i] > 3 && 
+#ifdef CAPS_LOCK_SWAP
+        new[i] != CAPS_LOCK &&
+#endif
+         memscan(&old[2], new[i], 6) == &old[8]) 
+      {
+         res|=usb_kbd_translate(new[i],Modifiers,1);
+      }
+   }
+
+   for(i = 7; i > 2; i--) {
+      if(new[i] > 3 && 
+#ifdef CAPS_LOCK_SWAP
+         new[i] != CAPS_LOCK &&
+#endif
+         old[i]==new[i]) 
+      { // still pressed
+         res |= usb_kbd_translate(new[i],Modifiers,2);
+      }
+   }
+
+   if(res==1) {
       usb_kbd_setled(dev);
+   }
    memcpy(&old[0],&new[0], 8);
    return 1; /* install IRQ Handler again */
 }
