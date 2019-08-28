@@ -24,7 +24,14 @@ extern "C" {
 #endif
 
 #define VT100_WIDTH  80
-#define VT100_HEIGHT 30
+// The physical height is 30, but CP/M apps patched for z80pack such as
+// Wordmaster and Wordstar assume a 80 x 24 terminal and don't work correctly
+// on our 80 x 30 terminal
+
+// #define VT100_HEIGHT 30
+// #define START_OFFSET 0
+#define VT100_HEIGHT 24
+#define START_OFFSET (3 * VT100_WIDTH)
 
 void vt100_init(void);
 void vt100_putc(uint8_t ch);

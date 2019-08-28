@@ -24,6 +24,7 @@
     
 */
 #include <stdint.h>
+#include <string.h>
 #include "vt100.h"
 #include "printf.h"
 
@@ -137,7 +138,7 @@ void _vt100_clearLines(struct vt100 *t, uint16_t start_line, uint16_t end_line)
       Len = (VT100_WIDTH * VT100_HEIGHT) - Start;
    }
 
-   p = (uint32_t *) &t->VRam[Start];
+   p = (uint32_t *) &t->VRam[START_OFFSET + Start];
    cp = &t->ScreenBuf[Start];
    LOG("Start: %d, Len: %d\n",Start,Len);
 
@@ -171,7 +172,7 @@ void _vt100_clearLine(struct vt100 *t)
       Start = (t->cursor_y * VT100_WIDTH);
       Len = VT100_WIDTH;
    }
-   p = (uint32_t *) &t->VRam[Start];
+   p = (uint32_t *) &t->VRam[START_OFFSET + Start];
    cp = &t->ScreenBuf[Start];
 
    while(Len-- > 0) {
@@ -226,7 +227,7 @@ void _vt100_scroll(struct vt100 *t, int16_t lines)
          }
       }
 
-      pTo = &t->VRam[OffsetTop];
+      pTo = &t->VRam[START_OFFSET + OffsetTop];
       cp = &t->ScreenBuf[OffsetTop];
       i = Len;
 
@@ -331,7 +332,7 @@ void _vt100_removeCursor(struct vt100 *t)
 
    if(Char != 0) {
       int Offset = (t->cursor_y * VT100_WIDTH) + t->cursor_x;
-      t->VRam[Offset] = (uint32_t) Char;
+      t->VRam[START_OFFSET + Offset] = (uint32_t) Char;
       t->ScreenBuf[Offset] = Char;
       t->CharUnderCursor = 0;
    }
@@ -342,7 +343,7 @@ void _vt100_drawCursor(struct vt100 *t)
    int Offset = (t->cursor_y * VT100_WIDTH) + t->cursor_x;
 
    t->CharUnderCursor = t->ScreenBuf[Offset];
-   t->VRam[Offset] = CURSOR_CHAR;
+   t->VRam[START_OFFSET + Offset] = CURSOR_CHAR;
 }
 
 // sends the character to the display and updates cursor position
@@ -350,7 +351,7 @@ void _vt100_putc(struct vt100 *t, uint8_t ch)
 {
    // calculate current cursor position in the display ram
    int Offset = (t->cursor_y * VT100_WIDTH) + t->cursor_x;
-   t->VRam[Offset] = (uint32_t) ch;
+   t->VRam[START_OFFSET + Offset] = (uint32_t) ch;
    t->ScreenBuf[Offset] = (char) ch;
    t->CharUnderCursor = 0;
 
@@ -578,6 +579,8 @@ STATE(_st_esc_sq_bracket, term, ev, arg)
                      // bottom margin is 320 - (40 - 1) * 8 = 8 pix
                      term->scroll_start_row = term->args[0] - 1;
                      term->scroll_end_row = term->args[1] - 1; 
+                     LOG("Setting scroll region to %d/%d\n",
+                         term->scroll_start_row,term->scroll_end_row);
                   }
                   else {
                      _vt100_resetScroll(); 
@@ -918,12 +921,26 @@ STATE(_st_idle, term, ev, arg)
 void vt100_init()
 {
    _vt100_reset(); 
+   memset(term.ScreenBuf,' ',VT100_WIDTH * VT100_HEIGHT);
 }
 
 void UartPutc(char c);
 
 void vt100_putc(uint8_t c)
 {
+#ifdef VERBOSE_DEBUG_LOGGING
+   static int Pos = 0;
+   if(c < 0x20 || c > 0x7f) {
+      Pos += VLOG_R("[%02x]",c);
+   }
+   else {
+      Pos += VLOG_R("%c",c);
+   }
+   if(c == '\n' || Pos >= (80-4)) {
+      Pos = 0;
+      VLOG_R("\n");
+   }
+#endif
    term.state(&term, EV_CHAR, 0x0000 | c);
 }
 
