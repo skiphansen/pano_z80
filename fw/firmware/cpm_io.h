@@ -68,5 +68,6 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data);
 void Z80MemTest(void);
 void LoadDefaultBoot(void);
 void UartPutc(char c);
+void PrintfPutc(char c);
 #endif // _CPM_IO_H_
 

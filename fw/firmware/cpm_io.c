@@ -479,14 +479,44 @@ void UartPutc(char c)
 
 void LogPutc(char c,void *arg)
 {
-   int LogFlags = *((int *) arg);
+   int LogFlags = *((char *) arg);
 
    if(LogFlags & LOG_SERIAL) {
       UartPutc(c);
    }
 
    if(LogFlags & LOG_MONITOR) {
+      PrintfPutc(c);
+   }
+}
+
+void PrintfPutc(char c)
+{
+   if(c == '\n') {
+      vt100_putc((uint8_t) '\r');
       vt100_putc((uint8_t) c);
+   }
+   else {
+      vt100_putc((uint8_t) c);
+   }
+}
+
+void LogHex(char *LogFlags,void *Data,int Len)
+{
+   int i;
+   uint8_t *cp = (uint8_t *) Data;
+
+   for(i = 0; i < Len; i++) {
+      if(i != 0 && (i & 0xf) == 0) {
+         _LOG(LogFlags,"\n");
+      }
+      else if(i != 0) {
+         _LOG(LogFlags," ");
+      }
+      _LOG(LogFlags,"%02x",cp[i]);
+   }
+   if(((i - 1) & 0xf) != 0) {
+      _LOG(LogFlags,"\n");
    }
 }
 

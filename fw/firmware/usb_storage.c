@@ -456,7 +456,7 @@ int usb_stor_BBB_comdat(ccb *srb, struct us_data *us)
    LOG("dir %d lun %d cmdlen %d datalen %d\n",
       dir_in, srb->lun, srb->cmdlen,srb->datalen);
    if (srb->cmdlen) {
-      LogHex(srb->cmd,srb->cmdlen);
+      LOG_HEX(srb->cmd,srb->cmdlen);
    }
 #endif
    /* sanity checks */
@@ -668,7 +668,7 @@ int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
    }
 #ifdef BBB_XPORT_TRACE
    LOG("pdata:\n");
-   LogHex(srb->pdata,data_actlen);
+   LOG_HEX(srb->pdata,data_actlen);
 #endif
    /* STATUS phase + error handling */
 st:
@@ -697,7 +697,7 @@ again:
 #ifdef BBB_XPORT_TRACE
    ptr = (unsigned char *)&csw;
    LOG("ptr:");
-   LogHex(ptr,UMASS_BBB_CSW_SIZE);
+   LOG_HEX(ptr,UMASS_BBB_CSW_SIZE);
 #endif
    /* misuse pipe to get the residue */
    pipe = le32_to_cpu(csw.dCSWDataResidue);

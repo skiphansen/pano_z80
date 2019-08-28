@@ -47,7 +47,8 @@ extern "C" {
  */
 // void _putchar(char character);
 #include "vt100.h"
-#define _putchar vt100_putc
+void PrintfPutc(char c);
+#define _putchar PrintfPutc
 
 /**
  * Tiny printf implementation
