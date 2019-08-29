@@ -51,7 +51,7 @@ void LoadInitProg(void);
 
 void irq_handler(uint32_t pc) 
 {
-   printf("HARD FAULT PC = %0x08x\n",pc);
+   ELOG("HARD FAULT PC = 0x%08x\n",pc);
    while(1);
 }
 

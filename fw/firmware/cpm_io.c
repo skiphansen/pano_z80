@@ -360,8 +360,8 @@ int MountCpmDrive(char *Filename,FSIZE_t ImageSize)
 
    do {
       if(gMountedDrives >= MAX_MOUNTED_DRIVES) {
-         ELOG("Can't mount '%s', %d drives are already mounted\n",
-              gMountedDrives + 1);
+         ELOG("Can't mount '%s', %d drives are already mounted\n",Filename,
+              gMountedDrives);
          break;
       }
 
@@ -445,35 +445,33 @@ int LoadImage(const char *Filename,FSIZE_t Len)
 }
 
 
-#include "z80_boot.h"
-
+// Load track 0, sector 1 from the A: drive into memory
 void LoadDefaultBoot()
 {
-   uint8_t Buf[16];
-   uint8_t i;
-   int BytesRead = 0;
-   int Bytes2Read;
-   uint8_t *p = (uint8_t *) Z80_MEMORY_BASE;
+   FIL *fp = gDisks[0].fp;
+   uint8_t Buf[CPM_SECTOR_SIZE];
+   UINT Read;
+   void *pBuf = (void *) Z80_MEMORY_BASE;
+   FRESULT Err;
 
-   CopyToZ80(p,z80_boot_img,sizeof(z80_boot_img));
+   do {
+      if(fp == NULL) {
+         ELOG("Couldn't read boot sector, drive A: not mounted\n");
+         break;
+      }
+      if((Err = f_lseek(fp,0)) != FR_OK) {
+         ELOG("f_lseek failed: %d\n",Err);
+         break;
+      }
 
-   while(BytesRead < sizeof(z80_boot_img)) {
-      Bytes2Read = sizeof(z80_boot_img) - BytesRead;
-      if(Bytes2Read > sizeof(Buf)) {
-         Bytes2Read = sizeof(Buf);
+      if((Err = f_read(fp,&Buf,CPM_SECTOR_SIZE,&Read)) != FR_OK) {
+         ELOG("f_read failed: %d\n",Err);
+         break;
       }
-      CopyFromZ80(Buf,p,Bytes2Read);
-      for(i = 0; i < Bytes2Read; i++) {
-         if(Buf[i] != z80_boot_img[BytesRead + i]) {
-            ELOG("Verify error, data at 0x%x is 0x%x, should be 0x%x\n",
-                 BytesRead + i,Buf[i],z80_boot_img[BytesRead + i]);
-            BytesRead = sizeof(z80_boot_img);
-            break;
-         }
-      }
-      BytesRead += Bytes2Read;
-      p += Bytes2Read << 2;
-   }
+      LOG("Boot sector:\n");
+      LOG_HEX(Buf,CPM_SECTOR_SIZE);
+      CopyToZ80(pBuf,Buf,CPM_SECTOR_SIZE);
+   } while(false);
 }
 
 void UartPutc(char c)
