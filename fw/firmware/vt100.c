@@ -279,13 +279,15 @@ void _vt100_move(struct vt100 *term, int16_t DeltaX, int16_t DeltaY)
    // calculate how many lines we need to move down or up if x movement goes outside screen
    int16_t new_x = DeltaX + term->cursor_x; 
 
-   if(new_x > VT100_WIDTH) {
+   if(new_x >= VT100_WIDTH) {
       if(term->flags.cursor_wrap) {
+      // 1 = lines wrap after last column to next line
          DeltaY += new_x / VT100_WIDTH;
-         term->cursor_x = new_x % VT100_WIDTH - 1;
+         term->cursor_x = new_x % VT100_WIDTH;
       }
       else {
-         term->cursor_x = VT100_WIDTH;
+      // 0 = cursor remains on last column when it gets there
+         term->cursor_x = VT100_WIDTH - 1;
       }
    }
    else if(new_x < 0) {

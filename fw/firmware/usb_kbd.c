@@ -41,9 +41,10 @@
 #include "log.h"
 
 // Define the following to swap the caps lock and control keys (yes I'm that old)
-// #define CAPS_LOCK_SWAP
+#define CAPS_LOCK_SWAP
 
-// #define USB_KBD_DEBUG
+// Define the following to send ANSI escape sequences for certain special keys
+#define ANSI_SUPPORT
 /*
  * if overwrite_console returns 1, the stdin, stderr and stdout
  * are switched to the serial port, else the settings in the
@@ -61,6 +62,40 @@ int overwrite_console (void)
 
 #define REPEAT_RATE  40/4 /* 40msec -> 25cps */
 #define REPEAT_DELAY 10 /* 10 x REAPEAT_RATE = 400msec */
+
+#define ESC             0x1b
+#define F1              0x3a
+#define F2              0x3b
+#define F3              0x3c
+#define F4              0x3d
+#define F5              0x3e
+#define F6              0x3f
+#define F7              0x40
+#define F8              0x41
+#define F9              0x42
+#define F10             0x43
+#define F11             0x44
+#define F12             0x45
+
+#define ARROW_R         0x4f
+#define ARROW_L         0x50
+#define ARROW_D         0x51
+#define ARROW_U         0x52
+
+#define NUMPAD_MINUS    0x56
+#define NUMPAD_ENTER    0x58
+#define NUMPAD_1        0x59
+#define NUMPAD_2        0x5a
+#define NUMPAD_3        0x5b
+#define NUMPAD_4        0x5c
+#define NUMPAD_5        0x5d
+#define NUMPAD_6        0x5e
+#define NUMPAD_7        0x5f
+#define NUMPAD_8        0x60
+#define NUMPAD_9        0x61
+#define NUMPAD_0        0x62
+#define NUMPAD_PERIOD   0x63
+
 
 #define NUM_LOCK  0x53
 #define CAPS_LOCK 0x39
@@ -103,12 +138,22 @@ static unsigned char usb_kbd_numkey_shifted[] = {
    '+', '{', '}', '|', '~', ':', '"', '~', '<', '>', '?'
 };
 
+void FunctionKeyCB(unsigned char Function);
+
 /******************************************************************
  * Queue handling
  ******************************************************************/
 /* puts character in the queue and sets up the in and out pointer */
 static void usb_kbd_put_queue(char data)
 {
+#ifdef VERBOSE_DEBUG_LOGGING
+   if(isprint(data)) {
+      VLOG("put '%c' into queue\n",data);
+   }
+   else {
+      VLOG("put 0x%x into queue\n",data);
+   }
+#endif
    if((usb_in_pointer+1)==USB_KBD_BUFFER_LEN) {
       if(usb_out_pointer==0) {
          return; /* buffer full */
@@ -226,10 +271,32 @@ static void usb_kbd_setled(struct usb_device *dev)
 static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int pressed)
 {
    unsigned char keycode;
+#ifdef ANSI_SUPPORT
+   char EscKey = 0;
+#endif
 
    if(pressed==0) {
       /* key released */
       repeat_delay=0;
+#ifdef ANSI_SUPPORT
+      if(scancode == ARROW_U) {
+         EscKey = 'A';
+      }
+      else if(scancode == ARROW_D) {
+         EscKey = 'B';
+      }
+      else if(scancode == ARROW_R) {
+         EscKey = 'C';
+      }
+      else if(scancode == ARROW_L) {
+         EscKey = 'D';
+      }
+
+      if(EscKey != 0) {
+         usb_kbd_put_queue(ESC);
+         usb_kbd_put_queue(EscKey);
+      }
+#endif
       return 0;
    }
    if(pressed==2) {
@@ -250,12 +317,69 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
             keycode|=CAPITAL_MASK; /* switch to non capital Letters */
       }
    }
+
+
    if((scancode>0x1d) && (scancode<0x3A)) {
       if(((modifier&(1<<LEFT_SHIFT))!=0)||((modifier&(1<<RIGHT_SHIFT))!=0))  /* shifted */
          keycode=usb_kbd_numkey_shifted[scancode-0x1e];
       else /* non shifted */
          keycode=usb_kbd_numkey[scancode-0x1e];
    }
+   else if(scancode > F4 && scancode <= F12) {
+   // F5 -> F12
+      FunctionKeyCB(scancode - F1 + 1);
+   }
+#ifdef ANSI_SUPPORT
+   else if(scancode >= F1 && scancode <= F4) {
+   // F1..F4 translate to PF1..PF4 <esc>OP...
+      EscKey = 'P' + scancode - F1;
+   }
+   else if(scancode == NUMPAD_0) {
+      EscKey = 'p';
+   }
+   else if(scancode >= NUMPAD_1 && scancode <= NUMPAD_9) {
+   // Numeric keypad keys
+      EscKey = 'q' + scancode - NUMPAD_1;
+   }
+   else if(scancode == NUMPAD_MINUS) {
+      EscKey = 'm';
+   }
+   else if(scancode == NUMPAD_PERIOD) {
+      EscKey = 'n';
+   }
+   else if(scancode == NUMPAD_ENTER) {
+      EscKey = 'M';
+   }
+   else if(scancode == ARROW_U) {
+      EscKey = 'A';
+   }
+   else if(scancode == ARROW_D) {
+      EscKey = 'B';
+   }
+   else if(scancode == ARROW_R) {
+      EscKey = 'C';
+   }
+   else if(scancode == ARROW_L) {
+      EscKey = 'D';
+   }
+#else
+   if(scancode == NUMPAD_0) {
+      keycode = '0';
+   }
+   else if(scancode >= NUMPAD_1 && scancode <= NUMPAD_9) {
+   // Numeric keypad keys
+      keycode = '1' + scancode - NUMPAD_1;
+   }
+   else if(scancode == NUMPAD_MINUS) {
+      keycode = '-';
+   }
+   else if(scancode == NUMPAD_PERIOD) {
+      keycode = '.';
+   }
+   else if(scancode == NUMPAD_ENTER) {
+      keycode = '\r';
+   }
+#endif
 
    if(ctrl) {
       keycode = scancode - 0x3;
@@ -275,10 +399,18 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
          return 1;
       }
    }
-   if(keycode!=0) {
-      VLOG("put 0x%x into queue\n",keycode);
+   if(keycode != 0) {
       usb_kbd_put_queue(keycode);
    }
+#ifdef ANSI_SUPPORT
+   else {
+      if(EscKey != 0) {
+         usb_kbd_put_queue(ESC);
+         usb_kbd_put_queue('O');
+         usb_kbd_put_queue(EscKey);
+      }
+   }
+#endif
    return 0;
 }
 
@@ -361,7 +493,7 @@ static int usb_kbd_irq(struct usb_device *dev)
       }
    }
 
-   for(i = 7; i > 2; i--) {
+   for(i = 7; i >= 2; i--) {
       if(new[i] > 3 && 
 #ifdef CAPS_LOCK_SWAP
          new[i] != CAPS_LOCK &&

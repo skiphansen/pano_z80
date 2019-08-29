@@ -174,3 +174,9 @@ void main()
    led_red = 1;
    while(1);
 }
+
+void FunctionKeyCB(unsigned char Function)
+{
+   LOG("F%d key pressed\n",Function);
+}
+
