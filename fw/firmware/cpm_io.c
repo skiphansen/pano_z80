@@ -108,25 +108,25 @@ void CopyFromZ80(uint8_t *pTo,uint8_t *pFrom,int Len)
 void HandleIoIn(uint8_t IoPort)
 {
    uint8_t Ret;
-   uint8_t Data = 0;
-   static uint8_t LastData;
+   int Data = -1;
 
    switch(IoPort) {
       case 1:  // console data
          if(!usb_kbd_testc()) {
             VLOG("Waiting for console input, z80_con_status: 0x%x\n",
                 z80_con_status);
-            while(!usb_kbd_testc()) {
+            while(gFunctionRequest == 0 && !usb_kbd_testc()) {
                usb_event_poll();
             }
             VLOG("Continuing\n");
          }
-         Data = (uint8_t) usb_kbd_getc();
-         LastData = Data;
-         if(!usb_kbd_testc()) {
-            z80_con_status = 0;
-            VLOG("No more data available, z80_con_status: 0x%x\n",
-                 z80_con_status);
+         if(usb_kbd_testc()) {
+            Data = (uint8_t) usb_kbd_getc();
+            if(!usb_kbd_testc()) {
+               z80_con_status = 0;
+               VLOG("No more data available, z80_con_status: 0x%x\n",
+                    z80_con_status);
+            }
          }
          break;
 
@@ -176,11 +176,15 @@ void HandleIoIn(uint8_t IoPort)
       case 50: // client socket #1 status
       case 51: // client socket #1 data
       default:
+         Data = 0;
          ELOG("\nInput from port 0x%x ignored\n",IoPort);
          break;
    }
-   z80_in_data = Data;
-   VLOG("%d <- 0x%x\n",IoPort,Data);
+
+   if(Data != -1) {
+      z80_in_data = (uint8_t) Data;
+      VLOG("%d <- 0x%x\n",IoPort,Data);
+   }
 }
 
 // This routine is called when the Z80 performs an IO write operation

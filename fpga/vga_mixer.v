@@ -91,9 +91,9 @@ module vga_mixer(
     assign font_ascii[6:0] = dbg_char[6:0];
     assign font_row[3:0] = vga_y[3:0];
     assign font_col[2:0] = vga_x[2:0];
-    wire [7:0] text_r = (font_pixel) ? (font_fg_color[23:16]) : (font_bg_color);
-    wire [7:0] text_g = (font_pixel) ? (font_fg_color[15:8]) : (font_bg_color);
-    wire [7:0] text_b = (font_pixel) ? (font_fg_color[7:0]) : (font_bg_color);
+    wire [7:0] text_r = (font_pixel) ? (font_fg_color[23:16]) : (font_bg_color[23:16]);
+    wire [7:0] text_g = (font_pixel) ? (font_fg_color[15:8]) : (font_bg_color[15:8]);
+    wire [7:0] text_b = (font_pixel) ? (font_fg_color[7:0]) : (font_bg_color[7:0]);
     assign dbg_sync = vga_vs;
     assign bg_r[7:0] = (signal_in_text_range) ? (text_r) : (GB_BACK[23:16]);
     assign bg_g[7:0] = (signal_in_text_range) ? (text_g) : (GB_BACK[15:8]);

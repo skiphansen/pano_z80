@@ -42,6 +42,7 @@
 #define uart    *((volatile uint32_t *)UART_ADR)
 
 #define Z80_INTERFACE(x)   *((volatile uint8_t *)(0x03000200 + x ))
+#define IO_INTERFACE(x)    *((volatile uint32_t *)(0x03000200 + x ))
 #define z80_con_status  Z80_INTERFACE(0x0)
 #define z80_drive       Z80_INTERFACE(0x4)
 #define z80_track       Z80_INTERFACE(0x8)
@@ -53,13 +54,20 @@
 #define z80_out_data    Z80_INTERFACE(0x24)  // Data output from Z80
 #define z80_in_data     Z80_INTERFACE(0x28)  // Data input to Z80
 #define z80_io_state    Z80_INTERFACE(0x2c)
+#define font_fg_color   IO_INTERFACE(0x30)
+#define font_bg_color   IO_INTERFACE(0x34)
 
 #define IO_STAT_IDLE    0
 #define IO_STAT_WRITE   1
 #define IO_STAT_READ    2
 #define IO_STAT_READY   3
 
+#define BLACK           0
+#define WHITE           0xffffff
+#define GREEN           0x00ff00
+
 extern int gMountedDrives;
+extern unsigned char gFunctionRequest;
 
 int MountCpmDrive(char *Filename,FSIZE_t ImageSize);
 int LoadImage(const char *Filename,FSIZE_t Len);

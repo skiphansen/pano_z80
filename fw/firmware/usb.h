@@ -254,6 +254,8 @@ int usb_stor_scan(int mode);
 int usb_stor_info(void);
 
 // USB Keyboard
+extern unsigned char gCapsLockSwap;
+
 int drv_usb_kbd_init(void);
 int usb_kbd_deregister(void);
 int usb_kbd_testc(void);

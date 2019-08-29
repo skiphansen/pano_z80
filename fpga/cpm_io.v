@@ -27,25 +27,26 @@
 // and then the z80 is held in wait until the riscv reads the data.
 // 
 // RISC V  Z80
-// Adr     Adr   Usage              Read    Write      Notes
-// 0x00 (0)       0  - Console status      Z80     RISC V      
-//        --      1  - Console in          Z80     ---         1
-//        --      1  - Console out         ---     Z80         2
-// 0x04 (1)       10 - Drive               Both    Z80
-// 0x08 (2)       11 - Track               Both    Z80
-// 0x0c (3)       12 - Sector low          Both    Z80
-// --             13 - Disk command        ---     Z80         2
-// --             13 - Disk command        Z80     ---
-// ---            14 - Disk status         Z80     RISC V      4
-// 0x14 (5)       15 - DMA Adr LSB         Both    Z80
-// 0x18 (6)       16 - DMA Adr MSB         Both    Z80
-// 0x1c (7)       17 - Sector high         Both    Z80
-// --             xx - Other               Z80
-// 0x20 (8)       -- - Z80 I/O Adr         RISC V  ---
-// 0x24 (9)       -- - Z80 Out Data        RISC V  ---
-// 0x28 (10)      -- - Z80 In Data         ---     RISC V
-// 0x2c (11)      -- - Z80 I/O State       RISC V  ---         3
-
+// Adr     Adr  Usage                        Read     Write    Notes
+// 0x00 (0)       0  - Console status         Z80     RISC V    
+//        --      1  - Console in             Z80     ---       1 
+//        --      1  - Console out            ---     Z80       2 
+// 0x04 (1)       10 - Drive                  Both    Z80       
+// 0x08 (2)       11 - Track                  Both    Z80       
+// 0x0c (3)       12 - Sector low             Both    Z80       
+// --             13 - Disk command           ---     Z80       2 
+// --             13 - Disk command           Z80     ---       
+// ---            14 - Disk status            Z80     RISC V    4 
+// 0x14 (5)       15 - DMA Adr LSB            Both    Z80       
+// 0x18 (6)       16 - DMA Adr MSB            Both    Z80       
+// 0x1c (7)       17 - Sector high            Both    Z80       
+// --             xx - Other                  Z80               
+// 0x20 (8)       -- - Z80 I/O Adr            RISC V  ---       
+// 0x24 (9)       -- - Z80 Out Data           RISC V  ---       
+// 0x28 (10)      -- - Z80 In Data            ---     RISC V    
+// 0x2c (11)      -- - Z80 I/O State          RISC V  ---       3 
+// 0x30 (12)      -- - Font foreground color  RISC V  RISC V    
+// 0x34 (13)      -- - Font background color  RISC V  RISC V    
 // Notes:
 //  1 - Z80 held in wait until RISC V write the data to complete the Z80 I/O 
 //      to the "Z80 In Data" register.
@@ -68,10 +69,13 @@ module cpm_io(
 
 // RISC V interface
     input wire io_valid,
-    input wire [7:0] rv_wdata,
+    input wire [23:0] rv_wdata,
     input wire [3:0] rv_adr,
     input wire rv_wstr,
-    output reg [7:0] rv_rdata
+    output reg [23:0] rv_rdata,
+// vga_mixer interface
+    output reg [23:0] font_fg_color,
+    output reg [23:0] font_bg_color
     );
 
     reg [7:0] disk_drive;
@@ -90,6 +94,9 @@ module cpm_io(
     localparam IO_STAT_READ  = 2'd2;
     localparam IO_STAT_READY = 2'd3;
     
+    localparam BLACK = 24'd0;
+    localparam GREEN = 24'h00ff00;
+        
     always@(posedge clk) begin
         if (reset) begin
             io_port_status <= IO_STAT_IDLE;
@@ -101,20 +108,22 @@ module cpm_io(
             disk_dma_adr_msb <= 8'd0;
             disk_sector_msb <= 8'd0;
             io_port_adr <= 8'd0;
-            z80di <= 8'h55;
+            z80di <= 8'd0;
+            font_fg_color <= GREEN;
+            font_bg_color <= BLACK;
         end
         else begin
             if (io_valid) begin
                  if (rv_wstr != 0) begin
                     case (rv_adr)
-                        4'd0: console_status <= rv_wdata;
-                        4'd1: disk_drive <= rv_wdata;
-                        4'd2: disk_track <= rv_wdata;
-                        4'd3: disk_sector_lsb <= rv_wdata;
-                        4'd5: disk_dma_adr_lsb <= rv_wdata;
-                        4'd6: disk_dma_adr_msb <= rv_wdata;
-                        4'd7: disk_sector_msb <= rv_wdata;
-                        4'd8: io_port_adr <= rv_wdata;
+                        4'd0: console_status <= rv_wdata[7:0];
+                        4'd1: disk_drive <= rv_wdata[7:0];
+                        4'd2: disk_track <= rv_wdata[7:0];
+                        4'd3: disk_sector_lsb <= rv_wdata[7:0];
+                        4'd5: disk_dma_adr_lsb <= rv_wdata[7:0];
+                        4'd6: disk_dma_adr_msb <= rv_wdata[7:0];
+                        4'd7: disk_sector_msb <= rv_wdata[7:0];
+                        4'd8: io_port_adr <= rv_wdata[7:0];
                         4'd10: begin
                            // synthesis translate_off
                            $display("riscv wrote Z80 input data 0x%02x", rv_wdata);
@@ -122,27 +131,31 @@ module cpm_io(
                             z80di <= rv_wdata;
                             io_port_status <= IO_STAT_READY;
                         end
+                        4'd12: font_fg_color <= rv_wdata;
+                        4'd13: font_bg_color <= rv_wdata;
                     endcase
                  end
                  else begin
                     case (rv_adr)
-                        4'd0: rv_rdata <= console_status;
-                        4'd1: rv_rdata <= disk_drive;
-                        4'd2: rv_rdata <= disk_track;
-                        4'd3: rv_rdata <= disk_sector_lsb;
-                        4'd5: rv_rdata <= disk_dma_adr_lsb;
-                        4'd6: rv_rdata <= disk_dma_adr_msb;
-                        4'd7: rv_rdata <= disk_sector_msb;
-                        4'd8: rv_rdata <= io_port_adr;
+                        4'd0: rv_rdata <= {16'd0, console_status};
+                        4'd1: rv_rdata <= {16'd0, disk_drive};
+                        4'd2: rv_rdata <= {16'd0, disk_track};
+                        4'd3: rv_rdata <= {16'd0, disk_sector_lsb};
+                        4'd5: rv_rdata <= {16'd0, disk_dma_adr_lsb};
+                        4'd6: rv_rdata <= {16'd0, disk_dma_adr_msb};
+                        4'd7: rv_rdata <= {16'd0, disk_sector_msb};
+                        4'd8: rv_rdata <= {16'd0, io_port_adr};
                         4'd9: begin
                             // synthesis translate_off
                             $display("riscv read Z80 output data 0x%02x", out_port_data);
                             // synthesis translate_on
-                            rv_rdata <= out_port_data;
+                            rv_rdata <= {16'd0, out_port_data};
                             io_port_status <= IO_STAT_READY;
                         end
-                        5'd11: rv_rdata <= {6'd0, io_port_status};
-                        default: rv_rdata <= 8'd0;
+                        4'd11: rv_rdata <= {22'd0, io_port_status};
+                        4'd12: rv_rdata <= font_fg_color;
+                        4'd13: rv_rdata <= font_bg_color;
+                        default: rv_rdata <= 24'd0;
                     endcase
                  end
             end

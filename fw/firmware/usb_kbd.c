@@ -40,9 +40,6 @@
 // #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
-// Define the following to swap the caps lock and control keys (yes I'm that old)
-#define CAPS_LOCK_SWAP
-
 // Define the following to send ANSI escape sequences for certain special keys
 #define ANSI_SUPPORT
 /*
@@ -126,6 +123,9 @@ static unsigned char num_lock = 0;
 static unsigned char caps_lock = 0;
 static unsigned char scroll_lock = 0;
 static unsigned char ctrl = 0;
+
+// Set the following to swap the caps lock and control keys (yes I'm that old)
+unsigned char gCapsLockSwap = 0;
 
 static unsigned char leds __attribute__ ((aligned (0x4)));
 
@@ -439,54 +439,51 @@ static int usb_kbd_irq(struct usb_device *dev)
    }
 #endif
 
-#ifndef CAPS_LOCK_SWAP
-   switch(new[0]) {
-      case 0x0:   /* No combo key pressed */
-         ctrl = 0;
-         break;
-      case 0x01:  /* Left Ctrl pressed */
-      case 0x10:  /* Right Ctrl pressed */
-         ctrl = 1;
-         break;
-   }
-#else
-// Swap caps lock and left control key, disable right control key
-   Modifiers &= ~1;
-   Modifiers |= ctrl;
+   if(gCapsLockSwap) {
+   // Swap caps lock and left control key, disable right control key
+      Modifiers &= ~1;
+      Modifiers |= ctrl;
 
-   if((old[0] & 1) != (new[0] & 1)) {
-      // Left control changed state
-      VLOG("Ctrl translated to caps lock %s\n",
-           (new[0] & 1) ? "pressed" : "released");
-      res |= usb_kbd_translate(CAPS_LOCK,0,new[0] & 1);
-   }
-
-
-   for(i = 2; i < 8; i++) {
-      if(old[i] == CAPS_LOCK && memscan(&new[2], old[i], 6) == &new[8]) {
-         VLOG("caps lock translated to ctrl released\n");
-         ctrl = 0;
+      if((old[0] & 1) != (new[0] & 1)) {
+         // Left control changed state
+         VLOG("Ctrl translated to caps lock %s\n",
+              (new[0] & 1) ? "pressed" : "released");
+         res |= usb_kbd_translate(CAPS_LOCK,0,new[0] & 1);
       }
-      if(new[i] == CAPS_LOCK && memscan(&old[2], new[i], 6) == &old[8]) {
-         VLOG("caps lock translated to ctrl pressed\n");
-         ctrl = 1;
+
+
+      for(i = 2; i < 8; i++) {
+         if(old[i] == CAPS_LOCK && memscan(&new[2], old[i], 6) == &new[8]) {
+            VLOG("caps lock translated to ctrl released\n");
+            ctrl = 0;
+         }
+         if(new[i] == CAPS_LOCK && memscan(&old[2], new[i], 6) == &old[8]) {
+            VLOG("caps lock translated to ctrl pressed\n");
+            ctrl = 1;
+         }
       }
    }
-#endif
+   else {
+      switch(new[0]) {
+         case 0x0:   /* No combo key pressed */
+            ctrl = 0;
+            break;
+         case 0x01:  /* Left Ctrl pressed */
+         case 0x10:  /* Right Ctrl pressed */
+            ctrl = 1;
+            break;
+      }
+   }
 
    for(i = 2; i < 8; i++) {
       if(old[i] > 3 && 
-#ifdef CAPS_LOCK_SWAP
-        old[i] != CAPS_LOCK &&
-#endif
+         (!gCapsLockSwap || old[i] != CAPS_LOCK) &&
          memscan(&new[2], old[i], 6) == &new[8]) 
       {
          res|=usb_kbd_translate(old[i],Modifiers,0);
       }
       if(new[i] > 3 && 
-#ifdef CAPS_LOCK_SWAP
-        new[i] != CAPS_LOCK &&
-#endif
+         (!gCapsLockSwap || new[i] != CAPS_LOCK) &&
          memscan(&old[2], new[i], 6) == &old[8]) 
       {
          res|=usb_kbd_translate(new[i],Modifiers,1);
@@ -495,9 +492,8 @@ static int usb_kbd_irq(struct usb_device *dev)
 
    for(i = 7; i >= 2; i--) {
       if(new[i] > 3 && 
-#ifdef CAPS_LOCK_SWAP
+         (!gCapsLockSwap || new[i] != CAPS_LOCK) &&
          new[i] != CAPS_LOCK &&
-#endif
          old[i]==new[i]) 
       { // still pressed
          res |= usb_kbd_translate(new[i],Modifiers,2);

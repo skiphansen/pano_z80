@@ -263,7 +263,7 @@ module pano_top(
     wire z80_io_valid;
     wire [7:0] z80ram_do;
     wire [7:0] z80ram_do_b;
-    wire [7:0] z80io_rdata;
+    wire [23:0] z80io_rdata;
     wire [3:0] mem_wstrb;
     wire [31:0] mem_addr;
     wire [31:0] mem_wdata;
@@ -699,28 +699,6 @@ module pano_top(
         .txd(LED_BLUE)
     );
 
-    // Z80 I/O
-    // 
-
-    cpm_io cpm_io(
-        .clk(clk_rv),
-     // Z80 interface
-        .z80_iord(z80_io_rd),
-        .z80_iowr(z80_io_wr),
-        .z80adr(z80adr[7:0]),
-        .z80di(z80_io_read_data),
-        .z80do(z80do),
-        .z80_io_ready(io_ready),
-
-    // RISC V interface
-        .io_valid(z80_io_valid),
-        .rv_wdata(mem_wdata[7:0]),
-        .rv_adr(mem_addr[5:2]),
-        .rv_wstr(mem_wstrb[0]),
-        .rv_rdata(z80io_rdata)
-        );
-    assign z80_Ready = !(!z80_IORQ_n && !io_ready);
-    
     // GPIO
     // ----------------------------------------------------------------------
     
@@ -784,7 +762,7 @@ module pano_top(
         addr_in_ddr ? ddr_rdata_buf : (
         addr_in_gpio ? gpio_rdata : (
         addr_in_z80 ? {24'b0, z80ram_do_b} : (
-        addr_in_z80_io ? {24'b0, z80io_rdata} : (
+        addr_in_z80_io ? {8'b0, z80io_rdata} : (
         addr_in_usb ? usb_rdata : (
         addr_in_spi ? spi_rdata : (
         32'hFFFFFFFF)))))));
@@ -797,9 +775,8 @@ module pano_top(
     wire [4:0] dbg_y;
     wire [6:0] dbg_char;
     wire dbg_clk;
-
-    localparam GREEN = 24'h00ff00;
-    localparam WHITE = 24'hffffff;
+    wire [23:0] font_fg_color;
+    wire [23:0] font_bg_color;
     
     vga_mixer vga_mixer(
         .clk(clk_vga),
@@ -816,8 +793,8 @@ module pano_top(
         .dbg_y(dbg_y),
         .dbg_char(dbg_char),
         .dbg_sync(dbg_clk),
-        .font_fg_color(GREEN),
-        .font_bg_color(24'h202020),
+        .font_fg_color(font_fg_color),
+        .font_bg_color(font_bg_color),
         // VGA signal Output
         .vga_hs(vga_hs),
         .vga_vs(vga_vs),
@@ -850,6 +827,31 @@ module pano_top(
     );
     assign dbg_char = vram_dout[6:0];
     
+ // Z80 <-> RISC V I/O interface
+    cpm_io cpm_io(
+        .clk(clk_rv),
+        .reset(!rst_rv),
+     // Z80 interface
+        .z80_iord(z80_io_rd),
+        .z80_iowr(z80_io_wr),
+        .z80adr(z80adr[7:0]),
+        .z80di(z80_io_read_data),
+        .z80do(z80do),
+        .z80_io_ready(io_ready),
+
+    // RISC V interface
+        .io_valid(z80_io_valid),
+        .rv_wdata(mem_wdata[23:0]),
+        .rv_adr(mem_addr[5:2]),
+        .rv_wstr(mem_wstrb[0]),
+        .rv_rdata(z80io_rdata),
+
+     // vga_mixer interface
+        .font_fg_color(font_fg_color),
+        .font_bg_color(font_bg_color)
+        );
+    assign z80_Ready = !(!z80_IORQ_n && !io_ready);
+        
 // synthesis translate_off
     always @(posedge clk_rv) begin
         if (vram_wea) begin

@@ -33,10 +33,21 @@
 #include "cpm_io.h"
 #include "vt100.h"
 
+// #define LOG_TO_SERIAL
+#define LOG_TO_BOTH
 #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
+#define INIT_IMAGE_FILENAME   "BOOT.IMG"
+DWORD gBootImageLen;
+
+#define F_CAPS_REMAP_TOGGLE   5  // F5
+#define F_SCREEN_COLOR        6  // F6
+#define F_RESET_Z80           7  // F7
+unsigned char gFunctionRequest;
+
+void LoadInitProg(void);
 
 void irq_handler(uint32_t pc) 
 {
@@ -53,7 +64,6 @@ void main()
    const char root[] = "USB:/";
    char directory[18] = "";
    char DriveSave;
-   bool BootImageLoaded = false;
    uint8_t LastIoState = 0xff;
    uint8_t IoState;
    uint32_t Timeout;
@@ -69,6 +79,8 @@ void main()
    vt100_init();
    ALOG_R("Pano Logic G1, PicoRV32 @ 25MHz, LPDDR @ 100MHz\n");
    ALOG_R("Compiled " __DATE__ " " __TIME__ "\n");
+
+   gCapsLockSwap = 1;
    usb_init();
    drv_usb_kbd_init();
 
@@ -117,19 +129,14 @@ void main()
             Finfo.fname[5] = DriveSave;
             MountCpmDrive(Finfo.fname,Finfo.fsize);
          }
-         else if(strcmp(Finfo.fname,"BOOT.IMG") == 0) {
-            LOG("Calling LoadImage\n");
-            if(LoadImage(Finfo.fname,Finfo.fsize) == 0) {
-               BootImageLoaded = true;
-            }
+         else if(strcmp(Finfo.fname,INIT_IMAGE_FILENAME) == 0) {
+            gBootImageLen = Finfo.fsize;
          }
       }
       ALOG_R("%d CP/M drives mounted\n",gMountedDrives);
    } while(false);
-   if(!BootImageLoaded) {
-      LOG("Loading default Z80 boot image\n");
-      LoadDefaultBoot();
-   }
+
+   LoadInitProg();
    z80_con_status = 0;  // No console input yet
 
    LOG("Releasing Z80 reset\n");
@@ -140,11 +147,15 @@ void main()
    term_enable_uart(false);
 #endif
 
-   Timeout = time(); 
    for( ; ; ) {
       usb_event_poll();
       if(usb_kbd_testc()) {
          z80_con_status = 0xff;  // console input ready
+      }
+
+      if(gFunctionRequest != 0) {
+         HandleFunctionKey(gFunctionRequest);
+         gFunctionRequest = 0;
       }
 
       do {
@@ -163,12 +174,13 @@ void main()
                HandleIoIn(z80_io_adr);
                break;
          }
-         if(IoState != IO_STAT_IDLE) {
+         if(Timeout == 0 && IoState != IO_STAT_IDLE) {
          // Give the z80 a chance to output another character before
          // we break out of this loop and call usb_event_poll again...
-            Timeout = time() + (CYCLE_PER_US * 1000);
+            Timeout = time() + (CYCLE_PER_US * 50000);
          }
-      } while(time() < Timeout);
+      } while(time() < Timeout && gFunctionRequest == 0);
+      Timeout = 0;
    }
 
    led_red = 1;
@@ -177,6 +189,64 @@ void main()
 
 void FunctionKeyCB(unsigned char Function)
 {
-   LOG("F%d key pressed\n",Function);
+   VLOG("F%d key pressed\n",Function);
+   gFunctionRequest = Function;
+}
+
+void HandleFunctionKey(Function)
+{
+   switch(Function) {
+      case F_CAPS_REMAP_TOGGLE:
+      // toggle swapping of caps lock and control key
+         LOG("%swapping CAPS lock and control key\n",
+             gCapsLockSwap ? "Not s" : "S");
+         if(gCapsLockSwap) {
+            gCapsLockSwap = 0;
+         }
+         else {
+            gCapsLockSwap = 1;
+         }
+         break;
+
+      case F_SCREEN_COLOR:
+      // toggle green screen
+         if(font_fg_color == GREEN) {
+            font_fg_color = WHITE;
+            font_bg_color = BLACK;
+         }
+         else if(font_fg_color == WHITE) {
+            font_fg_color = BLACK;
+            font_bg_color = WHITE;
+         }
+         else {
+            font_fg_color = GREEN;
+            font_bg_color = BLACK;
+         }
+         break;
+
+      case F_RESET_Z80:
+      // reset Z80
+         z80_rst = 1;
+         LoadInitProg();
+         ALOG_R("Resetting Z80\n");
+         z80_rst = 0;
+         break;
+   }
+}
+
+void LoadInitProg()
+{
+   bool BootImageLoaded = false;
+   if(gBootImageLen > 0) {
+      LOG("Calling LoadImage\n");
+      if(LoadImage(INIT_IMAGE_FILENAME,gBootImageLen) == 0) {
+         BootImageLoaded = true;
+      }
+   }
+
+   if(!BootImageLoaded) {
+      LOG("Loading default Z80 boot image\n");
+      LoadDefaultBoot();
+   }
 }
 
