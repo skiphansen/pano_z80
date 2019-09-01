@@ -34,46 +34,57 @@
 // use tiny printf replacment, not the standard one from the runtime library
 #include "printf.h"
 
+// Bit fields for gLogFlags
 #define LOG_SERIAL   1
 #define LOG_MONITOR  2
+#define LOG_DISABLED 4
 void LogPutc(char c,void * arg);
 
 #if !defined(LOGGING_DISABLED) || defined(VERBOSE_DEBUG_LOGGING) || defined(DEBUG_LOGGING)
+   void LogHex(char *LogFlags,void *Data,int Len);
    #if defined(LOG_TO_SERIAL)
-      static char gLogFlags = LOG_SERIAL;
+      static int gLogFlags = LOG_SERIAL;
    #elif defined(LOG_TO_BOTH)
-      static char gLogFlags = LOG_SERIAL | LOG_MONITOR;
+      static int gLogFlags = LOG_SERIAL | LOG_MONITOR;
    #else
-      static char gLogFlags = LOG_MONITOR;
+      static int gLogFlags = LOG_MONITOR;
    #endif
    #define _LOG(LogFlags,format, ...) \
       fctprintf(LogPutc,LogFlags,format,## __VA_ARGS__)
+   #define LOG_DISABLE() gLogFlags |= LOG_DISABLED
+   #define LOG_ENABLE() gLogFlags &= ~LOG_DISABLED
+#else
+   #define LOG_ENABLE()
+   #define LOG_DISABLE()
 #endif
 
 // These always log:
 // ALOG - Normal messages 
 #ifndef LOGGING_DISABLED
-   #define ALOG(format, ...) _LOG(&gLogFlags,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
-   #define ALOG_R(format, ...) _LOG(&gLogFlags,format,## __VA_ARGS__)
+   #define _ALOG_FLAGS  (void *)(gLogFlags & ~LOG_DISABLED)
+   #define ALOG(format, ...) _LOG(_ALOG_FLAGS,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
+   #define ALOG_R(format, ...) _LOG(_ALOG_FLAGS,format,## __VA_ARGS__)
    // ELOG - error errors
-   #define ELOG(format, ...) _LOG(&gLogFlags,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
+   #define ELOG(format, ...) _LOG(_ALOG_FLAGS,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
+   #define ELOG_HEX(x,y) LogHex(_ALOG_FLAGS,x,y)
 #else
    #define ALOG(format, ...)
    #define ALOG_R(format, ...)
    #define ELOG(format, ...)
+   #define ELOG_HEX(x,y)
 #endif
 
 
 #ifdef DEBUG_LOGGING
    // These only log when debug is enabled
+   #define _LOG_FLAGS  ((void *)(gLogFlags))
 
    // LOG - normal debug messages
-   #define LOG(format, ...) _LOG(&gLogFlags,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
+   #define LOG(format, ...) _LOG(_LOG_FLAGS,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
    // LOG_R - raw debug messages (function name prefix not added) 
-   #define LOG_R(format, ...) _LOG(&gLogFlags,format,## __VA_ARGS__)
+   #define LOG_R(format, ...) _LOG(_LOG_FLAGS,format,## __VA_ARGS__)
 
-   void LogHex(char *LogFlags,void *Data,int Len);
-   #define LOG_HEX(x,y) LogHex(&gLogFlags,x,y)
+   #define LOG_HEX(x,y) LogHex(_LOG_FLAGS,x,y)
 #else
    #define LOG_HEX(x,y)
    #define LOG(format, ...)
@@ -83,9 +94,10 @@ void LogPutc(char c,void * arg);
 #ifdef VERBOSE_DEBUG_LOGGING
    // VLOG - verbose debug messages enabled
    // LOG - normal debug messages
-   #define VLOG(format, ...) _LOG(&gLogFlags,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
+   #define _VLOG_FLAGS  ((void *)(gLogFlags))
+   #define VLOG(format, ...) _LOG(_VLOG_FLAGS,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
    // LOG_R - raw debug messages (function name prefix not added) 
-   #define VLOG_R(format, ...) _LOG(&gLogFlags,format,## __VA_ARGS__)
+   #define VLOG_R(format, ...) _LOG(_VLOG_FLAGS,format,## __VA_ARGS__)
 #else
    #define VLOG(format, ...)
    #define VLOG_R(format, ...)

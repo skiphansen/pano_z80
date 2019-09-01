@@ -55,6 +55,7 @@
 
 // #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
+#define LOG_TO_SERIAL
 #include "log.h"
 
 
@@ -215,24 +216,29 @@ int usb_bulk_msg(struct usb_device *dev, unsigned int pipe,
    int Err;
    uint32_t StartTime = ticks_ms();
 
-   if(len < 0)
+   if(len < 0) {
+      ELOG("Invalid len %d\n",len);
       return -1;
-   while(ticks_ms() - StartTime < timeout) {
-      dev->status = USB_ST_NOT_PROC; /*not yet processed */
-      Err = submit_bulk_msg(dev, pipe, data, len);
-
-      LOG("submit_bulk_msg returned %d \n",Err);
-      if(dev->status == USB_ST_NAK_REC) {
-         continue;
-      }
-      break;
    }
+
+   do {
+      dev->status = USB_ST_NOT_PROC; /*not yet processed */
+      Err = submit_bulk_msg(dev, pipe, data, len,timeout);
+
+      if(Err != 0 || dev->status != 0) {
+         ELOG("submit_bulk_msg returned %d, status %d\n",Err,dev->status);
+      }
+      if(dev->status != USB_ST_NAK_REC && dev->status != USB_ST_NAK_TO) {
+         break;
+      }
+   } while(ticks_ms() - StartTime < timeout);
+
    *actual_length = dev->act_len;
    if(dev->status == 0) {
       return 0;
    }
    else {
-      ELOG("%s: submit_bulk_msg returned %d \n",__FUNCTION__,Err);
+      ELOG("returning -1, timeout %d\n",timeout);
       return -1;
    }
 }

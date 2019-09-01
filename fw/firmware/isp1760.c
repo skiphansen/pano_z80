@@ -26,6 +26,7 @@
 
 // #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
+#define LOG_TO_SERIAL
 #include "log.h"
 
 #undef USE_ROOT_HUB
@@ -107,6 +108,7 @@ void isp_reset() {
 int isp_init() {
     uint32_t value;
 
+    LOG_DISABLE();
     // Reset the ISP1760 controller
     isp_reset();
 
@@ -248,7 +250,8 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
         uint32_t device_address, uint32_t parent_port, uint32_t parent_address, 
         uint32_t max_packet_length, uint32_t *toggle,  usb_ep_type_t ep_type,
         uint32_t ep, uint8_t *buffer, uint32_t max_length, uint32_t *length,
-        int need_setup) {
+        int need_setup, int Timeout) 
+{
     isp_result_t result = ISP_SUCCESS;
     uint32_t payload_address;
     uint32_t ptd_address;
@@ -259,14 +262,18 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
     uint32_t start_ptd[PTD_SIZE_DWORD], readback_ptd[PTD_SIZE_DWORD];
     uint32_t start_ticks;
     uint32_t actual_transfer_length;
+    int NakCount = 0;
+    int NakTimeout = Timeout != 0 ? Timeout : NACK_TIMEOUT_MS;
 
     payload_address = MEM_PAYLOAD_BASE;
 
     //if (max_packet_length > 64) max_packet_length = 64;
 
+    LOG("");
+
     switch(ptd_type) {
         case TYPE_ATL:
-            LOG("A");
+            LOG_R("A");
             ptd_address = MEM_ATL_BASE;
             reg_ptd_donemap = ISP_ATL_PTD_DONEMAP;
             reg_ptd_skipmap = ISP_ATL_PTD_SKIPMAP;
@@ -274,7 +281,7 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
             buffer_status_filled = ISP_BUFFER_STATUS_ATL_FILLED;
             break;
         case TYPE_INT:
-            LOG("I");
+            LOG_R("I");
             ptd_address = MEM_INT_BASE;
             reg_ptd_donemap = ISP_INT_PTD_DONEMAP;
             reg_ptd_skipmap = ISP_INT_PTD_SKIPMAP;
@@ -284,7 +291,7 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
         case TYPE_ISO:
             // not supported
         default:
-            LOG("ERR");
+            ELOG("ptd_type %d not implemented\n",ptd_type);
             result = ISP_NOT_IMPLEMENTED;
             return result;
     }
@@ -348,46 +355,46 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
                 // NACK, retry later
                 result = ISP_NACK_TIMEOUT;
                 retry = 1;
-                LOG("NACK\n");
+                NakCount++;
+                // LOG_R("NACK");
                 delay_us(100);
             }
             // Check H bit
             else if (readback_ptd[3] & (1u << 30)) {
                 // halt, do not retry
                 result = ISP_TRANSFER_HALT;
-                LOG("HALT");
+                LOG_R("HALT");
             }
             // Check B bit
             else if (readback_ptd[3] & (1u << 29)) {
                 result = ISP_BABBLE;
-                LOG("BABBLE");
+                LOG_R("BABBLE");
             }
             // Check X bit
             else if (readback_ptd[3] & (1u << 28)) {
                 result = ISP_TRANSFER_ERROR;
-                LOG("ERR");
+                LOG_R("ERR");
             }
             else if ((direction == DIRECTION_OUT) && 
                     (actual_transfer_length != *length)) {
                 result = ISP_WRONG_LENGTH;
-                LOG("WLEN");
+                LOG_R("WLEN");
             }
             else {
                 *toggle = (readback_ptd[3] >> 25) & 0x1;
                 result = ISP_SUCCESS;
-                LOG("OK");
+                LOG_R("OK");
             }
         }
         else {
-            LOG("STO");
+            LOG_R("STO");
             result = ISP_SETUP_TIMEOUT;
         }
 
         // No matter what happens, end this PTD
         isp_write_dword(reg_ptd_skipmap, 0xffffffff);
     // only retry if: NAKed, not timed out, setup is required in this call
-    } while (retry && ((ticks_ms() - start_ticks) < NACK_TIMEOUT_MS) && 
-            need_setup);
+    } while (retry && ((ticks_ms() - start_ticks) < NakTimeout) && need_setup);
 
     // If current direction is input, read payload back
     if (direction == DIRECTION_IN) {
@@ -404,7 +411,10 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
         }
     }
 
-    LOG(".");
+    if(NakCount > 0) {
+       LOG_R(" %d NACKS",NakCount);
+    }
+    LOG_R("\n");
 
     return result;
 }
@@ -425,11 +435,11 @@ void isp_build_header(usb_speed_t speed, usb_token_t token, uint32_t device_addr
     uint32_t micro_sa;
     uint32_t micro_scs;
 
-    LOG("D%02X:%02X ",parent_address,parent_port,device_address);
+    LOG_R("D%02X:%02X ",parent_address,parent_port,device_address);
     LOG_R((speed == SPEED_HIGH) ? "HS " : "FS ");
     LOG_R((token == TOKEN_IN) ? "TIN " : (token == TOKEN_OUT) ? "TOUT " : (token == TOKEN_SETUP) ? "TSETUP " : "TPING ");
     LOG_R((ep_type == EP_BULK) ? "EB" : (ep_type == EP_CONTROL) ? "EC" : "EI");
-    LOG_R("%02x L %04x M %02x",ep,length,max_packet_length);
+    LOG_R("%d L %d M %d ",ep,length,max_packet_length);
 
     multiplier = (speed == SPEED_HIGH) ? (0x1) : (0x0);
     port_number = (speed == SPEED_HIGH) ? (0x0) : (parent_port);
@@ -480,98 +490,108 @@ void isp_build_header(usb_speed_t speed, usb_token_t token, uint32_t device_addr
 
 // Glue Layer
 
-static int isp_submit(struct usb_device *dev, unsigned long pipe, 
-        void *buffer, int length, struct devrequest *req) {
-    isp_result_t result = ISP_SUCCESS;
-    usb_speed_t speed = (usb_speed_t)usb_pipespeed(pipe);
-    uint32_t ep = usb_pipeendpoint(pipe);
-    uint32_t max_packet_length = usb_maxpacket(dev, pipe);
-    uint32_t toggle = usb_gettoggle(dev, ep, usb_pipeout(pipe));
-    uint32_t new_toggle;
-    uint32_t address = usb_pipedevice(pipe);
-    uint32_t parent_address = (dev->parent != NULL) ? dev->parent->devnum : 0;
-    uint32_t parent_port = dev->portnr;
-    usb_ep_type_t ep_type = 
-            (usb_pipetype(pipe) == PIPE_BULK) ? EP_BULK : 
-            (usb_pipetype(pipe) == PIPE_INTERRUPT) ? EP_INTERRUPT: EP_CONTROL;
-    ptd_type_t ptd_type = 
-            (usb_pipetype(pipe) == PIPE_INTERRUPT) ? TYPE_INT : TYPE_ATL;
-    uint32_t actual_length = length;
+static int isp_submit(
+   struct usb_device *dev,
+   unsigned long pipe, 
+   void *buffer,
+   int length,
+   struct devrequest *req,
+   int Timeout) 
+{
+   isp_result_t result = ISP_SUCCESS;
+   usb_speed_t speed = (usb_speed_t)usb_pipespeed(pipe);
+   uint32_t ep = usb_pipeendpoint(pipe);
+   uint32_t max_packet_length = usb_maxpacket(dev, pipe);
+   uint32_t toggle = usb_gettoggle(dev, ep, usb_pipeout(pipe));
+   uint32_t new_toggle;
+   uint32_t address = usb_pipedevice(pipe);
+   uint32_t parent_address = (dev->parent != NULL) ? dev->parent->devnum : 0;
+   uint32_t parent_port = dev->portnr;
+   usb_ep_type_t ep_type = 
+   (usb_pipetype(pipe) == PIPE_BULK) ? EP_BULK : 
+   (usb_pipetype(pipe) == PIPE_INTERRUPT) ? EP_INTERRUPT: EP_CONTROL;
+   ptd_type_t ptd_type = 
+   (usb_pipetype(pipe) == PIPE_INTERRUPT) ? TYPE_INT : TYPE_ATL;
+   uint32_t actual_length = length;
 
-    if ((req != NULL) && (ep_type != EP_CONTROL)) {
-        printf("Suspicious request! Non control transfer with request payload.\n");
-    }
+   if(req != NULL && ep_type != EP_CONTROL) {
+      ELOG("Suspicious request! Non control transfer with request payload.\n");
+   }
 
-    if (req != NULL) {
-        // If control request is present, start SETUP transaction
-        // CONTROL (ATL) OUT
-        uint32_t req_length = sizeof(*req);
-        result = isp_transfer(ptd_type, speed, DIRECTION_OUT, TOKEN_SETUP, 
-                address, parent_port, parent_address, max_packet_length, &toggle, 
-                ep_type, ep, (uint8_t *)req, 0, &req_length, true);
-        toggle = 1;
-        delay_us(50);
-    }
+   if(req != NULL) {
+   // If control request is present, start SETUP transaction
+   // CONTROL (ATL) OUT
+      uint32_t req_length = sizeof(*req);
+      result = isp_transfer(ptd_type, speed, DIRECTION_OUT, TOKEN_SETUP, 
+                            address, parent_port, parent_address, max_packet_length, &toggle, 
+                            ep_type, ep, (uint8_t *)req, 0, &req_length, true,
+                            Timeout);
+      toggle = 1;
+      delay_us(50);
+   }
 
-    if ((length > 0 || req == NULL) && (result == ISP_SUCCESS)) {
-        // If data payload provided or not a control request
-        // Could be Bulk/Control IN/OUT
-        transfer_direction_t direction = 
-                usb_pipein(pipe) ? DIRECTION_IN : DIRECTION_OUT;
-        usb_token_t token = 
-                (direction == DIRECTION_IN) ? (TOKEN_IN) : (TOKEN_OUT);
-        new_toggle = toggle;
-        result = isp_transfer(ptd_type, speed, direction, token, address, 
-                parent_port, parent_address, max_packet_length, &new_toggle, ep_type,
-                ep, buffer, (uint32_t)length, (uint32_t *)&actual_length, true);
-    }
+   if((length > 0 || req == NULL) && result == ISP_SUCCESS) {
+   // If data payload provided or not a control request
+   // Could be Bulk/Control IN/OUT
+      transfer_direction_t direction = 
+      usb_pipein(pipe) ? DIRECTION_IN : DIRECTION_OUT;
+      usb_token_t token = 
+      (direction == DIRECTION_IN) ? (TOKEN_IN) : (TOKEN_OUT);
+      new_toggle = toggle;
+      result = isp_transfer(ptd_type, speed, direction, token, address, 
+                            parent_port, parent_address, max_packet_length, &new_toggle, ep_type,
+                            ep, buffer, (uint32_t)length, (uint32_t *)&actual_length, true,
+                            Timeout);
+   }
 
-    if ((req != NULL) && (result == ISP_SUCCESS)) {
-        // Ack depending on previous direction
-        uint32_t ack_length = 0;
-        transfer_direction_t direction = 
-                usb_pipein(pipe) ? DIRECTION_OUT : DIRECTION_IN;
-        usb_token_t token = 
-                (direction == DIRECTION_IN) ? (TOKEN_IN) : (TOKEN_OUT);
-        result = isp_transfer(ptd_type, speed, direction, token, address, 
-                parent_port, parent_address, max_packet_length, &toggle, ep_type,
-                ep, NULL, 0, &ack_length, true);
-    }
+   if(req != NULL && result == ISP_SUCCESS) {
+   // Ack depending on previous direction
+      uint32_t ack_length = 0;
+      transfer_direction_t direction = 
+      usb_pipein(pipe) ? DIRECTION_OUT : DIRECTION_IN;
+      usb_token_t token = 
+      (direction == DIRECTION_IN) ? TOKEN_IN : TOKEN_OUT;
+      result = isp_transfer(ptd_type, speed, direction, token, address, 
+                            parent_port, parent_address, max_packet_length, &toggle, ep_type,
+                            ep, NULL, 0, &ack_length, true,Timeout);
+   }
 
-    if(result != ISP_SUCCESS) {
-        LOG("%s: result: %x\n",__FUNCTION__,result);
-    }
+   if(result != ISP_SUCCESS) {
+      LOG("%s: result: %x\n",__FUNCTION__,result);
+   }
 
-    switch(result) {
-    case ISP_SUCCESS:
-        dev->status = 0;
-        usb_settoggle(dev, usb_pipeendpoint(pipe),
-             usb_pipeout(pipe), new_toggle);
-        dev->act_len = actual_length;
-        break;
-    case ISP_TRANSFER_HALT:
-        dev->status = USB_ST_STALLED;
-        break;
-    case ISP_TRANSFER_ERROR:
-        dev->status = USB_ST_BUF_ERR;
-        break;
-    case ISP_BABBLE:
-        dev->status = USB_ST_BABBLE_DET;
-        break;
+   switch(result) {
+      case ISP_SUCCESS:
+         dev->status = 0;
+         usb_settoggle(dev, usb_pipeendpoint(pipe),
+                       usb_pipeout(pipe), new_toggle);
+         dev->act_len = actual_length;
+         break;
+      case ISP_TRANSFER_HALT:
+         dev->status = USB_ST_STALLED;
+         break;
+      case ISP_TRANSFER_ERROR:
+         dev->status = USB_ST_BUF_ERR;
+         break;
+      case ISP_BABBLE:
+         dev->status = USB_ST_BABBLE_DET;
+         break;
 
-    case ISP_NACK_TIMEOUT:
-       dev->status = USB_ST_NAK_TO;
-       break;
+      case ISP_NACK_TIMEOUT:
+         dev->status = USB_ST_NAK_TO;
+         break;
 
-    default:
-       dev->status = USB_ST_CRC_ERR;
-       break;
-    }
-    LOG("AL%d\n",actual_length);
-    /*printf("dev=%u, usbsts=%04x, p[1]=%04x\n",
-            dev->devnum, isp_read_dword(ISP_USBSTS), isp_read_dword(ISP_PORTSC1));*/
-    
-    return (dev->status != USB_ST_NOT_PROC) ? 0 : -1;
+      default:
+         dev->status = USB_ST_CRC_ERR;
+         break;
+   }
+   if(actual_length != length) {
+      LOG("AL %d\n",actual_length);
+   }
+   /*printf("dev=%u, usbsts=%04x, p[1]=%04x\n",
+           dev->devnum, isp_read_dword(ISP_USBSTS), isp_read_dword(ISP_PORTSC1));*/
+
+   return(dev->status != USB_ST_NOT_PROC) ? 0 : -1;
 }
 
 #ifdef USE_ROOT_HUB
@@ -852,10 +872,10 @@ isp_result_t isp_finish_trasnfer(uint32_t id) {
     transfer_direction_t direction = DIRECTION_IN;
     usb_token_t token = TOKEN_IN;
     
-    LOG("FI");
+    LOG("FI ");
     return isp_transfer(ptd_type, speed, direction, token, address, 
             parent_port, parent_address, max_packet_length, &toggle, ep_type,
-            ep, buffer, (uint32_t)length, (uint32_t *)&length, false);
+            ep, buffer, (uint32_t)length, (uint32_t *)&length, false,0);
 }
 
 void isp_callback_irq(void) {
@@ -876,7 +896,7 @@ void isp_schedule(uint32_t id) {
     isp_submit(registered_transfers[id].device,
             registered_transfers[id].pipe, 
             registered_transfers[id].buffer, 
-            registered_transfers[id].length, NULL);
+            registered_transfers[id].length, NULL,0);
     registered_transfers[id].state = STATE_SCHEDULED;
 }
 
@@ -921,7 +941,7 @@ void isp_poll_no_irq(void) {
             int result = isp_submit(registered_transfers[i].device,
                     registered_transfers[i].pipe, 
                     registered_transfers[i].buffer, 
-                    registered_transfers[i].length, NULL);
+                    registered_transfers[i].length, NULL,0);
             if (result == 0)
                 registered_transfers[i].device->irq_handle(
                         registered_transfers[i].device);
@@ -951,13 +971,26 @@ int usb_lowlevel_stop(void) {
 }
 
 int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
-      void *buffer, int transfer_len) {
-    if (usb_pipetype(pipe) != PIPE_BULK) {
-      LOG("non-bulk pipe");
-      return -1;
+                    void *buffer, int transfer_len,int Timeout) 
+{
+   int Ret = -1;
+
+   LOG_ENABLE();
+   do {
+      if(usb_pipetype(pipe) != PIPE_BULK) {
+         ELOG("non-bulk pipe\n");
+         break;
+      }
+      Ret = isp_submit(dev, pipe, buffer, transfer_len, NULL,Timeout);
+   } while(false);
+
+   if(Ret != ISP_SUCCESS) {
+      ELOG("returning %d\n",Ret);
    }
-    return isp_submit(dev, pipe, buffer, transfer_len, NULL);
+   LOG_DISABLE();
+   return Ret;
 }
+
 int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
       int transfer_len, struct devrequest *setup) {
     if (usb_pipetype(pipe) != PIPE_CONTROL) {
@@ -974,7 +1007,7 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
    }
 #endif
 
-   return isp_submit(dev, pipe, buffer, transfer_len, setup);
+   return isp_submit(dev, pipe, buffer, transfer_len, setup,0);
 }
 
 int submit_int_msg(struct usb_device *dev, unsigned long pipe, void *buffer,

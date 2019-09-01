@@ -236,7 +236,7 @@ typedef struct block_dev_desc {
 int usb_lowlevel_init(void);
 int usb_lowlevel_stop(void);
 int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
-         void *buffer, int transfer_len);
+                    void *buffer, int transfer_len,int Timeout);
 int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
          int transfer_len, struct devrequest *setup);
 int submit_int_msg(struct usb_device *dev, unsigned long pipe, void *buffer,

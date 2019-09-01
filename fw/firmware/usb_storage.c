@@ -54,8 +54,10 @@
 
 #include "misc.h"
 #include "usb.h"
-// #define DEBUG_LOGGING
+//
+//#define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
+#define LOG_TO_SERIAL
 #include "log.h"
 
 
@@ -879,9 +881,10 @@ static int usb_request_sense(ccb *srb, struct us_data *ss)
    srb->pdata = &srb->sense_buf[0];
    srb->cmdlen = 12;
    ss->transport(srb, ss);
-   LOG("Request Sense returned %02X %02X %02X\n",
-         srb->sense_buf[2], srb->sense_buf[12],
-         srb->sense_buf[13]);
+   if(srb->sense_buf[2] != 0) {
+      ELOG("Request Sense returned:\n");
+      ELOG_HEX(srb->sense_buf,18);
+   }
    srb->pdata = (unsigned char *)ptr;
    return 0;
 }
