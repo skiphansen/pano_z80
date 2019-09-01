@@ -146,6 +146,10 @@ void _vt100_clearLines(struct vt100 *t, uint16_t start_line, uint16_t end_line)
       *p++ = ' ';
       *cp++ = ' ';
    }
+   if(cp > &t->ScreenBuf[VT100_WIDTH * VT100_HEIGHT]) {
+      ELOG("Past end of ScreenBuf, cp 0x%x\n",(unsigned int) cp);
+      for( ; ; );
+   }
 }
 
 // clear line from cursor right/left
@@ -178,6 +182,10 @@ void _vt100_clearLine(struct vt100 *t)
    while(Len-- > 0) {
       *p++ = ' ';
       *cp++ = ' ';
+   }
+   if(cp > &t->ScreenBuf[VT100_WIDTH * VT100_HEIGHT]) {
+      ELOG("Past end of ScreenBuf\n");
+      for( ; ; );
    }
    t->state = _st_idle; 
 }
@@ -216,6 +224,10 @@ void _vt100_scroll(struct vt100 *t, int16_t lines)
          while(i-- > 0) {
             *pTo++ = *pFrom++;
          }
+         if((char *) pTo > &t->ScreenBuf[VT100_WIDTH * VT100_HEIGHT]) {
+            ELOG("Past end of ScreenBuf\n");
+            for( ; ; );
+         }
       }
       else {
          cp1 = &t->ScreenBuf[OffsetTop];
@@ -224,6 +236,10 @@ void _vt100_scroll(struct vt100 *t, int16_t lines)
 
          while(Len-- > 0) {
             *cp1++ = *cp++;
+         }
+         if(cp1 > &t->ScreenBuf[VT100_WIDTH * VT100_HEIGHT]) {
+            ELOG("Past end of ScreenBuf\n");
+            for( ; ; );
          }
       }
 
@@ -337,6 +353,10 @@ void _vt100_removeCursor(struct vt100 *t)
       t->VRam[START_OFFSET + Offset] = (uint32_t) Char;
       t->ScreenBuf[Offset] = Char;
       t->CharUnderCursor = 0;
+      if(&t->ScreenBuf[Offset] >= &t->ScreenBuf[VT100_WIDTH * VT100_HEIGHT]) {
+         ELOG("Past end of ScreenBuf\n");
+         for( ; ; );
+      }
    }
 }
 
@@ -356,6 +376,11 @@ void _vt100_putc(struct vt100 *t, uint8_t ch)
    t->VRam[START_OFFSET + Offset] = (uint32_t) ch;
    t->ScreenBuf[Offset] = (char) ch;
    t->CharUnderCursor = 0;
+
+   if(&t->ScreenBuf[Offset] >= &t->ScreenBuf[VT100_WIDTH * VT100_HEIGHT]) {
+      ELOG("Past end of ScreenBuf\n");
+      for( ; ; );
+   }
 
    // move cursor right
    _vt100_move(t, 1, 0); 
@@ -462,7 +487,7 @@ STATE(_st_esc_sq_bracket, term, ev, arg)
                // clear screen from cursor up or down
                   if(term->narg == 0 || (term->narg == 1 && term->args[0] == 0)) {
                      // clear down to the bottom of screen (including cursor)
-                     _vt100_clearLines(term, term->cursor_y, VT100_HEIGHT); 
+                     _vt100_clearLines(term, term->cursor_y, VT100_HEIGHT-1); 
                   }
                   else if(term->narg == 1 && term->args[0] == 1) {
                      // clear top of screen to current line (including cursor)
@@ -470,7 +495,7 @@ STATE(_st_esc_sq_bracket, term, ev, arg)
                   }
                   else if(term->narg == 1 && term->args[0] == 2) {
                      // clear whole screen
-                     _vt100_clearLines(term, 0, VT100_HEIGHT);
+                     _vt100_clearLines(term, 0, VT100_HEIGHT-1);
                      // reset scroll value
                      _vt100_resetScroll(); 
                   }
@@ -933,14 +958,14 @@ void vt100_putc(uint8_t c)
 #ifdef VERBOSE_DEBUG_LOGGING
    static int Pos = 0;
    if(c < 0x20 || c > 0x7f) {
-      Pos += VLOG_R("[%02x]",c);
+      Pos += LOG_R("[%02x]",c);
    }
    else {
-      Pos += VLOG_R("%c",c);
+      Pos += LOG_R("%c",c);
    }
    if(c == '\n' || Pos >= (80-4)) {
       Pos = 0;
-      VLOG_R("\n");
+      LOG_R("\n");
    }
 #endif
    term.state(&term, EV_CHAR, 0x0000 | c);
