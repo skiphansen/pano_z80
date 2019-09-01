@@ -39,7 +39,6 @@
 // #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
-#define INIT_IMAGE_FILENAME   "BOOT.IMG"
 DWORD gBootImageLen;
 
 #define F_CAPS_REMAP_TOGGLE   5  // F5
@@ -48,6 +47,7 @@ DWORD gBootImageLen;
 unsigned char gFunctionRequest;
 
 void LoadInitProg(void);
+void HandleFunctionKey(int Function);
 
 void irq_handler(uint32_t pc) 
 {
@@ -120,22 +120,13 @@ void main()
                 (Finfo.fdate >> 9) + 1980,
                 (Finfo.ftime >> 11),
                 (Finfo.ftime >> 5) & 0x3f);
-
-      // This is a kludge to avoid strncmp
-         DriveSave = Finfo.fname[5];
-         Finfo.fname[5] = 'A';
-         if(strcmp(Finfo.fname,"DRIVEA.DSK") == 0) {
-            LOG("Calling MountCpmDrive\n");
-            Finfo.fname[5] = DriveSave;
-            MountCpmDrive(Finfo.fname,Finfo.fsize);
-         }
-         else if(strcmp(Finfo.fname,INIT_IMAGE_FILENAME) == 0) {
-            gBootImageLen = Finfo.fsize;
+         if(strcmp(Finfo.fname,INIT_IMAGE_FILENAME) == 0) {
          }
       }
-      ALOG_R("%d CP/M drives mounted\n",gMountedDrives);
+      f_closedir(&Dir);
    } while(false);
 
+   MountCpmDrives();
    LoadInitProg();
    z80_con_status = 0;  // No console input yet
 
@@ -148,14 +139,9 @@ void main()
 #endif
 
    for( ; ; ) {
-      usb_event_poll();
+      IdlePoll();
       if(usb_kbd_testc()) {
          z80_con_status = 0xff;  // console input ready
-      }
-
-      if(gFunctionRequest != 0) {
-         HandleFunctionKey(gFunctionRequest);
-         gFunctionRequest = 0;
       }
 
       do {
@@ -177,9 +163,9 @@ void main()
          if(Timeout == 0 && IoState != IO_STAT_IDLE) {
          // Give the z80 a chance to output another character before
          // we break out of this loop and call usb_event_poll again...
-            Timeout = time() + (CYCLE_PER_US * 50000);
+            Timeout = ticks_ms() + 50;
          }
-      } while(time() < Timeout && gFunctionRequest == 0);
+      } while(ticks_ms() < Timeout && gFunctionRequest == 0);
       Timeout = 0;
    }
 
@@ -193,7 +179,7 @@ void FunctionKeyCB(unsigned char Function)
    gFunctionRequest = Function;
 }
 
-void HandleFunctionKey(Function)
+void HandleFunctionKey(int Function)
 {
    switch(Function) {
       case F_CAPS_REMAP_TOGGLE:
@@ -250,3 +236,15 @@ void LoadInitProg()
    }
 }
 
+void IdlePoll()
+{
+   usb_event_poll();
+   if(gWriteFlushTimeout != 0 && ticks_ms() >= gWriteFlushTimeout) {
+      gWriteFlushTimeout = 0;
+      FlushWriteCache();
+   }
+   if(gFunctionRequest != 0) {
+      HandleFunctionKey(gFunctionRequest);
+      gFunctionRequest = 0;
+   }
+}

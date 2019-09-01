@@ -1,7 +1,7 @@
 ; Z80 CBIOS Panologic devices by Skip Hansen 8/2019
 ;
-; This implementation supports an SD card image for Grant Searle's 
-; Multicomp project.
+; This implementation supports disk images from Udo Munk's z80pack project
+; and Grant Searle's Multicomp projects.
 ;
 ; This code is based on code from both of the above projects, copyright
 ; statements follow:
@@ -33,12 +33,23 @@
 ;       
 ; Drive mappings:
 ;
-; A: .. P: 8 MB hard disk images from Multicomp SD card image
-; 
-; Note: The system track from the SD card image is replaced by the 
-; I/O processor on the fly with data from the boot.dsk image.
+; A: 8 MB hard disk image from Multicomp SD card image (*)
+; B: 8 MB hard disk image from Multicomp SD card image
+; C: 8 MB hard disk image from Multicomp SD card image
+; D: 8 MB hard disk image from Multicomp SD card image
+; E: 8 MB hard disk image from Multicomp SD card image
+; F: 8 MB hard disk image from Multicomp SD card image
+;
+; G: 241k 8" SD floppy
+; H: 241k 8" SD floppy
+;
+; I: 4 MB hard disk image using Udo Munk's z80pack format
+; J: 4 MB hard disk image using Udo Munk's z80pack format
+;
+; (*) The system track from the SD card image is replaced by the 
+;     I/O processor on the fly with data from the boot.dsk image.
 
-MSIZE   EQU     60              ;cp/m version memory size in kilobytes
+MSIZE   EQU     62              ;cp/m version memory size in kilobytes
 ;
 ;       "bias" is address offset from 3400H for memory systems
 ;       than 16K (referred to as "b" throughout the text).
@@ -88,6 +99,30 @@ WBOOTE: JP      WBOOT           ;warm start
         JP      LISTST          ;return list status
         JP      SECTRAN         ;sector translate
 
+;
+;       sector translate vector for the IBM 8" SD disks
+;
+TRANS:  DEFB    1,7,13,19       ;sectors 1,2,3,4
+        DEFB    25,5,11,17      ;sectors 5,6,7,8
+        DEFB    23,3,9,15       ;sectors 9,10,11,12
+        DEFB    21,2,8,14       ;sectors 13,14,15,16
+        DEFB    20,26,6,12      ;sectors 17,18,19,20
+        DEFB    18,24,4,10      ;sectors 21,22,23,24
+        DEFB    16,22           ;sectors 25,26
+;
+; Disk parameter block, common to all IBM 8" SD disks, drives G:, H:
+;
+DPBLK:  DEFW    26              ;sectors per track
+        DEFB    3               ;block shift factor
+        DEFB    7               ;block mask
+        DEFB    0               ;extent mask
+        DEFW    242             ;disk size-1
+        DEFW    63              ;directory max
+        DEFB    192             ;alloc 0
+        DEFB    0               ;alloc 1
+        DEFW    16              ;check size
+        DEFW    2               ;track offset
+
 ; Disk parameter block for Multicomp boot harddisk (A:)
 dpb0:
         DEFW 128        ;SPT - sectors per track
@@ -101,7 +136,7 @@ dpb0:
         DEFW 0          ;CKS - DIR check vector size (DRM+1)/4 (0=fixed disk)
         DEFW 1          ;OFF - Reserved tracks
 
-; Disk parameter block for Multicomp 8MB harddisk images (B:...P:)
+; Disk parameter block for Multicomp 8MB harddisk images (B:...F:)
 dpb:
         DEFW 128        ;SPT - sectors per track
         DEFB 5          ;BSH - block shift factor
@@ -113,31 +148,43 @@ dpb:
         DEFB 0          ;AL1 -            "
         DEFW 0          ;CKS - DIR check vector size (DRM+1)/4 (0=fixed disk)
         DEFW 0          ;OFF - Reserved tracks
+;
+;Disk parameter block for z80pack 4MB hard disk images (I:, J:)
+;
+HDBLK:  DEFW    128     ;sectors per track
+        DEFB    4       ;block shift factor
+        DEFB    15      ;block mask
+        DEFB    0       ;extent mask
+        DEFW    2039    ;disk size-1
+        DEFW    1023    ;directory max
+        DEFB    255     ;alloc 0
+        DEFB    255     ;alloc 1
+        DEFW    0       ;check size
+        DEFW    0       ;track offset
 
-;Disk parameter header for Multicomp 8 MB hard disks A: to F:
-DPBASE: DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb0,0000h,alv00  ;A:
+DPBASE: 
+        ;Disk parameter header for Multicomp 8 MB hard disks A: to F:
+        DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb0,0000h,alv00  ;A:
         DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv01   ;B:
         DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv02   ;C:
         DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv03   ;D:
         DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv04   ;E:
         DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv05   ;F:
-        DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv06   ;G:
-        DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv07   ;H:
-        DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv08   ;I:
-        DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv09   ;J:
-        DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv10   ;K:
-        DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv11   ;L:
-        DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv12   ;M:
-        DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv13   ;N:
-        DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv14   ;O:
-        DEFW    0000h,0000h,0000h,0000h,DIRBF,dpb,0000h,alv15   ;P:
+
+        ;Disk parameter header for 241k 8" SD floppies G:, H:
+        DEFW    TRANS,0000H,0000H,0000H,DIRBF,DPBLK,CHK00,ALL00
+        DEFW    TRANS,0000H,0000H,0000H,DIRBF,DPBLK,CHK01,ALL01
+
+        ;Disk parameter header z80pack 4MB harddisks I:, J:
+        DEFW    0000H,0000H,0000H,0000H,DIRBF,HDBLK,0000h,ALLHD1
+        DEFW    0000H,0000H,0000H,0000H,DIRBF,HDBLK,0000h,ALLHD2
 
 ;
 ;       messages
 ;
 SIGNON: DEFM    '64K CP/M Vers. 2.2'
         DEFB    13,10
-        DEFM    'Z80 CBIOS V0.1 (Multicomp version) for PanoLogic by Skip Hansen'
+        DEFM    'Z80 CBIOS V0.1 for PanoLogic by Skip Hansen'
         DEFB    13,10,0
 ;
 LDERR:  DEFM    'BIOS: error booting'
@@ -292,15 +339,15 @@ HOME:   LD      C,0             ;select track 0
 ;
 SELDSK: LD      HL,0000H        ;error return code
         LD      A,C
-        CP      16              ;drive A: to P: ?
+        CP      10              ;drive A: to J: 3?
         JP      C,SELDISK       ;go
         RET                     ;no, error
 
 ;       disk number is in the proper range
 ;       compute proper disk parameter header address
 SELDISK:
-        OUT     (FDCD),A        ;select disk drive
-        LD      L,A             ;L=disk number 0,1,2,3 ...
+        OUT     (FDCD),A        ;selekt disk drive
+        LD      L,A             ;L=disk number 0,1,2,3
         ADD     HL,HL           ;*2
         ADD     HL,HL           ;*4
         ADD     HL,HL           ;*8
@@ -375,23 +422,21 @@ WAITIO: OUT     (FDCOP),A       ;start i/o operation
 BEGDAT  EQU     $               ;beginning of data area
 DIRBF:  DEFS    128             ;scratch directory area
 
-;allocation vectors for Multicomp 8 MB hard disks A: to P:
+;allocation vectors for Multicomp 8 MB hard disks A: to F:
 alv00:  DEFS    257
 alv01:  DEFS    257
 alv02:  DEFS    257
 alv03:  DEFS    257
 alv04:  DEFS    257
 alv05:  DEFS    257
-alv06:  DEFS    257
-alv07:  DEFS    257
-alv08:  DEFS    257
-alv09:  DEFS    257
-alv10:  DEFS    257
-alv11:  DEFS    257
-alv12:  DEFS    257
-alv13:  DEFS    257
-alv14:  DEFS    257
-alv15:  DEFS    257
+;allocation vectors for 241k 8" SD floppies G:, H:
+ALL00:  DEFS    31              ;allocation vector 0
+ALL01:  DEFS    31              ;allocation vector 1
+;allocation vectors for header z80pack 4MB harddisks I:, J:
+ALLHD1: DEFS    255             ;allocation vector harddisk 1
+ALLHD2: DEFS    255             ;allocation vector harddisk 2
+CHK00:  DEFS    16              ;check vector 0
+CHK01:  DEFS    16              ;check vector 1
 ;
 ENDDAT  EQU     $               ;end of data area
 DATSIZ  EQU     $-BEGDAT        ;size of data area

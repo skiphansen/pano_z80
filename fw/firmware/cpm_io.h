@@ -27,12 +27,16 @@
 #define SCREEN_X    80
 #define SCREEN_Y    30
 
-#define VRAM_ADR     0x08000000
-#define DLY_TAP_ADR  0x03000000
-#define LED_GRN_ADR  0x03000004
-#define LED_RED_ADR  0x03000008
-#define Z80_RST_ADR  0x0300000c
-#define UART_ADR     0x03000100
+#define MAX_MOUNTED_DRIVES    6
+#define MAX_LOGICAL_DRIVES    16 // A: -> P: 
+
+#define DLY_TAP_ADR     0x03000000
+#define LED_GRN_ADR     0x03000004
+#define LED_RED_ADR     0x03000008
+#define Z80_RST_ADR     0x0300000c
+#define UART_ADR        0x03000100
+#define Z80_MEMORY_ADR  0x05000000
+#define VRAM_ADR        0x08000000
 
 #define VRAM    *((volatile uint32_t *)VRAM_ADR)
 #define dly_tap *((volatile uint32_t *)DLY_TAP_ADR)
@@ -66,10 +70,25 @@
 #define WHITE           0xffffff
 #define GREEN           0x00ff00
 
+#define ANSI_CLS        "\033[2J"
+#define INIT_IMAGE_FILENAME   "BOOT.IMG"
+
+typedef enum {
+   MAP_ERROR = -1,
+   MAP_NONE,
+   MAP_Z80PACK,
+   MAP_MULTICOMP,
+   MAP_DUAL,
+} MapMode;
+
 extern int gMountedDrives;
 extern unsigned char gFunctionRequest;
+extern uint32_t gWriteFlushTimeout;
+extern DWORD gBootImageLen;
+extern FIL *gSystemFp;
+extern MapMode gMountMode;
 
-int MountCpmDrive(char *Filename,FSIZE_t ImageSize);
+int MountDrives();
 int LoadImage(const char *Filename,FSIZE_t Len);
 void HandleIoIn(uint8_t IoPort);
 void HandleIoOut(uint8_t IoPort,uint8_t Data);
@@ -77,5 +96,7 @@ void Z80MemTest(void);
 void LoadDefaultBoot(void);
 void UartPutc(char c);
 void PrintfPutc(char c);
+void FlushWriteCache(void);
+void IdlePoll(void);
 #endif // _CPM_IO_H_
 

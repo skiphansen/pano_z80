@@ -14,6 +14,7 @@
 
 #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
+#define LOG_TO_SERIAL
 #include "log.h"
 
 /* Definitions of physical drive number for each drive */
@@ -105,32 +106,36 @@ DRESULT disk_read (
 /*-----------------------------------------------------------------------*/
 
 #if FF_FS_READONLY == 0
-
 DRESULT disk_write (
-   BYTE pdrv,        /* Physical drive nmuber to identify the drive */
-   const BYTE *buff, /* Data to be written */
-   DWORD sector,     /* Start sector in LBA */
-   UINT count        /* Number of sectors to write */
-)
+                   BYTE pdrv,        /* Physical drive nmuber to identify the drive */
+                   const BYTE *buff, /* Data to be written */
+                   DWORD sector,     /* Start sector in LBA */
+                   UINT count        /* Number of sectors to write */
+                   )
 {
-   DRESULT res;
-   int result;
+   DRESULT Ret = RES_OK;
+   int result = 0;
 
-   switch (pdrv) {
-   case DEV_USB :
-      result = msd->block_write(msd->dev, sector, count, buff);
-      if (result != count) {
-         ELOG("block_write returned %d\n",result);
-         return RES_NOTRDY;
-      }
-      else {
-         return RES_OK;
-      }
+   VLOG("writing dev %d sector %d, count %d\n",msd->dev, sector, count);
+   switch(pdrv) {
+      case DEV_USB :
+         result = msd->block_write(msd->dev, sector, count, buff);
+         if(result != count) {
+            ELOG("block_write returned %d\n",result);
+            Ret = RES_NOTRDY;
+         }
+         break;
+
+      default:
+         Ret = RES_PARERR;
+         break;
    }
 
-   return RES_PARERR;
+   if(Ret != RES_OK) {
+      ELOG("result %d returning %d\n",result,Ret);
+   }
+   return Ret;
 }
-
 #endif
 
 
@@ -138,30 +143,44 @@ DRESULT disk_write (
 /* Miscellaneous Functions                                               */
 /*-----------------------------------------------------------------------*/
 
-DRESULT disk_ioctl (
+DRESULT disk_ioctl(
    BYTE pdrv,     /* Physical drive nmuber (0..) */
    BYTE cmd,      /* Control code */
    void *buff     /* Buffer to send/receive control data */
 )
 {
-   DRESULT res;
+   DRESULT res = RES_OK;
    int result;
 
-   switch (pdrv) {
-   case DEV_USB :
+   switch(pdrv) {
+      case DEV_USB :
+         switch(cmd) {
+            case GET_SECTOR_COUNT:
+               *(uint32_t *)buff = msd->lba;
+               break;
 
-      if (cmd == GET_SECTOR_COUNT) {
-         *(uint32_t *)buff = msd->lba;
-         return RES_OK;
-      }
-      else if (cmd == GET_SECTOR_SIZE) {
-         *(uint32_t *)buff = msd->blksz;
-         return RES_OK;
-      }
+            case GET_SECTOR_SIZE:
+               *(uint32_t *)buff = msd->blksz;
+               break;
 
-      return RES_NOTRDY;
+            case CTRL_SYNC:   
+            // nothing to do other than not returning an error!
+               break;
+
+            default:
+               res = RES_NOTRDY;
+               break;
+         }
+         break;
+
+      default:
+         res = RES_PARERR;
+         break;
    }
 
-   return RES_PARERR;
+   if(res != RES_OK) {
+      ELOG("returning %d\n",res);
+   }
+   return res;
 }
 

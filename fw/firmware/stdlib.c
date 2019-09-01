@@ -7,6 +7,7 @@
 
 #include <stdarg.h>
 #include <stdint.h>
+#include <strings.h>
 
 extern long insn();
 
@@ -135,5 +136,34 @@ int strcmp(const char *s1, const char *s2)
       s1 += 4;
       s2 += 4;
    }
+}
+
+char *strstr(const char *searchee,const char *lookfor)
+{
+   /* Less code size, but quadratic performance in the worst case.  */
+   if(*searchee == 0) {
+      if(*lookfor)
+         return(char *) 0;
+      return(char *) searchee;
+   }
+
+   while(*searchee) {
+      size_t i;
+      i = 0;
+
+      while(1) {
+         if(lookfor[i] == 0) {
+            return(char *) searchee;
+         }
+
+         if(lookfor[i] != searchee[i]) {
+            break;
+         }
+         i++;
+      }
+      searchee++;
+   }
+
+   return(char *) 0;
 }
 

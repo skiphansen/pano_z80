@@ -1,9 +1,7 @@
-CC = gcc
-BIN2RAM_INIT := ../../../tools/bin2ram_init/bin2ram_init
-
 CFLAGS= -O -s -Wall
 
-all: putsys bios.bin boot.bin
+TARGETS=putsys bios.bin boot60.bin boot62.bin dual_bios.bin boot.dsk dual.dsk
+all: $(TARGETS)
 	@echo "done"
 
 putsys: putsys.c
@@ -12,11 +10,22 @@ putsys: putsys.c
 bios.bin: bios.asm
 	z80asm -vl -sn -x bios.asm
 
-boot.bin: boot.asm
-	z80asm -fb -vl -sn boot.asm
-	$(BIN2RAM_INIT) boot.bin boot.txt
+dual_bios.bin: dual_bios.asm
+	z80asm -vl -sn -x dual_bios.asm
 
-$(BIN2RAM_INIT) : $(BIN2RAM_INIT).c
+boot60.bin boot62.bin: boot.asm
+	z80asm -vl -sn -dK62 boot.asm
+	mv boot.bin boot62.bin
+	mv boot.lis boot62.lis
+	z80asm -vl -sn boot.asm
+	mv boot.bin boot60.bin
+	mv boot.lis boot60.lis
+
+boot.dsk: cpm60.com bios.bin boot60.bin
+	./putsys boot60.bin bios.bin cpm60.com boot.dsk
+
+dual.dsk: cpm62.com dual_bios.bin boot62.bin
+	./putsys boot62.bin dual_bios.bin cpm62.com dual.dsk
 
 clean:
-	rm -f *.lis bios.bin boot.bin putsys putsys.exe
+	rm -f *.lis $(TARGETS)
