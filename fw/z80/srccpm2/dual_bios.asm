@@ -258,14 +258,6 @@ LOAD2:  POP     HL              ;recall dma address
         JP      Z,GOCPM         ;transfer to cp/m if all have been loaded
 ;       more sectors remain to load, check for track change
         INC     D
-        LD      A,D             ;sector=27?, if so, change tracks
-        CP      27
-        JP      C,LOAD1         ;carry generated if sector<27
-;       end of current track, go to next track
-        LD      D,1             ;begin with first sector of next track
-        INC     C               ;track=track+1
-;       save register state, and change tracks
-        CALL    SETTRK          ;track address set from register c
         JP      LOAD1           ;for another sector
 ;       end of load operation, set parameters and go to cp/m
 GOCPM:
