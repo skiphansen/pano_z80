@@ -250,6 +250,7 @@ module pano_top_tb (
         .z80di(z80_io_read_data),
         .z80do(z80do),
         .z80_io_ready(io_ready),
+        .z80hlt(!z80_HALT_n),
 
     // RISC V interface
         .io_valid(z80_io_valid),

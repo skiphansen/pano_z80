@@ -35,9 +35,10 @@
 #include "printf.h"
 
 // Bit fields for gLogFlags
-#define LOG_SERIAL   1
-#define LOG_MONITOR  2
-#define LOG_DISABLED 4
+#define LOG_SERIAL            0x01
+#define LOG_MONITOR           0x02
+#define LOG_DISABLED          0x04
+#define LOG_VERBOSE_DISABLED  0x08
 void LogPutc(char c,void * arg);
 
 #if !defined(LOGGING_DISABLED) || defined(VERBOSE_DEBUG_LOGGING) || defined(DEBUG_LOGGING)
@@ -53,9 +54,13 @@ void LogPutc(char c,void * arg);
       fctprintf(LogPutc,LogFlags,format,## __VA_ARGS__)
    #define LOG_DISABLE() gLogFlags |= LOG_DISABLED
    #define LOG_ENABLE() gLogFlags &= ~LOG_DISABLED
+   #define VLOG_DISABLE() gLogFlags |= LOG_VERBOSE_DISABLED
+   #define VLOG_ENABLE() gLogFlags &= ~LOG_VERBOSE_DISABLED
 #else
    #define LOG_ENABLE()
    #define LOG_DISABLE()
+   #define VLOG_DISABLE()
+   #define VLOG_ENABLE()
 #endif
 
 // These always log:
@@ -95,9 +100,9 @@ void LogPutc(char c,void * arg);
    // VLOG - verbose debug messages enabled
    // LOG - normal debug messages
    #define _VLOG_FLAGS  ((void *)(gLogFlags))
-   #define VLOG(format, ...) _LOG(_VLOG_FLAGS,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
+   #define VLOG(format, ...) if(!(gLogFlags & LOG_VERBOSE_DISABLED)) _LOG(_VLOG_FLAGS,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
    // LOG_R - raw debug messages (function name prefix not added) 
-   #define VLOG_R(format, ...) _LOG(_VLOG_FLAGS,format,## __VA_ARGS__)
+   #define VLOG_R(format, ...) if(!(gLogFlags & LOG_VERBOSE_DISABLED)) _LOG(_VLOG_FLAGS,format,## __VA_ARGS__)
 #else
    #define VLOG(format, ...)
    #define VLOG_R(format, ...)

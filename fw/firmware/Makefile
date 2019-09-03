@@ -45,6 +45,9 @@ prog: firmware.bin
 	$(XC3SPROG) $(XC3SPROG_OPTS) -I../../fpga/xc3sprog/pano_g1.bit firmware.bin:W:786432:BIN
 	$(XC3SPROG) $(XC3SPROG_OPTS) ../../xilinx/work/pano_top.bit
 
+prog_fpga: firmware.bin
+	$(XC3SPROG) $(XC3SPROG_OPTS) -I../../fpga/xc3sprog/pano_g1.bit ../../xilinx/work/pano_top.bit:W:0:BIT
+
 reload:
 	$(XC3SPROG) $(XC3SPROG_OPTS) ../../xilinx/work/pano_top.bit
 

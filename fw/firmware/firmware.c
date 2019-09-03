@@ -44,6 +44,7 @@ DWORD gBootImageLen;
 #define F_CAPS_REMAP_TOGGLE   5  // F5
 #define F_SCREEN_COLOR        6  // F6
 #define F_RESET_Z80           7  // F7
+#define F_VERBOSE_LOG_TOGGLE  8  // F8
 unsigned char gFunctionRequest;
 
 void LoadInitProg(void);
@@ -52,6 +53,7 @@ void HandleFunctionKey(int Function);
 void irq_handler(uint32_t pc) 
 {
    ELOG("HARD FAULT PC = 0x%08x\n",pc);
+   leds = LED_BLUE;  // "blue screen of death"
    while(1);
 }
 
@@ -65,12 +67,11 @@ void main()
    char directory[18] = "";
    char DriveSave;
    uint8_t LastIoState = 0xff;
-   uint8_t IoState;
+   uint32_t IoState;
    uint32_t Timeout;
+   bool bWasHalted = false;
 
    dly_tap = 0x03;
-   led_red = 0;
-   led_grn = 1;
 
    // Set interrupt mask to zero (enable all interrupts)
    // This is a PicoRV32 custom instruction 
@@ -150,14 +151,31 @@ void main()
          if(LastIoState != IoState) {
             LastIoState = IoState;
             VLOG("z80_io_state: %d\n",IoState);
+            if((IoState & IO_STAT_HALTED) && !bWasHalted) {
+               bWasHalted = true;
+               LOG("Z80 HALTED\n");
+               DisplayString("Z80 HALTED",29,0);
+            }
+            else if((IoState & IO_STAT_HALTED) == 0 && bWasHalted) {
+               bWasHalted = false;
+               DisplayString("          ",29,0);
+            }
          }
-         switch(IoState) {
+         switch((IoState & IO_STATE_MASK)) {
             case IO_STAT_WRITE:  // Z80 out
                HandleIoOut(z80_io_adr,z80_out_data);
                break;
 
             case IO_STAT_READ:   // z80 In
                HandleIoIn(z80_io_adr);
+               break;
+
+            case IO_STAT_IDLE:
+            case IO_STAT_READY:
+               break;
+
+            default:
+               LOG("IoState 0x%x\n",IoState);
                break;
          }
          if(Timeout == 0 && IoState != IO_STAT_IDLE) {
@@ -169,7 +187,7 @@ void main()
       Timeout = 0;
    }
 
-   led_red = 1;
+   leds = LED_BLUE;  // "blue screen of death"
    while(1);
 }
 
@@ -216,6 +234,10 @@ void HandleFunctionKey(int Function)
          LoadInitProg();
          ALOG_R("Resetting Z80\n");
          z80_rst = 0;
+         break;
+
+      case F_VERBOSE_LOG_TOGGLE:
+         LOG("z80_io_state 0x%x\n",z80_io_state);
          break;
    }
 }

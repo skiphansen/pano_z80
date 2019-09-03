@@ -356,6 +356,7 @@ static void fdco_out(uint8_t Data)
 
       switch(Data) {
          case 0:  /* read */
+            leds = LED_GREEN;
             if((Err = f_read(fp,&Buf,CPM_SECTOR_SIZE,&Read)) != FR_OK) {
                ELOG("f_read failed: %d\n",Err);
                status = 5;
@@ -368,9 +369,11 @@ static void fdco_out(uint8_t Data)
             else {
                CopyToZ80(pBuf,Buf,CPM_SECTOR_SIZE);
             }
+            leds = 0;
             break;
 
          case 1:  /* write */
+            leds = LED_GREEN;
             CopyFromZ80(Buf,pBuf,CPM_SECTOR_SIZE);
             if((Err = f_write(fp,Buf,CPM_SECTOR_SIZE,&Wrote)) != FR_OK) {
                ELOG("f_write failed: %d\n",Err);
@@ -385,6 +388,7 @@ static void fdco_out(uint8_t Data)
                gWriteFlushTimeout = ticks_ms() + WRITE_FLUSH_TO;
                pDisk->bFlushWriteCache = true;
             }
+            leds = 0;
             break;
 
          default:    /* illegal command */
@@ -590,7 +594,12 @@ void FlushWriteCache()
    for(i = 0; i < MAX_LOGICAL_DRIVES; i++) {
       if(gDisks[i].bFlushWriteCache) {
          gDisks[i].bFlushWriteCache = false;
-         LOG("Flushing write cache drive %c\n",'A' + i);
+         if(gDisks[i].bMultiCompDrive) {
+            LOG("Flushing Multicomp write cache\n");
+         }
+         else {
+            LOG("Flushing write cache drive %c\n",'A' + i);
+         }
          if((Err = f_sync(gDisks[i].fp)) != FR_OK) {
             ELOG("f_sync failed: %d\n",Err);
          }
@@ -938,3 +947,14 @@ void ListMountedDrives(DiskType Type)
       ALOG_R("\n");
    }
 }
+
+// 
+void DisplayString(const char *Msg,int Row,int Col)
+{
+   uint32_t *p = (uint32_t *) (VRAM_ADR + (Row * VT100_WIDTH * sizeof(uint32_t)));
+   const char *cp = Msg;
+   while(*cp) {
+      *p++ = *cp++;
+   }
+}
+

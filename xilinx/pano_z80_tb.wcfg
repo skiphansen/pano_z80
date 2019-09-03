@@ -114,16 +114,20 @@
          <obj_property name="ObjectShortName">rv_wstr</obj_property>
       </wvobject>
       <wvobject fp_name="/test/DUT/cpm_io/rv_wdata" type="array" db_ref_id="1">
-         <obj_property name="ElementShortName">rv_wdata[7:0]</obj_property>
-         <obj_property name="ObjectShortName">rv_wdata[7:0]</obj_property>
+         <obj_property name="ElementShortName">rv_wdata[23:0]</obj_property>
+         <obj_property name="ObjectShortName">rv_wdata[23:0]</obj_property>
       </wvobject>
       <wvobject fp_name="/test/DUT/cpm_io/rv_rdata" type="array" db_ref_id="1">
-         <obj_property name="ElementShortName">rv_rdata[7:0]</obj_property>
-         <obj_property name="ObjectShortName">rv_rdata[7:0]</obj_property>
+         <obj_property name="ElementShortName">rv_rdata[23:0]</obj_property>
+         <obj_property name="ObjectShortName">rv_rdata[23:0]</obj_property>
       </wvobject>
       <wvobject fp_name="/test/DUT/cpm_io/z80_io_ready" type="logic" db_ref_id="1">
          <obj_property name="ElementShortName">z80_io_ready</obj_property>
          <obj_property name="ObjectShortName">z80_io_ready</obj_property>
+      </wvobject>
+      <wvobject fp_name="/test/DUT/cpm_io/z80hlt" type="logic" db_ref_id="1">
+         <obj_property name="ElementShortName">z80hlt</obj_property>
+         <obj_property name="ObjectShortName">z80hlt</obj_property>
       </wvobject>
       <wvobject fp_name="/test/DUT/cpm_io/io_port_adr" type="array" db_ref_id="1">
          <obj_property name="ElementShortName">io_port_adr[7:0]</obj_property>

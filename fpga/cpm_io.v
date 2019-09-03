@@ -44,7 +44,7 @@
 // 0x20 (8)       -- - Z80 I/O Adr            RISC V  ---       
 // 0x24 (9)       -- - Z80 Out Data           RISC V  ---       
 // 0x28 (10)      -- - Z80 In Data            ---     RISC V    
-// 0x2c (11)      -- - Z80 I/O State          RISC V  ---       3 
+// 0x2c (11)      -- - Z80 I/O Status         RISC V  ---       3 
 // 0x30 (12)      -- - Font foreground color  RISC V  RISC V    
 // 0x34 (13)      -- - Font background color  RISC V  RISC V    
 // Notes:
@@ -66,6 +66,7 @@ module cpm_io(
     output reg [7:0] z80di,
     input wire [7:0] z80do,
     output reg z80_io_ready,
+    input wire z80hlt,
 
 // RISC V interface
     input wire io_valid,
@@ -152,7 +153,7 @@ module cpm_io(
                             rv_rdata <= {16'd0, out_port_data};
                             io_port_status <= IO_STAT_READY;
                         end
-                        4'd11: rv_rdata <= {22'd0, io_port_status};
+                        4'd11: rv_rdata <= {z80hlt, 21'd0, io_port_status};
                         4'd12: rv_rdata <= font_fg_color;
                         4'd13: rv_rdata <= font_bg_color;
                         default: rv_rdata <= 24'd0;

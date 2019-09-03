@@ -28,6 +28,8 @@
 #include "vt100.h"
 #include "printf.h"
 
+// #define ECHO_CONSOLE_2_SERIAL
+
 // #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
 // #define LOG_TO_SERIAL
@@ -955,6 +957,16 @@ void UartPutc(char c);
 
 void vt100_putc(uint8_t c)
 {
+#ifdef ECHO_CONSOLE_2_SERIAL
+   if(c >= 0x20 && c < 0x7f) {
+      UartPutc(c);
+   }
+   else if(c == '\r' || c == '\n') {
+      UartPutc(c);
+   }
+
+#endif
+
 #ifdef VERBOSE_DEBUG_LOGGING
    static int Pos = 0;
    if(c < 0x20 || c > 0x7f) {

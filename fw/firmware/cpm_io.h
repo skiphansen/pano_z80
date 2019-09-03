@@ -30,41 +30,45 @@
 #define MAX_MOUNTED_DRIVES    6
 #define MAX_LOGICAL_DRIVES    16 // A: -> P: 
 
-#define DLY_TAP_ADR     0x03000000
-#define LED_GRN_ADR     0x03000004
-#define LED_RED_ADR     0x03000008
-#define Z80_RST_ADR     0x0300000c
-#define UART_ADR        0x03000100
-#define Z80_MEMORY_ADR  0x05000000
-#define VRAM_ADR        0x08000000
+#define DLY_TAP_ADR        0x03000000
+#define LEDS_ADR           0x03000004
+#define Z80_RST_ADR        0x0300000c
+#define UART_ADR           0x03000100
+#define Z80_MEMORY_ADR     0x05000000
+#define VRAM_ADR           0x08000000
 
-#define VRAM    *((volatile uint32_t *)VRAM_ADR)
-#define dly_tap *((volatile uint32_t *)DLY_TAP_ADR)
-#define led_grn *((volatile uint32_t *)LED_GRN_ADR)
-#define led_red *((volatile uint32_t *)LED_RED_ADR)
-#define z80_rst *((volatile uint32_t *)Z80_RST_ADR)
-#define uart    *((volatile uint32_t *)UART_ADR)
+#define VRAM              *((volatile uint32_t *)VRAM_ADR)
+#define dly_tap           *((volatile uint32_t *)DLY_TAP_ADR)
+#define leds              *((volatile uint32_t *)LEDS_ADR)
+#define LED_RED            0x1
+#define LED_GREEN          0x2
+#define LED_BLUE           0x4
+
+#define z80_rst           *((volatile uint32_t *)Z80_RST_ADR)
+#define uart              *((volatile uint32_t *)UART_ADR)
 
 #define Z80_INTERFACE(x)   *((volatile uint8_t *)(0x03000200 + x ))
 #define IO_INTERFACE(x)    *((volatile uint32_t *)(0x03000200 + x ))
-#define z80_con_status  Z80_INTERFACE(0x0)
-#define z80_drive       Z80_INTERFACE(0x4)
-#define z80_track       Z80_INTERFACE(0x8)
-#define z80_sector_lsb  Z80_INTERFACE(0xc)
-#define z80_dma_lsb     Z80_INTERFACE(0x14)
-#define z80_dma_msb     Z80_INTERFACE(0x18)
-#define z80_sector_msb  Z80_INTERFACE(0x1c)
-#define z80_io_adr      Z80_INTERFACE(0x20)  // I/O address of current in or out
-#define z80_out_data    Z80_INTERFACE(0x24)  // Data output from Z80
-#define z80_in_data     Z80_INTERFACE(0x28)  // Data input to Z80
-#define z80_io_state    Z80_INTERFACE(0x2c)
-#define font_fg_color   IO_INTERFACE(0x30)
-#define font_bg_color   IO_INTERFACE(0x34)
+#define z80_con_status     Z80_INTERFACE(0x0)
+#define z80_drive          Z80_INTERFACE(0x4)
+#define z80_track          Z80_INTERFACE(0x8)
+#define z80_sector_lsb     Z80_INTERFACE(0xc)
+#define z80_dma_lsb        Z80_INTERFACE(0x14)
+#define z80_dma_msb        Z80_INTERFACE(0x18)
+#define z80_sector_msb     Z80_INTERFACE(0x1c)
+#define z80_io_adr         Z80_INTERFACE(0x20)  // I/O address of current in or out
+#define z80_out_data       Z80_INTERFACE(0x24)  // Data output from Z80
+#define z80_in_data        Z80_INTERFACE(0x28)  // Data input to Z80
+#define z80_io_state       IO_INTERFACE(0x2c)
+#define font_fg_color      IO_INTERFACE(0x30)
+#define font_bg_color      IO_INTERFACE(0x34)
 
 #define IO_STAT_IDLE    0
 #define IO_STAT_WRITE   1
 #define IO_STAT_READ    2
 #define IO_STAT_READY   3
+#define IO_STATE_MASK   0x7
+#define IO_STAT_HALTED  0x800000
 
 #define BLACK           0
 #define WHITE           0xffffff
@@ -88,7 +92,7 @@ extern DWORD gBootImageLen;
 extern FIL *gSystemFp;
 extern MapMode gMountMode;
 
-int MountDrives();
+int MountCpmDrives();
 int LoadImage(const char *Filename,FSIZE_t Len);
 void HandleIoIn(uint8_t IoPort);
 void HandleIoOut(uint8_t IoPort,uint8_t Data);
@@ -98,5 +102,6 @@ void UartPutc(char c);
 void PrintfPutc(char c);
 void FlushWriteCache(void);
 void IdlePoll(void);
+void DisplayString(const char *Msg,int Row,int Col);
 #endif // _CPM_IO_H_
 

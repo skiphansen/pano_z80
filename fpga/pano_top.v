@@ -703,8 +703,8 @@ module pano_top(
     // ----------------------------------------------------------------------
     
     // 03000000 (0)  - R:  delay_sel_det / W: delay_sel_val
-    // 03000004 (1)  - W:  led_green
-    // 03000008 (2)  - W:  led_red
+    // 03000004 (1)  - W:  leds (b0: red, b1: green, b2: blue)
+    // 03000008 (2)  - W:  not used
     // 0300000c (3)  - W:  z80_rst
     // 03000010 (4)  - W:  not used
     // 03000014 (5)  - W:  i2c_scl
@@ -714,6 +714,7 @@ module pano_top(
     reg [31:0] gpio_rdata;
     reg led_green;
     reg led_red;
+    reg led_blue;
     reg usb_rstn;
     reg i2c_scl;
     reg i2c_sda;
@@ -723,10 +724,12 @@ module pano_top(
              if (mem_wstrb != 0) begin
                 case (mem_addr[5:2])
                     4'd0: delay_sel_val[4:0] <= mem_wdata[4:0];
-                    4'd1: led_green <= mem_wdata[0];
-                    4'd2: led_red <= mem_wdata[0];
+                    4'd1: begin
+                        led_red <= mem_wdata[0];
+                        led_green <= mem_wdata[1];
+                        led_blue <= mem_wdata[2];
+                    end
                     4'd3: z80_rst <= mem_wdata[0];
-                    // 4'd4: vb_key <= mem_wdata[7:0];
                     4'd5: i2c_scl <= mem_wdata[0];
                     4'd6: i2c_sda <= mem_wdata[0];
                     4'd7: usb_rstn <= mem_wdata[0];
@@ -735,6 +738,7 @@ module pano_top(
              else begin
                 case (mem_addr[5:2])
                     4'd0: gpio_rdata <= {27'd0, delay_sel_val_det};
+                    4'd1: gpio_rdata <= {29'd0, led_blue, led_green, led_red};
                     4'd3: gpio_rdata <= {31'd0, z80_rst};
                     4'd6: gpio_rdata <= {31'd0, AUDIO_SDA};
                 endcase
@@ -743,6 +747,7 @@ module pano_top(
             delay_sel_val[4:0] <= delay_sel_val_det[4:0];
             led_green <= 1'b0;
             led_red <= 1'b0;
+            led_blue <= 1'b0;
             // vb_key <= 8'd0;
             z80_rst <= 1'b1;
             i2c_scl <= 1'b1;
@@ -838,6 +843,7 @@ module pano_top(
         .z80di(z80_io_read_data),
         .z80do(z80do),
         .z80_io_ready(io_ready),
+        .z80hlt(!z80_HALT_n),
 
     // RISC V interface
         .io_valid(z80_io_valid),
@@ -862,7 +868,7 @@ module pano_top(
     
     // ----------------------------------------------------------------------
     // LED 
-//    assign LED_BLUE = 1'b1;
+//    assign LED_BLUE = !led_blue;
     assign LED_RED = !led_red;
     assign LED_GREEN = !led_green;
     
