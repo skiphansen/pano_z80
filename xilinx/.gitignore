@@ -8,3 +8,5 @@
 !*.cgp
 !.gitignore
 !*.wcfg
+!*.bit
+
