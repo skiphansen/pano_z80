@@ -34,8 +34,8 @@
 #include "vt100.h"
 
 // #define LOG_TO_SERIAL
-#define LOG_TO_BOTH
-#define DEBUG_LOGGING
+// #define LOG_TO_BOTH
+// #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
@@ -78,8 +78,8 @@ void main()
    asm(".word 0x0600000b");
 
    vt100_init();
-   ALOG_R("Pano Logic G1, PicoRV32 @ 25MHz, LPDDR @ 100MHz\n");
-   ALOG_R("Compiled " __DATE__ " " __TIME__ "\n");
+   ALOG_R("Pano Logic G1, Z80 @ 25 Mhz, PicoRV32 @ 25MHz\n");
+   ALOG_R("Compiled " __DATE__ " " __TIME__ "\n\n");
 
    gCapsLockSwap = 1;
    usb_init();

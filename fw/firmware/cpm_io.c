@@ -41,8 +41,8 @@
 #include "vt100.h"
 #include "misc.h"
 
-#define DEBUG_LOGGING
-#define LOG_TO_BOTH
+// #define DEBUG_LOGGING
+// #define LOG_TO_BOTH
 // #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
@@ -149,13 +149,11 @@ void HandleIoIn(uint8_t IoPort)
             }
             VLOG("Continuing\n");
          }
-         if(usb_kbd_testc()) {
-            Data = (uint8_t) usb_kbd_getc();
-            if(!usb_kbd_testc()) {
-               z80_con_status = 0;
-               VLOG("No more data available, z80_con_status: 0x%x\n",
-                    z80_con_status);
-            }
+         Data = (uint8_t) (usb_kbd_getc() & 0x7f);
+         if(!usb_kbd_testc()) {
+            z80_con_status = 0;
+            VLOG("No more data available, z80_con_status: 0x%x\n",
+                 z80_con_status);
          }
          break;
 
@@ -663,6 +661,7 @@ MapMode MountBootDrive()
       
       if(NumFiles == 1) {
          BootFile = 0;
+         Ret = Mode[BootFile];
       }
       else if(NumFiles > 0) {
       // Ask user to select
@@ -843,8 +842,10 @@ int MountCpmDrives()
          break;
       }
 
-
-      if(NumFiles > 1) {
+      if(NumFiles == 1) {
+         Choice = 0;
+      }
+      else {
       // Ask user to select
          for( ; ; ) {
             ALOG_R("Multicomp images:\n");
@@ -865,39 +866,39 @@ int MountCpmDrives()
             ALOG_R("Invaild option: please pick an option between 1 and %d\n",
                    NumFiles);
          }
-      // Mount the chosen Multicomp image
-         Fp = &FpArray[gMountedDrives];
-         Filename = Files[Choice].fname;
+      }
 
-         if((Err = f_open(Fp,Filename,FA_READ | FA_WRITE)) != FR_OK) {
-            ELOG("Couldn't open %s, %d\n",Filename,Err);
-            break;
-         }
-         gMountedDrives++;
+   // Mount the chosen Multicomp image
+      Fp = &FpArray[gMountedDrives];
+      Filename = Files[Choice].fname;
 
-         MultiCompDrives = Files[Choice].fsize / MULTICOMP_DRIVE_SIZE;
-         if(gMountMode == MAP_MULTICOMP) {
-            if(MultiCompDrives > 16) {
-               MultiCompDrives = 16;
-            }
-         }
-         else {
-            if(MultiCompDrives > 6) {
-               MultiCompDrives = 6;
-            }
-         }
+      if((Err = f_open(Fp,Filename,FA_READ | FA_WRITE)) != FR_OK) {
+         ELOG("Couldn't open %s, %d\n",Filename,Err);
+         break;
+      }
+      gMountedDrives++;
 
-         pDisk = gDisks;
-         for(i = 0; i < MultiCompDrives; i++) {
-            pDisk->fp = Fp;
-            pDisk->bMultiCompDrive = true;
-            pDisk->sectors = 128;
-            pDisk->tracks = 512;
-            pDisk->Type = DSK_MULTICOMP_8MB;
-            pDisk++;
+      MultiCompDrives = Files[Choice].fsize / MULTICOMP_DRIVE_SIZE;
+      if(gMountMode == MAP_MULTICOMP) {
+         if(MultiCompDrives > 16) {
+            MultiCompDrives = 16;
          }
       }
-      
+      else {
+         if(MultiCompDrives > 6) {
+            MultiCompDrives = 6;
+         }
+      }
+
+      pDisk = gDisks;
+      for(i = 0; i < MultiCompDrives; i++) {
+         pDisk->fp = Fp;
+         pDisk->bMultiCompDrive = true;
+         pDisk->sectors = 128;
+         pDisk->tracks = 512;
+         pDisk->Type = DSK_MULTICOMP_8MB;
+         pDisk++;
+      }
       Ret = 0;
    } while(false);
 

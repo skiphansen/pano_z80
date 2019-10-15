@@ -9,4 +9,5 @@
 !.gitignore
 !*.wcfg
 !*.bit
+!*.mcs
 
