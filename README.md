@@ -54,6 +54,7 @@ This project was derived directly from his [Verilog Boy](https://hackaday.io/pro
 
 ## Disk I/O
 ![ ](./assets/thumb.png  "SanDisk Cruzer")
+
 Disk I/O is provided by a USB flash drive. Multiple CP/M floppy and hard disk 
 images can be stored on a single drive. 
 
