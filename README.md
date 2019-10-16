@@ -90,7 +90,7 @@ F7 is used to reset Z80 processor.
 
 ## HW Requirements
 
-* A first generation Pano Logic thin cleint (G1, the one with a VGA port)
+* A first generation Pano Logic thin client (G1, the one with a VGA port)
 * A suitable 5 volt power supply
 * A USB keyboard
 * A USB Mass storage device
@@ -129,7 +129,7 @@ remote: Enumerating objects: 345, done.
 remote: Total 345 (delta 0), reused 0 (delta 0), pack-reused 345
 Receiving objects: 100% (345/345), 9.29 MiB | 6.91 MiB/s, done.
 Resolving deltas: 100% (173/173), done.
-skip@dell-790:~/pano/working/$ cd git pano_z80
+skip@dell-790:~/pano/working/$ cd pano_z80
 skip@dell-790:~/pano/working/pano_z80$ 
 ```
 
@@ -470,7 +470,7 @@ This project also uses code from several other projects including:
 
 ## LEGAL 
 
-The my original work (the CP/M I/O system) is released under the GNU 
+My original work (the CP/M I/O system) is released under the GNU 
 General Public License, version 2.
 
 My version of CBIOS is based on Udo Munk's original work, which was published 
