@@ -1,7 +1,7 @@
-# Retro Z80 computer for the Pano Logic Thin Client
+# Retro Z80 computer for the Panologic Thin Client
 ![Pano](./assets/pano.png) 
 
-This project creates a Z80 based computer from a Pano Logic thin client by 
+This project creates a Z80 based computer from a Panologic thin client by 
 loading a new bit image into the Pano FPGA, no other modifications are needed.
 
 Features:
@@ -17,9 +17,9 @@ Features:
 - RISC-V I/O co-processor
 - No soldering required!
 
-## What is a Pano Logic device and why do I care?
+## What is a Panologic device and why do I care?
 
-Pano Logic was a Bay Area startup that manufactured tiny thin clients that 
+Panologic was a Bay Area startup that manufactured tiny thin clients that 
 were connected to a central server.  The Pano devices have a Ethernet 
 interface, a few USB ports, audio input and output ports, and one or two 
 video ports.  
@@ -32,17 +32,17 @@ of the G2 devices were based on the Spartan-6 LX150 which is the largest
 chip in the family.  The revision C G2 device is based on the smaller 
 LX100 device which is still quite large by hobbist standards.  
 
-Unfortunately for Pano Logic, but fortunate for FPGA hobbyists Pano Logic 
-when out of business in 2012.  Shortly thereafter **TONS** of both new and 
-used Pano Logic devices started showing up on ebay for very little money 
+Unfortunately for Panologic, but fortunate for FPGA hobbyists Panologic 
+went out of business in 2012.  Shortly thereafter **TONS** of both new and 
+used Panologic devices started showing up on ebay for very little money 
 since they were pretty much useless without support.  Even today (Oct 
-2019) both versions of the Pano Logic devices are still readily available 
+2019) both versions of the Panologic devices are still readily available 
 on ebay for little. 
 
 ![Pile of Panos](./assets/pano_pile.png) 
 
-Tom Verbeure has spent a lot of time reverse engineering the Pano Logic 
-devices and created a absolute mind blowing raytracing demo that runs on a 
+Tom Verbeure has spent a lot of time reverse engineering the Panologic 
+devices and created an absolute mind blowing raytracing demo that runs on a 
 G1 device.  It was the [Hackaday article](https://hackaday.com/2018/12/07/racing-the-beam-on-a-thin-client-in-fpgas/) article on his project that originally 
 attracted my attention to the Pano hacking scene.  
 
@@ -84,13 +84,13 @@ time control of the system.
 F6 is used to toggle the display between green on black, white on black, or 
 black on white.  
 
-F5 is used to swap of the position of the control and caps lock keys.
+F5 is used to swap the position of the control and caps lock keys.
 
 F7 is used to reset Z80 processor.
 
 ## HW Requirements
 
-* A first generation Pano Logic thin client (G1, the one with a VGA port)
+* A first generation Panologic thin client (G1, the one with a VGA port)
 * A suitable 5 volt power supply
 * A USB keyboard
 * A USB Mass storage device
@@ -165,8 +165,8 @@ The z80pack project uses one disk image per drive.  The stock z80pack CP/M 2.2
 CBIOS supports four 241K 8 inch SSSD floppies and two 4mb hard disks.  Z80pack
 disk images have an extension of ".dsk".
 
-Since the Pano_z80 I/O system implements I/O ports as defined by the z80pack 
-project's drivea.dsk disk images may be booted directly.  
+Since the Pano_z80 I/O system implements the I/O ports as defined by the z80pack 
+project's drivea.dsk the disk images may be booted directly.  
 
 The Multicomp project uses one image file per system which emulates 16 8mb CP/M 
 hard disks (A: to P:).  Multicomp disk images have an extension of ".img".
@@ -416,7 +416,7 @@ my email address in the git log.
 
 ## Acknowledgement and Thanks
 
-Tom Verbeure's reverse engineering efforts and Pano logic [bring up](https://github.com/tomverbeure/panologic) code made it possible for
+Tom Verbeure's reverse engineering efforts and Panologic [bring up](https://github.com/tomverbeure/panologic) code made it possible
 to get projects up and running rapidly without the reverse engineering drudgery.
 Without Tom's work I would still be thinking of getting involved with FPGAs
 "some day".
@@ -425,7 +425,7 @@ I started this project by cloning Wenting Zhang's [VerilogBoy](https://github.co
 project and then replacing the Gameboy portion with a Z80.  
 
 Wenting's contributions of bringing up the LPDDR Ram and USB subsystems on the 
-first generation Pano Logic device has opened up the window of possibilities 
+first generation Panologic device has opened up a window of possibilities 
 for Pano hacking immeasurably. Mr Zhang has my sincere thanks and admiration 
 for his brilliant work.
 
@@ -457,16 +457,13 @@ This project also uses code from several other projects including:
 - Hackaday article on My [pano_progfpga](https://hackaday.com/2019/04/19/pano-logic-fgpa-hacking-just-got-easier/) project
 - My [prog_fpga](https://github.com/skiphansen/pano_progfpga) project.
 - My [pacman](https://github.com/skiphansen/pano_man) project.
+- My [Hello World](https://github.com/skiphansen/pano_hello_g1) project.
 - https://github.com/tomverbeure/panologic
 - G1 [Schematics!](https://github.com/twj42/PanoLogicG2_ReverseEngineering/blob/master/files/G1_Schematics.zip)
 - https://github.com/tomverbeure/panologic-g2
 - https://twj42.github.io/PanoLogicG2_ReverseEngineering/
-
-
-## To Do
-- Increase the Z80 clock rate and provide dynamic selection via z80pack speed command
-- Add HW support for per character foreground and background colors
-- Add ability to update hardware and software from update files on USB flash drive
+- [Group](https://groups.io/g/panohackers/topics) for discussions about Panologic hacking 
+- [Gitter](https://gitter.im/panologic/community) chat room for Panologic hackers.
 
 ## LEGAL 
 
