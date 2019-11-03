@@ -413,6 +413,7 @@ int MountCpmDrive(char *Filename,FSIZE_t ImageSize)
    FIL *Fp = &FpArray[gMountedDrives];
 
    do {
+      LOG("mounting %s\n",Filename);
       if(gMountedDrives >= MAX_MOUNTED_DRIVES) {
          ELOG("Can't mount '%s', %d drives are already mounted\n",Filename,
               gMountedDrives);
@@ -803,9 +804,13 @@ int MountCpmDrives()
          while(*cp && *cp != '.') {
             cp++;
          }
+         Drive = cp[-1];
          switch(gMountMode) {
             case MAP_Z80PACK:
-               if(strstr(Filename,"DRIVE") != 0 && strstr(cp,".DSK") != 0) {
+               if(strstr(Filename,"DRIVE") != 0 && strstr(cp,".DSK") != 0 &&
+                  Drive != 'G' && Drive != 'H')
+               {
+                  LOG("Filename: %s, drive '%c'\n",Filename,Drive);
                   MountCpmDrive(Files[NumFiles].fname,Files[NumFiles].fsize);
                }
                break;
@@ -836,6 +841,12 @@ int MountCpmDrives()
          }
       }
       f_closedir(&Dir);
+
+      if(gMountMode == MAP_Z80PACK) {
+      // Ignore Multicomp image files if the user selected z80pack only
+         Ret = 0;
+         break;
+      }
 
       if(gMountMode != MAP_Z80PACK && NumFiles == 0) {
          ELOG("Error - no Multicomp image files found\n");
@@ -910,16 +921,17 @@ int MountCpmDrives()
 
       memset(TypeDone,0,sizeof(TypeDone));
 
-      for( ; ; ) {
-         for(i = 0; i < MAX_LOGICAL_DRIVES; i++) {
-            if(!TypeDone[gDisks[i].Type]) {
-               ListMountedDrives(gDisks[i].Type);
-               TypeDone[gDisks[i].Type] = true;
-               break;
+      for(i = 0; i < MAX_LOGICAL_DRIVES; i++) {
+         if(!TypeDone[gDisks[i].Type]) {
+            if(gDisks[i].Type == DSK_MULTICOMP_8MB) {
+               if(gMountMode == MAP_MULTICOMP || gMountMode == MAP_DUAL) {
+                  ListMountedDrives(gDisks[i].Type);
+               }
             }
-         }
-         if(i == MAX_LOGICAL_DRIVES) {
-            break;
+            else if(gMountMode == MAP_Z80PACK || gMountMode == MAP_DUAL) {
+               ListMountedDrives(gDisks[i].Type);
+            }
+            TypeDone[gDisks[i].Type] = true;
          }
       }
    }
