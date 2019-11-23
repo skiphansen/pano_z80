@@ -636,7 +636,7 @@ MapMode MountBootDrive()
             }
             break;
          }
-         if(strcmp(Filename,"DRIVEA.IMG") == 0) {
+         if(strcmp(Filename,"DRIVEA.DSK") == 0) {
             Mode[NumFiles++] = MAP_Z80PACK;
          }
          else if(strcmp(Filename,"BOOT.DSK") == 0) {

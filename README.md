@@ -10,7 +10,7 @@ Features:
 - USB keyboard and VGA monitor for console 
 - USB flash drive provides storage of multiple Floppy and hard disks images
 - Compatible with disk images created for the [z80pack](https://www.autometer.de/unix4fun/z80pack/) project
-- Compatible with disk images created for the [Multicomp](https://web.archive.org/web/20190417163425/http://searle.hostei.com/grant/Multicomp/cpm/fpgaCPM.html) project
+- Compatible with disk images created for the [Multicomp](http://searle.wales//Multicomp/cpm/fpgaCPM.html) project
 - ANSI support for keyboard and monitor
 - Function key selection of retro "Green Screen" or normal screen modes
 - Function key selection of retro or normal control key placement
@@ -156,7 +156,7 @@ Unlike more modern operating systems the disk layout is not written to
 the media itself, it's hardcoded in the CBIOS.  Hence drive mappings are 
 defined by the image that is used to boot CP/M.  
 
-Disk images created for either the [z80pack](https://www.autometer.de/unix4fun/z80pack/) or [Multicomp](https://web.archive.org/web/20190417163425/http://searle.hostei.com/grant/Multicomp/cpm/fpgaCPM.html) projects or a mix of both can be used.
+Disk images created for either the [z80pack](https://www.autometer.de/unix4fun/z80pack/) or [Multicomp](http://searle.wales//Multicomp/cpm/fpgaCPM.html) projects or a mix of both can be used.
 There are a huge number of disk images are available for download from the 
 z80pack project web page.  I've also found a couple of Multicomp images that 
 contain massive collections of CP/M software. 
@@ -390,7 +390,7 @@ Run "Make prog_all" from the top level directory to flash the current .bit file
 and RISC-V firmware.
 
 ## History
-The inspiration from this project was Grant Searle's [Multicomp](https://web.archive.org/web/20190417163425/http://searle.hostei.com/grant/Multicomp/)
+The inspiration from this project was Grant Searle's [Multicomp](http://searle.wales//Multicomp/)
 project. I bought an Cyclone II dev board shortly after discovering Grant's
 web site a few years ago, but I never got around to doing anything with it.
 The needed wiring wasn't difficult nor were the parts expensive or hard to find
@@ -506,7 +506,7 @@ or derived from the work that I have done here will contain an
 acknowledgement back to myself, Grant Searle, and a link back to this page. 
 Any file published or distributed that contains all or part of any file 
 from this page must be made available free of charge. 
-(https://web.archive.org/web/20190417163425/http://searle.hostei.com/grant/Multicomp/index.html).
+(http://searle.wales//Multicomp/index.html).
 
 >All the project files (SW & HW) are licensed under GPL v3.
 
