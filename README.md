@@ -372,12 +372,11 @@ This creates the file `~/pano_z80/fw/firmware/firmware.bin`
 
 * Create the MSC "prom" file with the bit stream and firmware image
     * Start iMPACT
-    * Click "No" to "Automatically crate and save a project"
-    * Click "No" to "Automatically crate and save a project"
+    * Click "No" to "Automatically create and save a project"
     * Open the iMPACT Project file ~/pano_z80/xilinx/pano_z80.ipf
     * Double click "Generate File..." under iMPACT Processes 
 
-This should create ~/pano_z80/xilinx/pano_z80.mcs.
+This should create `~/pano_z80/xilinx/pano_z80.mcs`.
 
 ### Useful Make targets for development
 
