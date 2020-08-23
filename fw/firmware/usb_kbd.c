@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include "misc.h"
 #include "usb.h"
 
@@ -149,10 +150,10 @@ static void usb_kbd_put_queue(char data)
 {
 #ifdef VERBOSE_DEBUG_LOGGING
    if(isprint(data)) {
-      VLOG("put '%c' into queue\n",data);
+      LOG_R("queued '%c'\n",data);
    }
    else {
-      VLOG("put 0x%x into queue\n",data);
+      LOG_R("queued 0x%x\n",data);
    }
 #endif
    if((usb_in_pointer+1)==USB_KBD_BUFFER_LEN) {
@@ -268,17 +269,30 @@ static void usb_kbd_setled(struct usb_device *dev)
 
 
 #define CAPITAL_MASK 0x20
-/* Translate the scancode in ASCII */
+/* Translate the scancode in ASCII
+   Modifier:
+      0 - key released
+      1 - key pressed
+      2 - key repeat
+*/
 static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int pressed)
 {
    unsigned char keycode;
 #ifdef ANSI_SUPPORT
    char EscKey = 0;
 #endif
+   static unsigned char RepeatScanCode;
+
+#ifdef VERBOSE_DEBUG_LOGGING
+   VLOG("0x%x,0x%x,%d\n",scancode,modifier,pressed);
+#endif
 
    if(pressed==0) {
       /* key released */
       repeat_delay=0;
+      if(RepeatScanCode == scancode) {
+         RepeatScanCode = 0;
+      }
 #ifdef ANSI_SUPPORT
       if(scancode == ARROW_U) {
          EscKey = 'A';
@@ -300,10 +314,10 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
 #endif
       return 0;
    }
-   if(pressed==2) {
-      repeat_delay++;
-      if(repeat_delay<REPEAT_DELAY)
+   if(pressed == 2) {
+      if(scancode != RepeatScanCode || ++repeat_delay < REPEAT_DELAY) {
          return 0;
+      }
       repeat_delay=REPEAT_DELAY;
    }
    keycode=0;
@@ -404,6 +418,11 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
       }
    }
    if(keycode != 0) {
+      if(RepeatScanCode != scancode) {
+      // New key pressed, save scan code and reset key repeat delay
+         RepeatScanCode = scancode;
+         repeat_delay = 0;
+      }
       usb_kbd_put_queue(keycode);
    }
 #ifdef ANSI_SUPPORT
@@ -423,6 +442,7 @@ static int usb_kbd_irq(struct usb_device *dev)
 {
    int i,res;
    unsigned char Modifiers = new[0];
+   bool KeyChange = false;
 
    if((dev->irq_status!=0)||(dev->act_len!=8)) {
       LOG("usb_keyboard Error %lX, len %d\n",dev->irq_status,dev->act_len);
@@ -438,7 +458,9 @@ static int usb_kbd_irq(struct usb_device *dev)
    }
 
    if(i < 8) {
-      LOG("\n");
+      LOG_R("old: ");
+      LOG_HEX(old,8);
+      LOG_R("new: ");
       LOG_HEX(new,8);
    }
 #endif
@@ -484,23 +506,36 @@ static int usb_kbd_irq(struct usb_device *dev)
          (!gCapsLockSwap || old[i] != CAPS_LOCK) &&
          memscan(&new[2], old[i], 6) == &new[8]) 
       {
+#ifdef VERBOSE_DEBUG_LOGGING
+         VLOG_R("#%d:\n",__LINE__);
+#endif
+         KeyChange = true;
          res|=usb_kbd_translate(old[i],Modifiers,0);
       }
       if(new[i] > 3 && 
          (!gCapsLockSwap || new[i] != CAPS_LOCK) &&
          memscan(&old[2], new[i], 6) == &old[8]) 
       {
+#ifdef VERBOSE_DEBUG_LOGGING
+         VLOG_R("#%d:\n",__LINE__);
+#endif
+         KeyChange = true;
          res|=usb_kbd_translate(new[i],Modifiers,1);
       }
    }
 
-   for(i = 7; i >= 2; i--) {
-      if(new[i] > 3 && 
-         (!gCapsLockSwap || new[i] != CAPS_LOCK) &&
-         new[i] != CAPS_LOCK &&
-         old[i]==new[i]) 
-      { // still pressed
-         res |= usb_kbd_translate(new[i],Modifiers,2);
+   if(!KeyChange) {
+      for(i = 7; i >= 2; i--) {
+         if(new[i] > 3 && 
+            (!gCapsLockSwap || new[i] != CAPS_LOCK) &&
+            new[i] != CAPS_LOCK &&
+            old[i]==new[i]) 
+         { // still pressed
+#ifdef VERBOSE_DEBUG_LOGGING
+            VLOG_R("#%d:\n",__LINE__);
+#endif
+            res |= usb_kbd_translate(new[i],Modifiers,2);
+         }
       }
    }
 
