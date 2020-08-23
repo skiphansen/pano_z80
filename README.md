@@ -353,7 +353,7 @@ tried it and don't recommend it.
 
 * Install the free Webpack version of Xilinx [ISE 14.7](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/design-tools/v2012_4---14_7.html)
 
-* Follow the instruction in the [PicoRV32 repository](https://github.com/cliffordwolf/picorv32) to install the riscv32ic toolchain.
+* Follow the instruction in the [PicoRV32 repository](https://github.com/cliffordwolf/picorv32#building-a-pure-rv32i-toolchain) to install the riscv32ic toolchain.
 
 * Clone this github repository into `~/pano_z80` and change into the root of the repository
 
@@ -366,9 +366,18 @@ This creates the file `~/pano_z80/fw/firmware/firmware.bin`
 
 * Fire up Xilinx ISE
 
-* Create the bitstream
+* Create the bitstream `~/pano_z80/xilinx/work/pano_top.bit`
     * File -> Open Project -> ~/pano_z80/xilinx/pano_z80.xise
     * Double click on 'Generate Programming File'
+
+* Create the MSC "prom" file with the bit stream and firmware image
+    * Start iMPACT
+    * Click "No" to "Automatically crate and save a project"
+    * Click "No" to "Automatically crate and save a project"
+    * Open the iMPACT Project file ~/pano_z80/xilinx/pano_z80.ipf
+    * Double click "Generate File..." under iMPACT Processes 
+
+This should create ~/pano_z80/xilinx/pano_z80.mcs.
 
 ### Useful Make targets for development
 
