@@ -405,7 +405,7 @@ output while debugging RISC-V firmware.   The debug serial port's format is
 
 Moderate soldering skills or good clip leads are needed to connect a 3.3V 
 compatible serial port to the LED.  The LED trace is fairly easy to access,
-please refer to my [pano_man])https://github.com/skiphansen/pano_man#gpio-joystick-interface)
+please refer to my [pano_man](https://github.com/skiphansen/pano_man#gpio-joystick-interface)
 documentation for the location.
 
 The log.h header includes several macros to make debugging easier.  Please refer
@@ -471,7 +471,7 @@ This project also uses code from several other projects including:
 
 ## Pano Links
 
-Links to other Panologic information can be found on the [Pano Hacker's Wiki](https://github.com/tomverbeure/panologic-g2/wiki/Panologic-links#pano-links)
+Links to other Panologic information can be found on the [Pano Hacker's Wiki](https://github.com/tomverbeure/panologic-g2/wiki#community)
 
 ## LEGAL 
 
