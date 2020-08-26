@@ -35,8 +35,8 @@ LX100 device which is still quite large by hobbist standards.
 Unfortunately for Panologic, but fortunate for FPGA hobbyists Panologic 
 went out of business in 2012.  Shortly thereafter **TONS** of both new and 
 used Panologic devices started showing up on ebay for very little money 
-since they were pretty much useless without support.  Even today (Oct 
-2019) both versions of the Panologic devices are still readily available 
+since they were pretty much useless without support.  Even today (Aug
+2020) both versions of the Panologic devices are still readily available 
 on ebay for little. 
 
 ![Pile of Panos](./assets/pano_pile.png) 
@@ -81,10 +81,10 @@ non-ASCII keys are passed to the Z80 console.
 Function keys F5 .. F12 are used by the RISC-V I/O processor to provide run
 time control of the system. 
 
+F5 is used to swap the position of the control and caps lock keys.
+
 F6 is used to toggle the display between green on black, white on black, or 
 black on white.  
-
-F5 is used to swap the position of the control and caps lock keys.
 
 F7 is used to reset Z80 processor.
 
@@ -397,6 +397,20 @@ Run "Make prog_fpga" to just flash the current .bit file into the SPI flash.
 Run "Make prog_all" from the top level directory to flash the current .bit file
 and RISC-V firmware.
 
+### RISC-V firmware debugging
+
+The RTL hardware includes a output only UART which can be used for debug 
+output while debugging RISC-V firmware.   The debug serial port's format is 
+115200-n-8-1.
+
+Moderate soldering skills or good clip leads are needed to connect a 3.3V 
+compatible serial port to the LED.  The LED trace is fairly easy to access,
+please refer to my [pano_man])https://github.com/skiphansen/pano_man#gpio-joystick-interface)
+documentation for the location.
+
+The log.h header includes several macros to make debugging easier.  Please refer
+to the source for details.
+
 ## History
 The inspiration from this project was Grant Searle's [Multicomp](http://searle.wales//Multicomp/)
 project. I bought an Cyclone II dev board shortly after discovering Grant's
@@ -457,21 +471,7 @@ This project also uses code from several other projects including:
 
 ## Pano Links
 
-- [Original Hackaday](https://hackaday.com/2013/01/11/ask-hackaday-we-might-have-some-fpgas-to-hack/) article from 2013.  
-- Hackady article on Tom's [Raytracker](https://hackaday.com/2018/12/07/racing-the-beam-on-a-thin-client-in-fpgas/).  
-- Hackaday article on my [Pacman](https://hackaday.com/2019/01/11/pac-man-fever-comes-to-the-pano-logic-fpga/) project.  
-- Hackaday article on Tom's [Joystick adapter](https://hackaday.com/2019/02/11/two-joysticks-talk-to-fpga-arcade-game-over-a-vga-cable/).  
-- Wenting Zhang's [VerilogBoy](https://github.com/zephray/VerilogBoy) project.
-- Hackaday article on My [pano_progfpga](https://hackaday.com/2019/04/19/pano-logic-fgpa-hacking-just-got-easier/) project
-- My [prog_fpga](https://github.com/skiphansen/pano_progfpga) project.
-- My [pacman](https://github.com/skiphansen/pano_man) project.
-- My [Hello World](https://github.com/skiphansen/pano_hello_g1) project.
-- https://github.com/tomverbeure/panologic
-- G1 [Schematics!](https://github.com/twj42/PanoLogicG2_ReverseEngineering/blob/master/files/G1_Schematics.zip)
-- https://github.com/tomverbeure/panologic-g2
-- https://twj42.github.io/PanoLogicG2_ReverseEngineering/
-- [Group](https://groups.io/g/panohackers/topics) for discussions about Panologic hacking 
-- [Gitter](https://gitter.im/panologic/community) chat room for Panologic hackers.
+Links to other Panologic information can be found on the [Pano Hacker's Wiki](https://github.com/tomverbeure/panologic-g2/wiki/Panologic-links#pano-links)
 
 ## LEGAL 
 
