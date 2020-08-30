@@ -800,6 +800,14 @@ int MountCpmDrives()
             break;
          }
 
+         if(Filename[0] == '.' || Filename[0] == '_') {
+         // Note: the filesystem is configured for 8.3 mode to save space
+         // So leading dots which are illegal in 8.3 mode are filtered out
+         // before we see them so we need to look check for '_' to ignore
+         // actual files with a suffix of "._"
+            LOG("Ignoring %s'\n",Filename);
+            continue;
+         }
          cp = Filename;
          while(*cp && *cp != '.') {
             cp++;
