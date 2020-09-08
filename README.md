@@ -334,9 +334,7 @@ Use iMPACT to program .../xilinx/pano_z80.msc into flash.
 
 Now that the Pano has been updated and a USB flash drive is ready it's time
 for the moment of truth.  Connect a USB keyboard and the USB flash drive to
-the USB ports next to the VGA connector and connect a VGA monitor.  Do not use 
-the USB port located next to the Ethernet port, it does not work currently 
-(a bug for another day).
+the USB ports and connect a VGA monitor.  
 
 Now turn on power and hopefully you'll be greeted by a screen similar to
 the one at the top of this page.

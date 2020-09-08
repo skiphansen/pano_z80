@@ -54,7 +54,7 @@ extern uint8_t usb_buf[USB_BUFSIZ];
 #define USB_MAXINTERFACES     4   // DualShock 4 use 4 interfaces
 #define USB_MAXENDPOINTS      2
 #define USB_MAXCHILDREN       3  /* This is arbitrary */
-#define USB_MAX_HUB           2
+#define USB_MAX_HUB           3
 
 #define USB_CNTL_TIMEOUT 100 /* 100ms timeout */
 
