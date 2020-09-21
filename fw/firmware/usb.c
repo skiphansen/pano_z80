@@ -49,7 +49,6 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include "misc.h"
 #include "usb.h"
 #include "string.h"
@@ -59,9 +58,6 @@
 #define LOG_TO_SERIAL
 #include "log.h"
 
-#define MAX_TRIES 5
-
-uint8_t gDumpPtd = 0;
 
 uint8_t usb_buf[USB_BUFSIZ];
 
@@ -77,15 +73,11 @@ char usb_started; /* flag for the started/stopped USB status */
  * some forward declerations...
  */
 void usb_scan_devices(void);
-static inline char *portspeed(int portstatus);
 
 int usb_hub_probe(struct usb_device *dev, int ifnum);
 void usb_hub_reset(void);
 static int hub_port_reset(struct usb_device *dev, int port,
                           unsigned short *portstat);
-const char *Feature2Str(int Feature);
-bool IsHub(struct usb_device *dev,int ifno);
-void CheckHubAltSetting(struct usb_device *dev,int ifno,unsigned char *buffer);
 
 /***********************************************************************
  * wait_ms
@@ -93,7 +85,6 @@ void CheckHubAltSetting(struct usb_device *dev,int ifno,unsigned char *buffer);
 
 inline void wait_ms(unsigned long ms)
 {
-   LOG("%lu\n",ms);
    delay_ms(ms);
 }
 
@@ -169,7 +160,7 @@ int usb_submit_int_msg(struct usb_device *dev, unsigned long pipe,
 }
 
 /*
- * submits a control message and waits for completion (at least timeout * 1ms)
+ * submits a control message and waits for comletion (at least timeout * 1ms)
  * If timeout is 0, we don't wait for completion (used as example to set and
  * clear keyboards LEDs). For data transfers, (storage transfers) we don't
  * allow control messages with 0 timeout, by previousely resetting the flag
@@ -193,7 +184,8 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe,
    setup_packet.value = cpu_to_le16(value);
    setup_packet.index = cpu_to_le16(index);
    setup_packet.length = cpu_to_le16(size);
-   LOG("request: 0x%x, requesttype: 0x%x, value 0x%x index 0x%x length 0x%x\n",
+   LOG("usb_control_msg: request: 0x%x, requesttype: 0x%x, " \
+       "value 0x%x index 0x%x length 0x%x\n",
        request, requesttype, value, index, size);
    dev->status = USB_ST_NOT_PROC; /*not yet processed */
 
@@ -206,7 +198,6 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe,
        * Let's wait a while for the timeout to elapse.
        * It has no real use, but it keeps the interface happy.
        */
-      LOG("Error: dev->status: %lu\n",dev->status);
       wait_ms(timeout);
       return -1;
    }
@@ -319,7 +310,8 @@ int usb_set_maxpacket(struct usb_device *dev)
 
    for(i = 0; i < dev->config.bNumInterfaces; i++)
       for(ii = 0; ii < dev->config.if_desc[i].bNumEndpoints; ii++)
-         usb_set_maxpacket_ep(dev,&dev->config.if_desc[i].ep_desc[ii]);
+         usb_set_maxpacket_ep(dev,
+                              &dev->config.if_desc[i].ep_desc[ii]);
 
    return 0;
 }
@@ -342,7 +334,7 @@ int usb_parse_config(struct usb_device *dev, unsigned char *buffer, int cfgno)
    dev->configno = cfgno;
    head = (struct usb_descriptor_header *) &buffer[0];
    if(head->bDescriptorType != USB_DT_CONFIG) {
-      ELOG("ERROR: NOT USB_CONFIG_DESC %x\n",head->bDescriptorType);
+      ELOG(" ERROR: NOT USB_CONFIG_DESC %x\n",head->bDescriptorType);
       return -1;
    }
    memcpy(&dev->config, buffer, buffer[0]);
@@ -352,30 +344,28 @@ int usb_parse_config(struct usb_device *dev, unsigned char *buffer, int cfgno)
    index = dev->config.bLength;
    /* Ok the first entry must be a configuration entry,
     * now process the others */
+   head = (struct usb_descriptor_header *) &buffer[index];
    while(index + 1 < dev->config.wTotalLength) {
-      head = (struct usb_descriptor_header *) &buffer[index];
       switch(head->bDescriptorType) {
          case USB_DT_INTERFACE:
-            LOG("Parsing USB_DT_INTERFACE\n");
             if(((struct usb_interface_descriptor *) \
                 &buffer[index])->bInterfaceNumber != curr_if_num) {
                /* this is a new interface, copy new desc */
                ifno = dev->config.no_of_if;
                dev->config.no_of_if++;
+               memcpy(&dev->config.if_desc[ifno],
+                      &buffer[index], buffer[index]);
                dev->config.if_desc[ifno].no_of_ep = 0;
                dev->config.if_desc[ifno].num_altsetting = 1;
-               memcpy(&dev->config.if_desc[ifno],&buffer[index], buffer[index]);
-               curr_if_num = dev->config.if_desc[ifno].bInterfaceNumber;
-               CheckHubAltSetting(dev,ifno,&buffer[index]);
+               curr_if_num =
+               dev->config.if_desc[ifno].bInterfaceNumber;
             }
             else {
                /* found alternate setting for the interface */
                dev->config.if_desc[ifno].num_altsetting++;
-               CheckHubAltSetting(dev,ifno,&buffer[index]);
             }
             break;
          case USB_DT_ENDPOINT:
-            LOG("Parsing USB_DT_ENDPOINT\n");
             epno = dev->config.if_desc[ifno].no_of_ep;
             /* found an endpoint */
             dev->config.if_desc[ifno].no_of_ep++;
@@ -386,7 +376,6 @@ int usb_parse_config(struct usb_device *dev, unsigned char *buffer, int cfgno)
             LOG("if %d, ep %d\n", ifno, epno);
             break;
          case USB_DT_HID:
-            LOG("Parsing USB_DT_HID\n");
             memcpy(&dev->hid_descriptor,
                    &buffer[index], buffer[index]);
             le16_to_cpus(&(dev->hid_descriptor.bcdHID));
@@ -398,6 +387,7 @@ int usb_parse_config(struct usb_device *dev, unsigned char *buffer, int cfgno)
                return 1;
 
             LOG("unknown Description Type : %x\n",head->bDescriptorType);
+
             {
                ch = (unsigned char *)head;
                for(i = 0; i < head->bLength; i++) {
@@ -408,6 +398,7 @@ int usb_parse_config(struct usb_device *dev, unsigned char *buffer, int cfgno)
             break;
       }
       index += head->bLength;
+      head = (struct usb_descriptor_header *)&buffer[index];
    }
    return 1;
 }
@@ -791,7 +782,7 @@ int usb_new_device(struct usb_device *dev)
 {
    int addr, err;
    int tmp;
-   int tries;
+   //unsigned char tmpbuf[USB_BUFSIZ];
 
    /* We still haven't set the Address yet */
    addr = dev->devnum;
@@ -814,24 +805,19 @@ int usb_new_device(struct usb_device *dev)
     * the maxpacket size is 8 or 16 the device may be waiting to transmit
     * some more, or keeps on retransmitting the 8 byte header. */
 
-   for(tries = 0; tries < MAX_TRIES; tries++) {
-      desc = (struct usb_device_descriptor *)usb_buf;
-      dev->descriptor.bMaxPacketSize0 = 64;      /* Start off at 64 bytes  */
-      /* Default to 64 byte max packet size */
-      dev->maxpacketsize = PACKET_SIZE_64;
-      dev->epmaxpacketin[0] = 64;
-      dev->epmaxpacketout[0] = 64;
+   desc = (struct usb_device_descriptor *)usb_buf;
+   dev->descriptor.bMaxPacketSize0 = 64;      /* Start off at 64 bytes  */
+   /* Default to 64 byte max packet size */
+   dev->maxpacketsize = PACKET_SIZE_64;
+   dev->epmaxpacketin[0] = 64;
+   dev->epmaxpacketout[0] = 64;
 
-      err = usb_get_descriptor(dev, USB_DT_DEVICE, 0, desc, 64);
-      if(err < 0) {
-         ELOG("usb_get_descriptor() failed, try %d, err: %d\n",tries + 1,err);
-      }
-      wait_ms(200);
-   }
-
+   err = usb_get_descriptor(dev, USB_DT_DEVICE, 0, desc, 64);
    if(err < 0) {
+      ELOG("usb_new_device: usb_get_descriptor() failed\n");
       return 1;
    }
+
    dev->descriptor.bMaxPacketSize0 = desc->bMaxPacketSize0;
 
    /* find the port number we're at */
@@ -852,7 +838,7 @@ int usb_new_device(struct usb_device *dev)
       /* reset the port for the second time */
       err = hub_port_reset(dev->parent, port, &portstatus);
       if(err < 0) {
-         ELOG("Couldn't reset port %d\n", port + 1);
+         ELOG("Couldn't reset port %i\n", port);
          return 1;
       }
    }
@@ -997,7 +983,6 @@ int usb_clear_hub_feature(struct usb_device *dev, int feature)
 
 int usb_clear_port_feature(struct usb_device *dev, int port, int feature)
 {
-   LOG("port %d, %s\n",port,Feature2Str(feature));
    return usb_control_msg(dev, usb_sndctrlpipe(dev, 0),
                           USB_REQ_CLEAR_FEATURE, USB_RT_PORT, feature,
                           port, NULL, 0, USB_CNTL_TIMEOUT);
@@ -1005,7 +990,6 @@ int usb_clear_port_feature(struct usb_device *dev, int port, int feature)
 
 int usb_set_port_feature(struct usb_device *dev, int port, int feature)
 {
-   LOG("port %d, %s\n",port,Feature2Str(feature));
    return usb_control_msg(dev, usb_sndctrlpipe(dev, 0),
                           USB_REQ_SET_FEATURE, USB_RT_PORT, feature,
                           port, NULL, 0, USB_CNTL_TIMEOUT);
@@ -1018,31 +1002,13 @@ int usb_get_hub_status(struct usb_device *dev, void *data)
                           data, sizeof(struct usb_hub_status), USB_CNTL_TIMEOUT);
 }
 
-int usb_get_port_status(struct usb_device *dev, int port, struct usb_port_status *p)
+int usb_get_port_status(struct usb_device *dev, int port, void *data)
 {
-   int Ret;
-   unsigned short portstatus, portchange;
-
-   LOG("Port %d\n",port);
-   Ret = usb_control_msg(dev, usb_rcvctrlpipe(dev, 0),
+   return usb_control_msg(dev, usb_rcvctrlpipe(dev, 0),
                           USB_REQ_GET_STATUS, USB_DIR_IN | USB_RT_PORT, 0, port,
-                          p, sizeof(struct usb_hub_status), USB_CNTL_TIMEOUT);
-   if(Ret >= 0) {
-      portstatus = le16_to_cpu(p->wPortStatus);
-      portchange = le16_to_cpu(p->wPortChange);
-
-      LOG("Port %d: portstatus 0x%x, change 0x%x, %s\n",port,portstatus,
-          portchange,portspeed(portstatus));
-
-      LOG_R("  STAT_C_CONNECTION = %d STAT_CONNECTION = %d" \
-                     "  USB_PORT_STAT_ENABLE %d\n",
-                     (portchange & USB_PORT_STAT_C_CONNECTION) ? 1 : 0,
-                     (portstatus & USB_PORT_STAT_CONNECTION) ? 1 : 0,
-                     (portstatus & USB_PORT_STAT_ENABLE) ? 1 : 0);
-   }
-
-   return Ret;
+                          data, sizeof(struct usb_hub_status), USB_CNTL_TIMEOUT);
 }
+
 
 static void usb_hub_power_on(struct usb_hub_device *hub)
 {
@@ -1055,8 +1021,8 @@ static void usb_hub_power_on(struct usb_hub_device *hub)
    for(i = 0; i < dev->maxchild; i++) {
       usb_set_port_feature(dev, i + 1, USB_PORT_FEAT_POWER);
       LOG("port %d returns %d\n", i + 1, dev->status);
+      wait_ms(hub->desc.bPwrOn2PwrGood * 2);
    }
-   wait_ms(hub->desc.bPwrOn2PwrGood * 2);
 
 // NB: on a normal full system it doesn't mater if an attached device indicates
 // that it has connected yet since if it connects later a hub status change 
@@ -1079,6 +1045,7 @@ struct usb_hub_device *usb_hub_allocate(void) {
    return NULL;
 }
 
+#define MAX_TRIES 5
 
 static inline char *portspeed(int portstatus)
 {
@@ -1097,12 +1064,11 @@ static int hub_port_reset(struct usb_device *dev, int port,
    struct usb_port_status portsts;
    unsigned short portstatus, portchange;
 
-   LOG("resetting port %d...\n", port + 1);
+   LOG("hub_port_reset: resetting port %d...\n", port);
    for(tries = 0; tries < MAX_TRIES; tries++) {
 
       usb_set_port_feature(dev, port + 1, USB_PORT_FEAT_RESET);
       wait_ms(200);
-      usb_clear_port_feature(dev, port + 1, USB_PORT_FEAT_C_RESET);
 
       if(usb_get_port_status(dev, port + 1, &portsts) < 0) {
          ELOG("get_port_status failed status %d\n",dev->status);
@@ -1111,12 +1077,23 @@ static int hub_port_reset(struct usb_device *dev, int port,
       portstatus = le16_to_cpu(portsts.wPortStatus);
       portchange = le16_to_cpu(portsts.wPortChange);
 
+      LOG("portstatus %x, change %x, %s\n",portstatus, portchange,
+          portspeed(portstatus));
+
+      LOG("STAT_C_CONNECTION = %d STAT_CONNECTION = %d" \
+                     "  USB_PORT_STAT_ENABLE %d\n",
+                     (portchange & USB_PORT_STAT_C_CONNECTION) ? 1 : 0,
+                     (portstatus & USB_PORT_STAT_CONNECTION) ? 1 : 0,
+                     (portstatus & USB_PORT_STAT_ENABLE) ? 1 : 0);
+
       if((portchange & USB_PORT_STAT_C_CONNECTION) ||
          !(portstatus & USB_PORT_STAT_CONNECTION))
          return -1;
 
       if(portstatus & USB_PORT_STAT_ENABLE)
          break;
+
+      wait_ms(200);
    }
 
    if(tries == MAX_TRIES) {
@@ -1126,6 +1103,7 @@ static int hub_port_reset(struct usb_device *dev, int port,
       return -1;
    }
 
+   usb_clear_port_feature(dev, port + 1, USB_PORT_FEAT_C_RESET);
    *portstat = portstatus;
    return 0;
 }
@@ -1139,12 +1117,14 @@ void usb_hub_port_connect_change(struct usb_device *dev, int port)
 
    /* Check status */
    if(usb_get_port_status(dev, port + 1, &portsts) < 0) {
-      ELOG("get_port_status failed status %d\n",dev->status);
+      ELOG("get_port_status failed\n");
       return;
    }
 
    portstatus = le16_to_cpu(portsts.wPortStatus);
    portchange = le16_to_cpu(portsts.wPortChange);
+   LOG("portstatus %x, change %x, %s\n",
+                  portstatus, portchange, portspeed(portstatus));
 
    /* Clear the connection change status */
    usb_clear_port_feature(dev, port + 1, USB_PORT_FEAT_C_CONNECTION);
@@ -1177,7 +1157,7 @@ void usb_hub_port_connect_change(struct usb_device *dev, int port)
    else
       usb->speed = USB_SPEED_FULL;
 
-   usb->portnr = port + 1;
+   usb->portnr = port;
    dev->children[port] = usb;
    usb->parent = dev;
    /* Run it through the hoops (find a driver, etc) */
@@ -1202,16 +1182,9 @@ int usb_hub_configure(struct usb_device *dev)
    if(hub == NULL)
       return -1;
    hub->pusb_dev = dev;
-   /* set the bitmap */
-   bitmap = (unsigned char *)&hub->desc.DeviceRemovable[0];
-   /* devices not removable by default */
-   memset(bitmap, 0xff, (USB_MAXCHILDREN+1+7)/8);
-   bitmap = (unsigned char *)&hub->desc.PortPowerCtrlMask[0];
-   memset(bitmap, 0xff, (USB_MAXCHILDREN+1+7)/8); /* PowerMask = 1B */
-
    /* Get the the hub descriptor */
    if(usb_get_hub_descriptor(dev, buffer, 4) < 0) {
-      ELOG("failed to get hub descriptor, giving up %d\n",
+      ELOG("usb_hub_configure: failed to get hub descriptor, giving up %d\n",
            dev->status);
       return -1;
    }
@@ -1220,13 +1193,13 @@ int usb_hub_configure(struct usb_device *dev)
    /* silence compiler warning if USB_BUFSIZ is > 256 [= sizeof(char)] */
    i = descriptor->bLength;
    if(i > USB_BUFSIZ) {
-      ELOG("failed to get hub descriptor - too long: %d\n",
+      ELOG("usb_hub_configure: failed to get hub descriptor - too long: %d\n",
            descriptor->bLength);
       return -1;
    }
 
    if(usb_get_hub_descriptor(dev, buffer, descriptor->bLength) < 0) {
-      ELOG("failed to get hub descriptor 2nd giving up %d\n",
+      ELOG("usb_hub_configure: failed to get hub descriptor 2nd giving up %d\n",
            dev->status);
       return -1;
    }
@@ -1234,16 +1207,28 @@ int usb_hub_configure(struct usb_device *dev)
    /* adjust 16bit values */
    hub->desc.wHubCharacteristics =
    le16_to_cpu(descriptor->wHubCharacteristics);
+   /* set the bitmap */
+   bitmap = (unsigned char *)&hub->desc.DeviceRemovable[0];
+   /* devices not removable by default */
+   memset(bitmap, 0xff, (USB_MAXCHILDREN+1+7)/8);
+   bitmap = (unsigned char *)&hub->desc.PortPowerCtrlMask[0];
+   memset(bitmap, 0xff, (USB_MAXCHILDREN+1+7)/8); /* PowerMask = 1B */
 
-   dev->maxchild = hub->desc.bNbrPorts;
-   LOG("\n  %d ports detected\n", dev->maxchild);
+   for(i = 0; i < ((hub->desc.bNbrPorts + 1 + 7)/8); i++)
+      hub->desc.DeviceRemovable[i] = descriptor->DeviceRemovable[i];
+
+   for(i = 0; i < ((hub->desc.bNbrPorts + 1 + 7)/8); i++)
+      hub->desc.DeviceRemovable[i] = descriptor->PortPowerCtrlMask[i];
+
+   dev->maxchild = descriptor->bNbrPorts;
+   LOG("%d ports detected\n", dev->maxchild);
 
    switch(hub->desc.wHubCharacteristics & HUB_CHAR_LPSM) {
       case 0x00:
-         LOG_R("  ganged power switching\n");
+         LOG("ganged power switching\n");
          break;
       case 0x01:
-         LOG_R("  individual port power switching\n");
+         LOG("individual port power switching\n");
          break;
       case 0x02:
       case 0x03:
@@ -1252,34 +1237,40 @@ int usb_hub_configure(struct usb_device *dev)
    }
 
    if(hub->desc.wHubCharacteristics & HUB_CHAR_COMPOUND)
-      LOG_R("  part of a compound device\n");
+      LOG("part of a compound device\n");
    else
-      LOG_R("  standalone hub\n");
+      LOG("standalone hub\n");
 
    switch(hub->desc.wHubCharacteristics & HUB_CHAR_OCPM) {
       case 0x00:
-         LOG_R("  global over-current protection\n");
+         LOG("global over-current protection\n");
          break;
       case 0x08:
-         LOG_R("  individual port over-current protection\n");
+         LOG("individual port over-current protection\n");
          break;
       case 0x10:
       case 0x18:
-         LOG_R("  no over-current protection\n");
+         LOG("no over-current protection\n");
          break;
    }
 
-   LOG_R("  power on to power good time: %dms\n",hub->desc.bPwrOn2PwrGood * 2);
-   LOG_R("  hub controller current requirement: %dmA\n",
+   LOG("power on to power good time: %dms\n",descriptor->bPwrOn2PwrGood * 2);
+   LOG("hub controller current requirement: %dmA\n",
        descriptor->bHubContrCurrent);
 
    for(i = 0; i < dev->maxchild; i++)
-      LOG_R("  port %d is%s removable\n", i + 1,
+      LOG("port %d is%s removable\n", i + 1,
                      hub->desc.DeviceRemovable[(i + 1) / 8] & \
                      (1 << ((i + 1) % 8)) ? " not" : "");
 
+   if(sizeof(struct usb_hub_status) > USB_BUFSIZ) {
+      ELOG("usb_hub_configure: failed to get Status - too long: %d\n",
+           descriptor->bLength);
+      return -1;
+   }
+
    if(usb_get_hub_status(dev, buffer) < 0) {
-      ELOG("failed to get Status %d\n",dev->status);
+      ELOG("usb_hub_configure: failed to get Status %d\n",dev->status);
       return -1;
    }
 
@@ -1300,21 +1291,42 @@ int usb_hub_configure(struct usb_device *dev)
       unsigned short portstatus, portchange;
       int ret;
 
+      /*for (int i = 0; i < 5; i++) {
+         ret = usb_get_port_status(dev, i + 1, &portsts);
+         if (ret < 0) {
+            LOG("get_port_status failed\n");
+            break;
+         }
+
+         portstatus = le16_to_cpu(portsts.wPortStatus);
+         portchange = le16_to_cpu(portsts.wPortChange);
+
+         if ((portchange & USB_PORT_STAT_C_CONNECTION) ==
+            (portstatus & USB_PORT_STAT_CONNECTION))
+            break;
+
+         wait_ms(100);
+      }
+      if (ret < 0) continue;*/
+
       if(usb_get_port_status(dev, i + 1, &portsts) < 0) {
-         LOG("get_port_status failed status %d\n",dev->status);
+         ELOG("get_port_status failed\n");
          continue;
       }
 
       portstatus = le16_to_cpu(portsts.wPortStatus);
       portchange = le16_to_cpu(portsts.wPortChange);
+      LOG("Port %d Status %x Change %x\n",
+                     i + 1, portstatus, portchange);
 
       if(portchange & USB_PORT_STAT_C_CONNECTION) {
          LOG("port %d connection change\n", i + 1);
          usb_hub_port_connect_change(dev, i);
       }
       if(portchange & USB_PORT_STAT_C_ENABLE) {
-         LOG("port %d enable change, status 0x%x\n",i + 1, portstatus);
-         usb_clear_port_feature(dev,i + 1,USB_PORT_FEAT_C_ENABLE);
+         LOG("port %d enable change, status %x\n",i + 1, portstatus);
+         usb_clear_port_feature(dev, i + 1,
+                                USB_PORT_FEAT_C_ENABLE);
 
          /* EM interference sometimes causes bad shielded USB
           * devices to be shutdown by the hub, this hack enables
@@ -1322,25 +1334,28 @@ int usb_hub_configure(struct usb_device *dev)
          if(!(portstatus & USB_PORT_STAT_ENABLE) &&
             (portstatus & USB_PORT_STAT_CONNECTION) &&
             ((dev->children[i]))) {
-            LOG("  already running port %i disabled by hub (EMI?), " \
+            LOG("already running port %i disabled by hub (EMI?), " \
                            "re-enabling...\n", i + 1);
             usb_hub_port_connect_change(dev, i);
          }
       }
       if(portstatus & USB_PORT_STAT_SUSPEND) {
          LOG("port %d suspend change\n", i + 1);
-         usb_clear_port_feature(dev, i + 1,USB_PORT_FEAT_SUSPEND);
+         usb_clear_port_feature(dev, i + 1,
+                                USB_PORT_FEAT_SUSPEND);
       }
 
       if(portchange & USB_PORT_STAT_C_OVERCURRENT) {
          LOG("port %d over-current change\n", i + 1);
-         usb_clear_port_feature(dev, i + 1,USB_PORT_FEAT_C_OVER_CURRENT);
+         usb_clear_port_feature(dev, i + 1,
+                                USB_PORT_FEAT_C_OVER_CURRENT);
          usb_hub_power_on(hub);
       }
 
       if(portchange & USB_PORT_STAT_C_RESET) {
          LOG("port %d reset change\n", i + 1);
-         usb_clear_port_feature(dev, i + 1,USB_PORT_FEAT_C_RESET);
+         usb_clear_port_feature(dev, i + 1,
+                                USB_PORT_FEAT_C_RESET);
       }
    } /* end for i all ports */
 
@@ -1349,103 +1364,33 @@ int usb_hub_configure(struct usb_device *dev)
 
 int usb_hub_probe(struct usb_device *dev, int ifnum)
 {
-   struct usb_interface_descriptor *iface = &dev->config.if_desc[ifnum];
-   struct usb_endpoint_descriptor *ep = &iface->ep_desc[0];
+   struct usb_interface_descriptor *iface;
+   struct usb_endpoint_descriptor *ep;
    int ret;
 
+   iface = &dev->config.if_desc[ifnum];
    /* Is it a hub? */
-   if(!IsHub(dev,ifnum) ||
-      /* Output endpoint? Curiousier and curiousier.. */
-      !(ep->bEndpointAddress & USB_DIR_IN) ||
-      /* If it's not an interrupt endpoint, we'd better punt! */
-      (ep->bmAttributes & 3) != 3)
-   {
+   if(iface->bInterfaceClass != USB_CLASS_HUB)
       return 0;
-   }
-
+   /* Some hubs have a subclass of 1, which AFAICT according to the */
+   /*  specs is not defined, but it works */
+   if((iface->bInterfaceSubClass != 0) &&
+      (iface->bInterfaceSubClass != 1))
+      return 0;
+   /* Multiple endpoints? What kind of mutant ninja-hub is this? */
+   if(iface->bNumEndpoints != 1)
+      return 0;
+   ep = &iface->ep_desc[0];
+   /* Output endpoint? Curiousier and curiousier.. */
+   if(!(ep->bEndpointAddress & USB_DIR_IN))
+      return 0;
+   /* If it's not an interrupt endpoint, we'd better punt! */
+   if((ep->bmAttributes & 3) != 3)
+      return 0;
    /* We found a hub */
    LOG("USB hub found\n");
-   if(iface->act_altsetting != 0) {
-      LOG("MultiTT hub, selecting altsetting %d on interface %d\n",
-          iface->act_altsetting,iface->bInterfaceNumber);
-
-      ret = usb_set_interface(dev,iface->bInterfaceNumber,
-                              iface->bAlternateSetting);
-      if(ret < 0) {
-         LOG("usb_set_interface failed, %d\n",ret);
-      }
-   }
    ret = usb_hub_configure(dev);
    return ret;
-}
-
-const char *Feature2Str(int Feature)
-{
-   const char *Ret = "Unknown";
-   switch(Feature) {
-      case USB_PORT_FEAT_RESET:
-         Ret = "reset";
-         break;
-
-      case USB_PORT_FEAT_C_RESET:
-         Ret = "reset change";
-         break;
-
-      case USB_PORT_FEAT_C_CONNECTION:
-         Ret = "connection change";
-         break;
-
-      case USB_PORT_FEAT_ENABLE:
-         Ret = "enable";
-         break;
-
-      case USB_PORT_FEAT_POWER:
-         Ret = "power";
-         break;
-   }
-
-   return Ret;
-}
-
-bool IsHub(struct usb_device *dev,int ifno)
-{
-   struct usb_interface_descriptor *iface = &dev->config.if_desc[ifno];
-   bool Ret = false;
-
-   do {
-      if(iface->bInterfaceClass != USB_CLASS_HUB) {
-         LOG("#%d\n",__LINE__);
-         break;
-      }
-      /* Some hubs have a subclass of 1, which AFAICT according to the */
-      /*  specs is not defined, but it works */
-      if(iface->bInterfaceSubClass != 0 && iface->bInterfaceSubClass != 1) {
-         LOG("#%d\n",__LINE__);
-         break;
-      }
-      /* Multiple endpoints? What kind of mutant ninja-hub is this? */
-      if(iface->bNumEndpoints != 1) {
-         LOG("#%d\n",__LINE__);
-         break;
-      }
-      Ret = true;
-   } while(false);
-
-   return Ret;
-}
-
-void CheckHubAltSetting(struct usb_device *dev,int ifno,unsigned char *buffer)
-{
-   if(IsHub(dev,ifno)) {
-      struct usb_interface_descriptor *iface = (struct usb_interface_descriptor *) buffer;
-      LOG("ifno %d, iface->bInterfaceProtocol: %d\n",ifno,
-          iface->bInterfaceProtocol);
-      if(iface->bInterfaceProtocol == 2) {
-         dev->config.if_desc[ifno].act_altsetting = iface->bAlternateSetting;
-         LOG("Set act_altsetting to %d\n",iface->act_altsetting);
-         memcpy(&dev->config.if_desc[ifno],buffer,iface->bLength);
-      }
-   }
 }
 
 /* EOF */

@@ -37,7 +37,6 @@
 // Bit fields for gLogFlags
 #define LOG_SERIAL            0x01
 #define LOG_MONITOR           0x02
-#define LOG_BOTH              0x03
 #define LOG_DISABLED          0x04
 #define LOG_VERBOSE_DISABLED  0x08
 void LogPutc(char c,void * arg);
@@ -52,7 +51,7 @@ void LogPutc(char c,void * arg);
       static int gLogFlags = LOG_MONITOR;
    #endif
    #define _LOG(LogFlags,format, ...) \
-      fctprintf(LogPutc,(void *)LogFlags,format,## __VA_ARGS__)
+      fctprintf(LogPutc,LogFlags,format,## __VA_ARGS__)
    #define LOG_DISABLE() gLogFlags |= LOG_DISABLED
    #define LOG_ENABLE() gLogFlags &= ~LOG_DISABLED
    #define VLOG_DISABLE() gLogFlags |= LOG_VERBOSE_DISABLED
@@ -71,7 +70,7 @@ void LogPutc(char c,void * arg);
    #define ALOG(format, ...) _LOG(_ALOG_FLAGS,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
    #define ALOG_R(format, ...) _LOG(_ALOG_FLAGS,format,## __VA_ARGS__)
    // ELOG - error errors
-   #define ELOG(format, ...) _LOG(LOG_BOTH,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
+   #define ELOG(format, ...) _LOG(_ALOG_FLAGS,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
    #define ELOG_HEX(x,y) LogHex(_ALOG_FLAGS,x,y)
 #else
    #define ALOG(format, ...)

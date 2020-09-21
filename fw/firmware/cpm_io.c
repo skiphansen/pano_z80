@@ -33,13 +33,14 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <string.h>
+#include "string.h"
 
 #include "ff.h"
 #include "cpm_io.h"
 #include "usb.h"
 #include "vt100.h"
 #include "misc.h"
+#include "rtc.h"
 
 // #define DEBUG_LOGGING
 // #define LOG_TO_BOTH
@@ -105,6 +106,9 @@ struct dskdef gDisks[MAX_LOGICAL_DRIVES];
 
 uint8_t gDiskStatus;
 
+static BYTE clkcmd;		/* clock command */
+static BYTE clkfmt = 0;		/* clock format, 0 = BCD, 1 = decimal */
+
 static void fdco_out(uint8_t Data);
 void CopyToZ80(uint8_t *pTo,uint8_t *pFrom,int Len);
 void CopyFromZ80(uint8_t *pTo,uint8_t *pFrom,int Len);
@@ -131,6 +135,134 @@ void CopyFromZ80(uint8_t *pTo,uint8_t *pFrom,int Len)
       *pTo++ = *pFrom;
       pFrom += 4;
    }
+}
+
+/*
+ *	Convert an integer to BCD
+ */
+static int to_bcd(int val)
+{
+   register int i = 0;
+
+   while (val >= 10) {
+      i += val / 10;
+      i <<= 4;
+      val %= 10;
+   }
+   i += val;
+   return (i);
+}
+
+/*
+ *	Calculate number of days since 1.1.1978
+ *	CP/M 3 and MP/M 2 are Y2K bug fixed and can handle the date,
+ *	so the Y2K bug here is intentional.
+ */
+static int get_date(struct tm *t)
+{
+   register int i;
+   register int val = 0;
+   
+   for (i = 1978; i < 1900 + t->tm_year; i++) {
+      val += 365;
+      if (i % 4 == 0)
+         val++;
+   }
+   val += t->tm_yday + 1;
+   return(val);
+}
+
+/*
+ *	I/O handler for write clock command:
+ *	set the wanted clock command
+ *	toggle BCD/decimal format if toggle command (255)
+ */
+static void clkc_out(BYTE data)
+{
+   clkcmd = data;
+   if (data == 255)
+      clkfmt = clkfmt ^ 1;
+}
+
+/*
+ *	I/O handler for read clock data:
+ *	dependent on the last clock command the following
+ *	informations are returned from the system clock:
+ *		0 - seconds in BCD or decimal
+ *		1 - minutes in BCD or decimal
+ *		2 - hours in BCD or decimal
+ *		3 - low byte number of days since 1.1.1978
+ *		4 - high byte number of days since 1.1.1978
+ *		5 - day of month in BCD or decimal
+ *		6 - month in BCD or decimal
+ *		7 - year in BCD or decimal
+ *	for every other clock command a 0 is returned
+ */
+static BYTE clkd_in(void)
+{
+   struct tm *t;
+   register int val;
+
+   t = rtc_read();
+   
+   switch(clkcmd) {
+   case 0:			/* seconds */
+      if (clkfmt)
+         val = t->tm_sec;
+      else
+         val = to_bcd(t->tm_sec);
+      break;
+   case 1:			/* minutes */
+      if (clkfmt)
+         val = t->tm_min;
+      else
+         val = to_bcd(t->tm_min);
+      break;
+   case 2:			/* hours */
+      if (clkfmt)
+         val = t->tm_hour;
+      else
+         val = to_bcd(t->tm_hour);
+      break;
+   case 3:			/* low byte days */
+      val = get_date(t) & 255;
+      break;
+   case 4:			/* high byte days */
+      val = get_date(t) >> 8;
+      break;
+   case 5:			/* day of month */
+      if (clkfmt)
+         val = t->tm_mday;
+      else
+         val = to_bcd(t->tm_mday);
+      break;
+   case 6:			/* month */
+      if (clkfmt)
+         val = t->tm_mon;
+      else
+         val = to_bcd(t->tm_mon);
+      break;
+   case 7:			/* year */
+      if (clkfmt)
+         val = t->tm_year;
+      else
+         val = to_bcd(t->tm_year);
+      break;
+   default:
+      val = 0;
+      break;
+   }
+   return((BYTE) val);
+}
+
+/*
+ *	I/O handler for write clock data:
+ *	under UNIX the system clock only can be set by the
+ *	super user, so we do nothing here
+ */
+static void clkd_out(BYTE data)
+{
+   data = data; /* to avoid compiler warning */
 }
 
 // This routine is called when the Z80 performs an IO read operation
@@ -160,7 +292,26 @@ void HandleIoIn(uint8_t IoPort)
       case 14: // FDC status
          Data = gDiskStatus;
          break;
-
+         
+      case 25: // clock command
+         if (have_rtc) {
+            Data = clkcmd;
+         }
+         else {
+            ELOG("Unexpected input from port 0x%x\n",IoPort);
+         }
+         break;
+         
+      case 26: // clock data
+         if (have_rtc) {
+            rtc_poll();
+            Data = clkd_in();
+         }
+         else {
+            ELOG("Unexpected input from port 0x%x\n",IoPort);
+         }
+         break;
+         
 // The following are implemented in hardware so we should never see them here
       case 0:  // console status
       case 10: // FDC drive
@@ -193,8 +344,7 @@ void HandleIoIn(uint8_t IoPort)
       case 21: // MMU bank select
       case 22: // MMU select segment size (in pages a 256 bytes)
       case 23: // MMU write protect/unprotect common memory segment
-      case 25: // clock command
-      case 26: // clock data
+
       case 27: // 10ms timer causing maskable interrupt
       case 28: // x * 10ms delay circuit for busy waiting loops
       case 29: // hardware control
@@ -244,6 +394,24 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data)
          ELOG("Unexpected output of 0x%x to port 0x%x\n",Data,IoPort);
          break;
 
+      case 25: // clock command
+         if (have_rtc) {
+            clkc_out(Data);
+         }
+         else {
+            ELOG("Unexpected output of 0x%x to port 0x%x\n",Data,IoPort);
+         }
+         break;
+         
+      case 26: // clock data
+         if (have_rtc) {
+            clkd_out(Data);
+         }
+         else {
+            ELOG("Unexpected output of 0x%x to port 0x%x\n",Data,IoPort);
+         }
+         break;
+         
    // The following are not used implemented
       case 2:  // printer status
       case 3:  // printer data
@@ -254,8 +422,7 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data)
       case 21: // MMU bank select
       case 22: // MMU select segment size (in pages a 256 bytes)
       case 23: // MMU write protect/unprotect common memory segment
-      case 25: // clock command
-      case 26: // clock data
+
       case 27: // 10ms timer causing maskable interrupt
       case 28: // x * 10ms delay circuit for busy waiting loops
       case 29: // hardware control
@@ -979,3 +1146,8 @@ void DisplayString(const char *Msg,int Row,int Col)
    }
 }
 
+/* 
+ * Local Variables:
+ * c-basic-offset: 3
+ * End:
+ */

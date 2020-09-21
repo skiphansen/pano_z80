@@ -24,6 +24,8 @@
 #ifndef _CPM_IO_H_
 #define _CPM_IO_H_
 
+#include "ff.h"
+
 #define SCREEN_X    80
 #define SCREEN_Y    30
 
