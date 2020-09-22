@@ -84,8 +84,6 @@ void usb_hub_reset(void);
 static int hub_port_reset(struct usb_device *dev, int port,
                           unsigned short *portstat);
 const char *Feature2Str(int Feature);
-bool IsHub(struct usb_device *dev,int ifno);
-void CheckHubAltSetting(struct usb_device *dev,int ifno,unsigned char *buffer);
 
 /***********************************************************************
  * wait_ms
@@ -366,12 +364,10 @@ int usb_parse_config(struct usb_device *dev, unsigned char *buffer, int cfgno)
                dev->config.if_desc[ifno].num_altsetting = 1;
                memcpy(&dev->config.if_desc[ifno],&buffer[index], buffer[index]);
                curr_if_num = dev->config.if_desc[ifno].bInterfaceNumber;
-               CheckHubAltSetting(dev,ifno,&buffer[index]);
             }
             else {
                /* found alternate setting for the interface */
                dev->config.if_desc[ifno].num_altsetting++;
-               CheckHubAltSetting(dev,ifno,&buffer[index]);
             }
             break;
          case USB_DT_ENDPOINT:
@@ -1349,32 +1345,31 @@ int usb_hub_configure(struct usb_device *dev)
 
 int usb_hub_probe(struct usb_device *dev, int ifnum)
 {
-   struct usb_interface_descriptor *iface = &dev->config.if_desc[ifnum];
-   struct usb_endpoint_descriptor *ep = &iface->ep_desc[0];
+   struct usb_interface_descriptor *iface;
+   struct usb_endpoint_descriptor *ep;
    int ret;
 
+   iface = &dev->config.if_desc[ifnum];
    /* Is it a hub? */
-   if(!IsHub(dev,ifnum) ||
-      /* Output endpoint? Curiousier and curiousier.. */
-      !(ep->bEndpointAddress & USB_DIR_IN) ||
-      /* If it's not an interrupt endpoint, we'd better punt! */
-      (ep->bmAttributes & 3) != 3)
-   {
+   if(iface->bInterfaceClass != USB_CLASS_HUB)
       return 0;
-   }
-
+   /* Some hubs have a subclass of 1, which AFAICT according to the */
+   /*  specs is not defined, but it works */
+   if((iface->bInterfaceSubClass != 0) &&
+      (iface->bInterfaceSubClass != 1))
+      return 0;
+   /* Multiple endpoints? What kind of mutant ninja-hub is this? */
+   if(iface->bNumEndpoints != 1)
+      return 0;
+   ep = &iface->ep_desc[0];
+   /* Output endpoint? Curiousier and curiousier.. */
+   if(!(ep->bEndpointAddress & USB_DIR_IN))
+      return 0;
+   /* If it's not an interrupt endpoint, we'd better punt! */
+   if((ep->bmAttributes & 3) != 3)
+      return 0;
    /* We found a hub */
    LOG("USB hub found\n");
-   if(iface->act_altsetting != 0) {
-      LOG("MultiTT hub, selecting altsetting %d on interface %d\n",
-          iface->act_altsetting,iface->bInterfaceNumber);
-
-      ret = usb_set_interface(dev,iface->bInterfaceNumber,
-                              iface->bAlternateSetting);
-      if(ret < 0) {
-         LOG("usb_set_interface failed, %d\n",ret);
-      }
-   }
    ret = usb_hub_configure(dev);
    return ret;
 }
@@ -1405,47 +1400,6 @@ const char *Feature2Str(int Feature)
    }
 
    return Ret;
-}
-
-bool IsHub(struct usb_device *dev,int ifno)
-{
-   struct usb_interface_descriptor *iface = &dev->config.if_desc[ifno];
-   bool Ret = false;
-
-   do {
-      if(iface->bInterfaceClass != USB_CLASS_HUB) {
-         LOG("#%d\n",__LINE__);
-         break;
-      }
-      /* Some hubs have a subclass of 1, which AFAICT according to the */
-      /*  specs is not defined, but it works */
-      if(iface->bInterfaceSubClass != 0 && iface->bInterfaceSubClass != 1) {
-         LOG("#%d\n",__LINE__);
-         break;
-      }
-      /* Multiple endpoints? What kind of mutant ninja-hub is this? */
-      if(iface->bNumEndpoints != 1) {
-         LOG("#%d\n",__LINE__);
-         break;
-      }
-      Ret = true;
-   } while(false);
-
-   return Ret;
-}
-
-void CheckHubAltSetting(struct usb_device *dev,int ifno,unsigned char *buffer)
-{
-   if(IsHub(dev,ifno)) {
-      struct usb_interface_descriptor *iface = (struct usb_interface_descriptor *) buffer;
-      LOG("ifno %d, iface->bInterfaceProtocol: %d\n",ifno,
-          iface->bInterfaceProtocol);
-      if(iface->bInterfaceProtocol == 2) {
-         dev->config.if_desc[ifno].act_altsetting = iface->bAlternateSetting;
-         LOG("Set act_altsetting to %d\n",iface->act_altsetting);
-         memcpy(&dev->config.if_desc[ifno],buffer,iface->bLength);
-      }
-   }
 }
 
 /* EOF */
