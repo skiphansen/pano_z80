@@ -30,6 +30,8 @@
 #define LOG_TO_SERIAL
 #include "log.h"
 
+extern uint8_t gDumpPtd;
+
 #undef USE_ROOT_HUB
 
 // #define ISP_IRQ_DRIVEN
@@ -106,10 +108,10 @@ void isp_reset() {
     delay_ms(50);
 }
 
-int isp_init() {
+int isp_init() 
+{
     uint32_t value;
 
-    LOG_DISABLE();
     // Reset the ISP1760 controller
     isp_reset();
 
@@ -487,6 +489,15 @@ void isp_build_header(usb_speed_t speed, usb_token_t token, uint32_t device_addr
         (micro_scs & 0xff);
     ptd[6] = 0;
     ptd[7] = 0;
+
+    if(gDumpPtd) {
+       int i;
+       LOG("\nptd: ");
+       for(i = 0; i < 6; i++) {
+          LOG_R("0x%08x ",ptd[i]);
+       }
+       LOG_R("\n");
+    }
 }
 
 // Glue Layer
@@ -558,7 +569,7 @@ static int isp_submit(
    }
 
    if(result != ISP_SUCCESS) {
-      LOG("%s: result: %x\n",__FUNCTION__,result);
+      LOG("result: %x\n",result);
    }
 
    switch(result) {
@@ -976,7 +987,6 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
 {
    int Ret = -1;
 
-   LOG_ENABLE();
    do {
       if(usb_pipetype(pipe) != PIPE_BULK) {
          ELOG("non-bulk pipe\n");
@@ -993,9 +1003,10 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
 }
 
 int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
-      int transfer_len, struct devrequest *setup) {
+      int transfer_len, struct devrequest *setup) 
+{
     if (usb_pipetype(pipe) != PIPE_CONTROL) {
-      LOG("non-control pipe");
+      LOG("non-control pipe\n");
       return -1;
    }
 
@@ -1004,9 +1015,19 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
    if (usb_pipedevice(pipe) == rootdev) {
       if (rootdev == 0)
          dev->speed = usb_speed_t_HIGH;
+      LOG("emulating root hub\n");
       return isp_submit_root(dev, pipe, buffer, transfer_len, setup);
    }
 #endif
+
+   {
+      uint32_t address = usb_pipedevice(pipe);
+      uint32_t parent_address = (dev->parent != NULL) ? dev->parent->devnum : 0;
+      uint32_t parent_port = dev->portnr;
+      LOG("adr: 0x%x, parent_adr: 0x%x, parent_port: 0x%x\n",
+          address,parent_address,parent_port);
+
+   }
 
    return isp_submit(dev, pipe, buffer, transfer_len, setup,0);
 }
