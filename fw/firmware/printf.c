@@ -32,9 +32,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "printf.h"
-
+#include "string.h"
 
 // define this globally (e.g. gcc -DPRINTF_INCLUDE_CONFIG_H ...) to include the
 // printf_config.h header file
@@ -138,36 +139,6 @@ static inline void _out_fct(char character, void* buffer, size_t idx, size_t max
     // buffer is the output fct pointer
     ((out_fct_wrap_type*)buffer)->fct(character, ((out_fct_wrap_type*)buffer)->arg);
   }
-}
-
-
-// internal secure strlen
-// \return The length of the string (excluding the terminating 0)
-//         limited by 'max' size if non-zero
-static inline unsigned int _strnlen_s(const char* str, size_t maxsize)
-{
-  const char* s;
-  for (s = str; *s && maxsize--; ++s);
-  return (unsigned int)(s - str);
-}
-
-
-// internal test if char is a digit (0-9)
-// \return true if char is a digit
-static inline bool _is_digit(char ch)
-{
-  return (ch >= '0') && (ch <= '9');
-}
-
-
-// internal ASCII string to unsigned int conversion
-static unsigned int _atoi(const char** str)
-{
-  unsigned int i = 0U;
-  while (_is_digit(**str)) {
-    i = i * 10U + (unsigned int)(*((*str)++) - '0');
-  }
-  return i;
 }
 
 
@@ -488,8 +459,8 @@ static int _vsnprintf(out_fct_type out, char* buffer, const size_t maxlen, const
 
     // evaluate width field
     width = 0U;
-    if (_is_digit(*format)) {
-      width = _atoi(&format);
+    if (isdigit(*format)) {
+      width = atoi(format);
     }
     else if (*format == '*') {
       const int w = va_arg(va, int);
@@ -508,8 +479,8 @@ static int _vsnprintf(out_fct_type out, char* buffer, const size_t maxlen, const
     if (*format == '.') {
       flags |= FLAGS_PRECISION;
       format++;
-      if (_is_digit(*format)) {
-        precision = _atoi(&format);
+      if (isdigit(*format)) {
+        precision = atoi(format);
       }
       else if (*format == '*') {
         const int prec = (int)va_arg(va, int);
@@ -658,7 +629,7 @@ static int _vsnprintf(out_fct_type out, char* buffer, const size_t maxlen, const
 
       case 's' : {
         char* p = va_arg(va, char*);
-        unsigned int l = _strnlen_s(p, precision ? precision : (size_t)-1);
+        unsigned int l = strnlen(p, precision ? precision : (size_t)-1);
         // pre padding
         if (flags & FLAGS_PRECISION) {
           l = (l < precision ? l : precision);

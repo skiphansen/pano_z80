@@ -24,7 +24,7 @@
     
 */
 #include <stdint.h>
-#include <string.h>
+#include "string.h"
 #include "vt100.h"
 #include "printf.h"
 

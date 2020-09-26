@@ -26,12 +26,13 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <string.h>
+#include "string.h"
 #include "misc.h"
 #include "usb.h"
 #include "ff.h"
 #include "cpm_io.h"
 #include "vt100.h"
+#include "rtc.h"
 
 // #define LOG_TO_SERIAL
 // #define LOG_TO_BOTH
@@ -70,7 +71,7 @@ void main()
    uint32_t IoState;
    uint32_t Timeout;
    bool bWasHalted = false;
-
+   
    dly_tap = 0x03;
 
    // Set interrupt mask to zero (enable all interrupts)
@@ -139,6 +140,23 @@ void main()
    term_enable_uart(false);
 #endif
 
+   time_t t = 0;
+   while (1) {
+      char line[40];
+      ALOG_R("Time and date (MM/DD/YY HH:MM:SS) or <Enter> for no RTC: ");
+      readline(line, 40);
+      ALOG_R("\n");
+      if (strnlen(line, 40) == 0) {
+         ALOG_R("Continuing with no RTC\n");
+         break;
+      }
+      t = dateparse(line, 40);
+      if (t != 0) {
+         rtc_init(t);
+         break;
+      }
+   }
+
    for( ; ; ) {
       IdlePoll();
       if(usb_kbd_testc()) {
@@ -161,6 +179,7 @@ void main()
                DisplayString("          ",29,0);
             }
          }
+         
          switch((IoState & IO_STATE_MASK)) {
             case IO_STAT_WRITE:  // Z80 out
                HandleIoOut(z80_io_adr,z80_out_data);
@@ -260,6 +279,7 @@ void LoadInitProg()
 
 void IdlePoll()
 {
+   rtc_poll();
    usb_event_poll();
    if(gWriteFlushTimeout != 0 && ticks_ms() >= gWriteFlushTimeout) {
       gWriteFlushTimeout = 0;
@@ -270,3 +290,9 @@ void IdlePoll()
       gFunctionRequest = 0;
    }
 }
+
+/* 
+ * Local Variables:
+ * c-basic-offset: 3
+ * End:
+ */

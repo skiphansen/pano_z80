@@ -25,6 +25,8 @@
 #ifndef _USB_H_
 #define _USB_H_
 
+#include <stdint.h>
+
 #define __LITTLE_ENDIAN
 /* Configuration for slave device support */
 #undef CONFIG_USB_KEYBOARD

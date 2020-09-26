@@ -18,6 +18,7 @@
  */
 #include <stdio.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include "misc.h"
 #include "usb.h"
 #include "isp1760.h"
