@@ -664,7 +664,7 @@ int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
          goto st;
    }
    if (result < 0) {
-      ELOG("usb_bulk_msg error status %ld\n",us->pusb_dev->status);
+      ELOG("usb_bulk_msg error status 0x%lx\n",us->pusb_dev->status);
       usb_stor_BBB_reset(us);
       return USB_STOR_TRANSPORT_FAILED;
    }
@@ -871,22 +871,28 @@ static int usb_inquiry(ccb *srb, struct us_data *ss)
 
 static int usb_request_sense(ccb *srb, struct us_data *ss)
 {
-   char *ptr;
+   unsigned char *pdata_save;
+   int Err;
 
-   ptr = (char *)srb->pdata;
+   pdata_save = srb->pdata;
    memset(&srb->cmd[0], 0, 12);
    srb->cmd[0] = SCSI_REQ_SENSE;
    srb->cmd[4] = 18;
    srb->datalen = 18;
    srb->pdata = &srb->sense_buf[0];
    srb->cmdlen = 12;
-   ss->transport(srb, ss);
-   if(srb->sense_buf[2] != 0) {
+   memset(srb->sense_buf,0xaa,sizeof(srb->sense_buf));
+   if((Err = ss->transport(srb, ss)) == USB_STOR_TRANSPORT_GOOD) {
+//   if(srb->sense_buf[2] != 0) {
       ELOG("Request Sense returned:\n");
       ELOG_HEX(srb->sense_buf,18);
+//   }
    }
-   srb->pdata = (unsigned char *)ptr;
-   return 0;
+   else {
+      ELOG("transport failed: %d\n",Err);
+   }
+   srb->pdata = pdata_save;
+   return Err;
 }
 
 static int usb_test_unit_ready(ccb *srb, struct us_data *ss)
@@ -927,6 +933,7 @@ static int usb_read_capacity(ccb *srb, struct us_data *ss)
 static int usb_read_10(ccb *srb, struct us_data *ss, unsigned long start,
              unsigned short blocks)
 {
+   int Ret;
    memset(&srb->cmd[0], 0, 12);
    srb->cmd[0] = SCSI_READ10;
    srb->cmd[2] = ((unsigned char) (start >> 24)) & 0xff;
@@ -937,7 +944,10 @@ static int usb_read_10(ccb *srb, struct us_data *ss, unsigned long start,
    srb->cmd[8] = (unsigned char) blocks & 0xff;
    srb->cmdlen = 10;
    LOG("read10: start %lx blocks %x\n", start, blocks);
-   return ss->transport(srb, ss);
+   Ret = ss->transport(srb, ss);
+   if(Ret != 0) {
+      ELOG("Failed: start %lx blocks %x\n", start, blocks);
+   }
 }
 
 static int usb_write_10(ccb *srb, struct us_data *ss,
@@ -1042,10 +1052,14 @@ retry_it:
       Err = usb_read_10(srb,(struct us_data *)dev->privptr,start,smallblks);
       if(Err != 0) {
          ELOG("\nRead ERROR, usb_read_10 returned %d\n",Err);
-         usb_request_sense(srb, (struct us_data *)dev->privptr);
-         ELOG("Request Sense returned %02X %02X %02X\n",
-               srb->sense_buf[2], srb->sense_buf[12],
-               srb->sense_buf[13]);
+         if(usb_request_sense(srb, (struct us_data *)dev->privptr) == USB_STOR_TRANSPORT_GOOD) {
+            ELOG("Request Sense returned %02X %02X %02X\n",
+                  srb->sense_buf[2], srb->sense_buf[12],
+                  srb->sense_buf[13]);
+         }
+			else {
+            ELOG("Request Sense failed\n");
+			}
 
          if (retry--) {
             goto retry_it;

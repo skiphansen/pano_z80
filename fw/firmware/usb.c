@@ -235,7 +235,7 @@ int usb_bulk_msg(struct usb_device *dev, unsigned int pipe,
       if(Err != 0 || dev->status != 0) {
          ELOG("submit_bulk_msg returned %d, status %d\n",Err,dev->status);
       }
-      if(dev->status != USB_ST_NAK_REC && dev->status != USB_ST_NAK_TO) {
+      if(dev->status != USB_ST_NAK_REC && dev->status !=USB_ST_NAK_TO) {
          break;
       }
    } while(ticks_ms() - StartTime < timeout);

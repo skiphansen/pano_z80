@@ -342,11 +342,28 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
         // Wait for the setup to be completed
         uint32_t donemap;
         uint32_t check_count = 0;
+#if 1
+        uint32_t TimeNow;
+        for( ; ; ) {
+           donemap = isp_read_dword(reg_ptd_donemap);
+           if(donemap & 0x1) {
+              break;
+           }
+           TimeNow = ticks_ms();
+           if((TimeNow - start_ticks) > 5000) {
+              ELOG("donemap not set after waiting %d milliseconds\n",
+                   TimeNow - start_ticks);
+              break;
+           }
+           delay_us(5);
+        }
+#else
         do {
             delay_us(5);
             check_count++;
             donemap = isp_read_dword(reg_ptd_donemap);
         } while (!(donemap & 0x1) && (check_count < SETUP_TIMEOUT_MS*200));
+#endif
 
         // Readback PTD header
         if (donemap & 0x1) {
@@ -568,7 +585,7 @@ static int isp_submit(
    }
 
    if(result != ISP_SUCCESS) {
-      LOG("result: %x\n",result);
+      ELOG("result: %x\n",result);
    }
 
    switch(result) {
@@ -593,6 +610,7 @@ static int isp_submit(
          break;
 
       default:
+         ELOG("Returning USB_ST_CRC_ERR, result: 0x%x\n",result);
          dev->status = USB_ST_CRC_ERR;
          break;
    }
@@ -945,7 +963,8 @@ void isp_isr(void) {
     }
 }
 
-void isp_poll_no_irq(void) {
+void isp_poll_no_irq(void) 
+{
     for (int i = 0; i < MAX_REG_INT_TRANSFER_NUM; i++) {
         if (registered_transfers[i].device != NULL) {
             // JUST POLL THIS
@@ -988,7 +1007,7 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
 
    do {
       if(usb_pipetype(pipe) != PIPE_BULK) {
-         ELOG("non-bulk pipe\n");
+         ELOG("non-bulk pipe (0x%x)\n",pipe);
          break;
       }
       Ret = isp_submit(dev, pipe, buffer, transfer_len, NULL,Timeout);
@@ -997,7 +1016,6 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
    if(Ret != ISP_SUCCESS) {
       ELOG("returning %d\n",Ret);
    }
-   LOG_DISABLE();
    return Ret;
 }
 
