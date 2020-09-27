@@ -97,7 +97,6 @@
 // output function type
 typedef void (*out_fct_type)(char character, void* buffer, size_t idx, size_t maxlen);
 
-
 // wrapper (used as buffer) for output function type
 typedef struct {
   void  (*fct)(char character, void* arg);
@@ -141,6 +140,17 @@ static inline void _out_fct(char character, void* buffer, size_t idx, size_t max
   }
 }
 
+// internal ASCII string to unsigned int conversion
+// Unlike the regular C lib version, we count on the side-effect
+// of pointer advance.
+static unsigned int _atoi(const char** str)
+{
+  unsigned int i = 0U;
+  while (isdigit(**str)) {
+    i = i * 10U + (unsigned int)(*((*str)++) - '0');
+  }
+  return i;
+}
 
 // internal itoa format
 static size_t _ntoa_format(out_fct_type out, char* buffer, size_t idx, size_t maxlen, char* buf, size_t len, bool negative, unsigned int base, unsigned int prec, unsigned int width, unsigned int flags)
@@ -460,7 +470,7 @@ static int _vsnprintf(out_fct_type out, char* buffer, const size_t maxlen, const
     // evaluate width field
     width = 0U;
     if (isdigit(*format)) {
-      width = atoi(format);
+      width = _atoi(&format);
     }
     else if (*format == '*') {
       const int w = va_arg(va, int);
@@ -480,7 +490,7 @@ static int _vsnprintf(out_fct_type out, char* buffer, const size_t maxlen, const
       flags |= FLAGS_PRECISION;
       format++;
       if (isdigit(*format)) {
-        precision = atoi(format);
+        precision = _atoi(&format);
       }
       else if (*format == '*') {
         const int prec = (int)va_arg(va, int);
