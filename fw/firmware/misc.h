@@ -22,17 +22,6 @@
 #include <stdint.h>
 #include "time.h"
 
-#define CYCLE_PER_US  25
-#define CPU_HZ (CYCLE_PER_US * 1000000)
-
-// ticks wraps around every 43s
-uint32_t ticks();
-uint32_t ticks_us();
-uint32_t ticks_ms();
-void delay_us(uint32_t us);
-void delay_ms(uint32_t ms);
-void delay_loop(uint32_t t);
-
 long insn();
 
 #endif

@@ -28,7 +28,7 @@ firmware.elf: $(OBJS) sections.lds
 %.o: %.c
 	$(TOOLCHAIN_PREFIX)gcc -c $(CFLAGS) $<
 
-%.o: %.s
+%.o: %.S
 	$(TOOLCHAIN_PREFIX)gcc -c $(CFLAGS) $<
 
 prog: firmware.bin

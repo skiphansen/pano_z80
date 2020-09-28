@@ -50,12 +50,22 @@ unsigned char gFunctionRequest;
 
 void LoadInitProg(void);
 void HandleFunctionKey(int Function);
+uint32_t icosoc_timer(uint32_t ticks);
+uint32_t gTicker;
 
-void irq_handler(uint32_t pc) 
+void irq_handler(uint32_t pc,uint32_t IRQs) 
 {
-   ELOG("HARD FAULT PC = 0x%08x\n",pc);
-   leds = LED_BLUE;  // "blue screen of death"
-   while(1);
+   if(IRQs & 1) {
+   // Timer interrupt
+      // ALOG_R("Tick\n",pc);
+      gTicker++;
+      icosoc_timer(CPU_HZ/TICKER_PER_SEC);
+   }
+   if(IRQs & 4) {
+      ELOG("Bus fault, IRQs: 0x%08x, pc: 0x%08x\n",IRQs,pc);
+      leds = LED_RED;
+      while(1);
+   }
 }
 
 void main() 
@@ -81,6 +91,9 @@ void main()
    vt100_init();
    ALOG_R("Pano Logic G1, Z80 @ 25 Mhz, PicoRV32 @ 25MHz\n");
    ALOG_R("Compiled " __DATE__ " " __TIME__ "\n\n");
+
+// Start heartbeat interrupt
+   icosoc_timer(CPU_HZ/TICKER_PER_SEC);
 
    gCapsLockSwap = 1;
    usb_init();
@@ -279,7 +292,6 @@ void LoadInitProg()
 
 void IdlePoll()
 {
-   rtc_poll();
    usb_event_poll();
    if(gWriteFlushTimeout != 0 && ticks_ms() >= gWriteFlushTimeout) {
       gWriteFlushTimeout = 0;
@@ -290,6 +302,13 @@ void IdlePoll()
       gFunctionRequest = 0;
    }
 }
+
+asm (
+".global icosoc_timer\n"
+"icosoc_timer:\n"
+".word 0x0a05650b\n" // picorv32_timer_insn(a0, a0)
+"ret\n"
+);
 
 /* 
  * Local Variables:

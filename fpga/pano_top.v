@@ -561,7 +561,7 @@ module pano_top(
     wire [31:0] mem_rdata;
     wire [31:0] mem_la_addr;
     
-    reg cpu_irq;
+    reg cpu_bus_error;
     
     wire la_addr_in_ram = (mem_la_addr >= 32'hFFFF0000);
     wire la_addr_in_vram = (mem_la_addr >= 32'h08000000) && (mem_la_addr < 32'h08004000);
@@ -619,11 +619,11 @@ module pano_top(
     always @(posedge clk_rv) begin
         mem_valid_last <= mem_valid;
         if (mem_valid && !mem_valid_last && !(ram_valid || spi_valid || vram_valid || gpio_valid || usb_valid || uart_valid || ddr_valid || z80_ram_valid || z80_io_valid))
-            cpu_irq <= 1'b1;
+            cpu_bus_error <= 1'b1;
         //else
-        //    cpu_irq <= 1'b0;
+        //    cpu_bus_error <= 1'b0;
         if (!rst_rv)
-            cpu_irq <= 1'b0;
+            cpu_bus_error <= 1'b0;
     end
     
     assign ddr_addr = mem_addr[23:0];
@@ -656,10 +656,10 @@ module pano_top(
         .PROGADDR_RESET(PROGADDR_RESET),
         .ENABLE_IRQ(1),
         .ENABLE_IRQ_QREGS(0),
-        .ENABLE_IRQ_TIMER(0),
+        .ENABLE_IRQ_TIMER(1),
         .COMPRESSED_ISA(1),
         .PROGADDR_IRQ(PROGADDR_IRQ),
-        .MASKED_IRQ(32'hfffffffe),
+        .MASKED_IRQ(32'hfffffff8),
         .LATCHED_IRQ(32'hffffffff)
     ) cpu (
         .clk(clk_rv),
@@ -672,7 +672,7 @@ module pano_top(
         .mem_wstrb(mem_wstrb),
         .mem_rdata(mem_rdata),
         .mem_la_addr(mem_la_addr),
-        .irq({31'b0, cpu_irq})
+        .irq({28'b0, !USB_IRQ, cpu_bus_error, 2'b0})
     );
         
     // Internal RAM & Boot ROM
