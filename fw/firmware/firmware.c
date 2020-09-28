@@ -42,6 +42,9 @@
 
 DWORD gBootImageLen;
 
+#define ANSI_HOME             "\033[H"
+#define ANSI_CLS              "\033[2J"
+
 #define F_CAPS_REMAP_TOGGLE   5  // F5
 #define F_SCREEN_COLOR        6  // F6
 #define F_RESET_Z80           7  // F7
@@ -79,7 +82,7 @@ void main()
    char DriveSave;
    uint8_t LastIoState = 0xff;
    uint32_t IoState;
-   uint32_t Timeout;
+   uint32_t Timeout = 0;
    bool bWasHalted = false;
    
    dly_tap = 0x03;
@@ -196,6 +199,11 @@ void main()
          switch((IoState & IO_STATE_MASK)) {
             case IO_STAT_WRITE:  // Z80 out
                HandleIoOut(z80_io_adr,z80_out_data);
+               if(Timeout == 0) {
+               // Give the z80 a chance to output another character before
+               // we break out of this loop and call usb_event_poll again...
+                  Timeout = ticks_ms() + 50;
+               }
                break;
 
             case IO_STAT_READ:   // z80 In
@@ -210,13 +218,16 @@ void main()
                LOG("IoState 0x%x\n",IoState);
                break;
          }
-         if(Timeout == 0 && IoState != IO_STAT_IDLE) {
-         // Give the z80 a chance to output another character before
-         // we break out of this loop and call usb_event_poll again...
-            Timeout = ticks_ms() + 50;
-         }
       } while(ticks_ms() < Timeout && gFunctionRequest == 0);
       Timeout = 0;
+
+      if(gZ80_ResetRequest) {
+         gZ80_ResetRequest = 0;
+         z80_rst = 1;
+         LoadInitProg();
+         ALOG_R(ANSI_HOME ANSI_CLS "Resetting Z80\n");
+         z80_rst = 0;
+      }
    }
 
    leds = LED_BLUE;  // "blue screen of death"
@@ -262,14 +273,11 @@ void HandleFunctionKey(int Function)
 
       case F_RESET_Z80:
       // reset Z80
-         z80_rst = 1;
-         LoadInitProg();
-         ALOG_R("Resetting Z80\n");
-         z80_rst = 0;
+         gZ80_ResetRequest = 1;
          break;
 
       case F_VERBOSE_LOG_TOGGLE:
-         LOG("z80_io_state 0x%x\n",z80_io_state);
+         LOG("z80_io_state: %d, z80_io_adr: %d\n",z80_io_state,z80_io_adr);
          break;
    }
 }
