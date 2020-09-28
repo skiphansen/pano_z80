@@ -100,6 +100,7 @@ int gMountedDrives;
 uint32_t gWriteFlushTimeout;
 FIL *gSystemFp;
 MapMode gMountMode;
+unsigned char gZ80_ResetRequest;
 
 // possible drives A: -> P:/
 struct dskdef gDisks[MAX_LOGICAL_DRIVES];
@@ -276,16 +277,18 @@ void HandleIoIn(uint8_t IoPort)
          if(!usb_kbd_testc()) {
             VLOG("Waiting for console input, z80_con_status: 0x%x\n",
                 z80_con_status);
-            while(!usb_kbd_testc()) {
+            while(!usb_kbd_testc() && !gZ80_ResetRequest) {
                IdlePoll();
             }
             VLOG("Continuing\n");
          }
-         Data = (uint8_t) (usb_kbd_getc() & 0x7f);
-         if(!usb_kbd_testc()) {
-            z80_con_status = 0;
-            VLOG("No more data available, z80_con_status: 0x%x\n",
-                 z80_con_status);
+         if(!gZ80_ResetRequest) {
+            Data = (uint8_t) (usb_kbd_getc() & 0x7f);
+            if(!usb_kbd_testc()) {
+               z80_con_status = 0;
+               VLOG("No more data available, z80_con_status: 0x%x\n",
+                    z80_con_status);
+            }
          }
          break;
 

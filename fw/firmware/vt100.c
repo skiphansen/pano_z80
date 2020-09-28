@@ -27,6 +27,8 @@
 #include "string.h"
 #include "vt100.h"
 #include "printf.h"
+#include "ff.h"
+#include "cpm_io.h"
 
 // #define ECHO_CONSOLE_2_SERIAL
 
@@ -116,7 +118,7 @@ void _vt100_reset(void)
    term.scroll_end_row = VT100_HEIGHT; // outside of screen = whole screen scrollable
    term.flags.cursor_wrap = 0;
    term.flags.origin_mode = 0; 
-   term.VRam = (uint32_t *) 0x08000000;
+   term.VRam = (uint32_t *) VRAM_ADR;
 }
 
 void _vt100_resetScroll(void)
@@ -951,6 +953,7 @@ void vt100_init()
 {
    _vt100_reset(); 
    memset(term.ScreenBuf,' ',VT100_WIDTH * VT100_HEIGHT);
+   memset((void *)VRAM_ADR,' ',SCREEN_X * SCREEN_Y * sizeof(uint32_t));
 }
 
 void UartPutc(char c);
