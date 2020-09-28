@@ -59,10 +59,10 @@ uint32_t gTicker;
 void irq_handler(uint32_t pc,uint32_t IRQs) 
 {
    if(IRQs & 1) {
-   // Timer interrupt
-      // ALOG_R("Tick\n",pc);
-      gTicker++;
+   // Timer interrupt, update RTC
       icosoc_timer(CPU_HZ/TICKER_PER_SEC);
+      rtc_poll();
+      gTicker++;
    }
    if(IRQs & 4) {
       ELOG("Bus fault, IRQs: 0x%08x, pc: 0x%08x\n",IRQs,pc);
