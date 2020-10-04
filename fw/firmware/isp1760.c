@@ -25,8 +25,8 @@
 #include "isp_roothub.h"
 #include "string.h"
 
-// #define DEBUG_LOGGING
-// #define VERBOSE_DEBUG_LOGGING
+#define DEBUG_LOGGING
+#define VERBOSE_DEBUG_LOGGING
 #define LOG_TO_SERIAL
 #include "log.h"
 
@@ -34,7 +34,7 @@ extern uint8_t gDumpPtd;
 
 #undef USE_ROOT_HUB
 
-// #define ISP_IRQ_DRIVEN
+#define ISP_IRQ_DRIVEN
 
 interrupt_transfer_t registered_transfers[MAX_REG_INT_TRANSFER_NUM];
 
@@ -114,6 +114,8 @@ int isp_init()
 
     // Reset the ISP1760 controller
     isp_reset();
+    LOG("Disabling logging\n");
+    LOG_DISABLE();
 
     // Set to 16 bit mode
     isp_write_dword(ISP_HW_MODE_CONTROL, 0x00000000);
@@ -248,6 +250,11 @@ void isp_enable_irq(uint32_t enable) {
     isp_write_dword(ISP_INTERRUPT_ENABLE, enable);
 }
 
+/* 
+   ISP transfers
+ 
+ 
+*/
 isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
         transfer_direction_t direction, usb_token_t token, 
         uint32_t device_address, uint32_t parent_port, uint32_t parent_address, 
@@ -265,6 +272,9 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
     uint32_t start_ptd[PTD_SIZE_DWORD], readback_ptd[PTD_SIZE_DWORD];
     uint32_t start_ticks;
     uint32_t actual_transfer_length;
+    uint32_t PtdBits;
+    uint32_t PtdBit = 1;
+    uint32_t LastPtdBit = 1;
     int NakCount = 0;
     int NakTimeout = Timeout != 0 ? Timeout : NACK_TIMEOUT_MS;
 
@@ -299,9 +309,22 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
             return result;
     }
 
+ // find an available PTD for this transfer
+    PtdBits = isp_read_dword(reg_ptd_skipmap);
+
+    while(!(PtdBit & PtdBits) {
+    // Skip PtdBits that are in use
+       PtdBit <<= 1;
+       ptd_address += PTD_SIZE_BYTE;
+       if(!PtdBit) {
+          ELOG("Unable to find available PTD bit for transfer\n");
+          break;
+       }
+    }
+
     if (need_setup) {
         // Disable all existing PTD entries
-        isp_write_dword(reg_ptd_skipmap, 0xffffffff);
+        // isp_write_dword(reg_ptd_skipmap, 0xffffffff);
 
         // If direction is output, write payload into ISP1760
         if ((direction == DIRECTION_OUT) && (*length != 0))
@@ -324,20 +347,31 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
 
         if (need_setup) {
             // Write PTD
+           // Start process PTD ----- fix me -------
+           // we need a unique PTD and PTD address per transfer
+           // maximum transfer size is 512 bytes if we use this as the
+           // only buffer size then there are 126 total buffers
+#if 0
             isp_write_memory(ptd_address, start_ptd, PTD_SIZE_BYTE);
 
-            // Start process PTD
             isp_write_dword(reg_ptd_skipmap, 0xfffffffe);
             isp_write_dword(reg_ptd_lastptd, 0x00000001);
+#else
+           isp_write_memory(ptd_address, start_ptd, PTD_SIZE_BYTE);
+
+           isp_write_dword(reg_ptd_skipmap, PtdBits & ~0xfffffffe);
+           isp_write_dword(reg_ptd_lastptd, 0x00000001);
+#endif
 
             // Indicate ATL PTD is filled, start process
             isp_write_dword(ISP_BUFFER_STATUS, buffer_status_filled);
 
-            #ifdef ISP_IRQ_DRIVEN
+#ifdef ISP_IRQ_DRIVEN
             // If the transfer is a interrupt transfer, stop here.
-            if (ep_type == EP_INTERRUPT) 
+            if (ep_type == EP_INTERRUPT) {
                 return 0;
-            #endif
+            }
+#endif
         }
         
         // Wait for the setup to be completed
@@ -555,6 +589,15 @@ static int isp_submit(
                             ep, buffer, (uint32_t)length, (uint32_t *)&actual_length, true,
                             Timeout);
    }
+
+#ifdef ISP_IRQ_DRIVEN
+   if (usb_pipetype(pipe) == PIPE_INTERRUPT) {
+      if(result != ISP_SUCCESS) {
+         LOG("result: %x\n",result);
+      }
+      return result;
+   }
+#endif
 
    if(req != NULL && result == ISP_SUCCESS) {
    // Ack depending on previous direction
@@ -842,36 +885,49 @@ unknown:
 // Periodical interrupt transfer scheduling
 // -----------------------------------------------------------------------------
 
-void isp_register_transfer(struct usb_device *dev, unsigned long pipe, 
-        void *buffer, int transfer_len) {
+void isp_register_transfer(
+   struct usb_device *dev,
+   unsigned long pipe, 
+   void *buffer,
+   int transfer_len) 
+{
+   interrupt_transfer_t *p = registered_transfers;
+   int i;
+
     // new transfer must come as scheduled
     for (int i = 0; i < MAX_REG_INT_TRANSFER_NUM; i++) {
-        if (registered_transfers[i].device == NULL) {
-            registered_transfers[i].device = dev;
-            registered_transfers[i].pipe = pipe;
-            registered_transfers[i].buffer = buffer;
-            registered_transfers[i].length = transfer_len;
-            registered_transfers[i].state = STATE_SCHEDULED;
+        if (p->device == NULL) {
+            p->device = dev;
+            p->pipe = pipe;
+            p->buffer = buffer;
+            p->length = transfer_len;
+            p->state = STATE_SCHEDULED;
             LOG("New interrupt transfer registered.\n");
             break;
         }
+        p++;
     }
 }
 
-void isp_deregister_transfer(struct usb_device *device) {
+void isp_deregister_transfer(struct usb_device *device) 
+{
+   interrupt_transfer_t *p = registered_transfers;
+   int i;
+
     for (int i = 0; i < MAX_REG_INT_TRANSFER_NUM; i++) {
-        if (registered_transfers[i].device == device) {
-            registered_transfers[i].device = NULL;
+        if (p->device == device) {
+            p->device = NULL;
             break;
         }
     }
 }
 
-isp_result_t isp_finish_trasnfer(uint32_t id) {
-    struct usb_device *dev = registered_transfers[id].device;
-    unsigned long pipe = registered_transfers[id].pipe;
-    uint32_t length = registered_transfers[id].length;
-    uint8_t *buffer = registered_transfers[id].buffer;
+isp_result_t isp_finish_transfer(interrupt_transfer_t *p) 
+{
+    struct usb_device *dev = p->.device;
+    unsigned long pipe = p->pipe;
+    uint32_t length = p->length;
+    uint8_t *buffer = p->buffer;
     usb_speed_t speed = (usb_speed_t)usb_pipespeed(pipe);
     uint32_t ep = usb_pipeendpoint(pipe);
     uint32_t max_packet_length = usb_maxpacket(dev, pipe);
@@ -890,17 +946,31 @@ isp_result_t isp_finish_trasnfer(uint32_t id) {
             ep, buffer, (uint32_t)length, (uint32_t *)&length, false,0);
 }
 
-void isp_callback_irq(void) {
-    for (int i = 0; i < MAX_REG_INT_TRANSFER_NUM; i++) {
-        if (registered_transfers[i].device != NULL) {
-            if (registered_transfers[i].state == STATE_SCHEDULED) {
-                isp_result_t result = isp_finish_trasnfer(i);
-                if (result == ISP_SUCCESS)
-                    registered_transfers[i].device->irq_handle(
-                            registered_transfers[i].device);
-                registered_transfers[i].state = STATE_FINISHED;
-            }
-        }
+void isp_callback_irq(void) 
+{
+   interrupt_transfer_t *p = registered_transfers;
+   int i;
+   isp_result_t result;
+   uint32_t donemap = isp_read_dword(ISP_INT_PTD_DONEMAP);
+   donemap &= ~isp_read_dword(ISP_INT_PTD_SKIPMAP);
+
+    for(i = 0; i < MAX_REG_INT_TRANSFER_NUM; i++) {
+       if(p->PtdBit & donemap) {
+       // Transfer has completed
+          result = isp_finish_transfer(p);
+          p->PtdBit = 0;
+          if (result != ISP_SUCCESS) {
+             ELOG("isp_finish_transfer retuned 0x%x\n",result);
+          }
+          else if(p->device->irq_handle == NULL) {
+             ELOG("irq_handle == NULL\n");
+          }
+          else {
+             p->device->irq_handle(p->device);
+             registered_transfers[i].state = STATE_FINISHED;
+          }
+       }
+       p++;
     }
 }
 
@@ -934,16 +1004,62 @@ void isp_reschedule(void) {
     }
 }
 
-void isp_isr(void) {
+void LogInterrupts(const char *Header,uint32_t interrupts)
+{
+   bool first = true;
+   LOG_R(Header);
+   if(interrupts & ISP_INTERRUPT_INT) {
+      LOG_R("int");
+      first = false;
+   }
+
+   if(interrupts & ISP_INTERRUPT_ATL) {
+      LOG_R("%satl",first ? "" : ", ");
+      first = false;
+   }
+
+   if(interrupts & ISP_INTERRUPT_ISO) {
+      LOG_R("%siso",first ? "" : ", ");
+      first = false;
+   }
+
+   if(interrupts & ISP_INTERRUPT_CLKREADY) {
+      LOG_R("%sclk_rdy",first ? "" : ", ");
+      first = false;
+   }
+   if(interrupts & ISP_INTERRUPT_HC_SUSP) {
+      LOG_R("%suspend",first ? "" : ", ");
+      first = false;
+   }
+   if(interrupts & ISP_INTERRUPT_DMAEOTINT) {
+      LOG_R("%sdma_to",first ? "" : ", ");
+      first = false;
+   }
+   if(interrupts & ISP_INTERRUPT_SOFITLINT) {
+      LOG_R("%ssof",first ? "" : ", ");
+      first = false;
+   }
+   LOG_R(" (0x%x)\n",interrupts);
+}
+
+void isp_isr(void) 
+{
     uint32_t interrupts;
     interrupts = isp_read_dword(ISP_INTERRUPT);
+    LOG_ENABLE();
+    LOG("\n");
+    LOG_R(" active:",interrupts);
+    LogInterrupts(" active: ",interrupts);
+    LogInterrupts(" enabled: ",isp_read_dword(ISP_INTERRUPT_ENABLE));
+
+    isp_write_dword(ISP_INTERRUPT, interrupts); // Clear interrupts
     if (interrupts & ISP_INTERRUPT_INT) {
         // An interrupt transfer has completed.
         // Call the callback
-        LOG("i");
         isp_callback_irq();
         isp_reschedule();
     }
+    LOG_DISABLE();
 }
 
 void isp_poll_no_irq(void) {
@@ -960,6 +1076,37 @@ void isp_poll_no_irq(void) {
         }
     }
 }
+
+/* 
+"An endpoint for control transfers specifies the maximum data payload size 
+that the endpoint can accept from or transmit to the bus.  The allowable 
+maximum control transfer data payload sizes for full-speed devices is 8, 
+16, 32, or 64 bytes; for high-speed devices, it is 64 bytes and for 
+low-speed devices, it is 8 bytes." 
+
+"An endpoint for an interrupt pipe specifies the maximum size data payload 
+that it will transmit or receive.  The maximum allowable interrupt data 
+payload size is 64 bytes or less for full-speed.  High-speed endpoints are 
+allowed maximum data payload sizes up to 1024 bytes." 
+
+"All Host Controllers are required to have support for 8-, 16-, 32-, and 
+64-byte maximum packet sizes for full-speed bulk endpoints and 512 bytes 
+for high-speed bulk endpoints.  No Host Controller is required to support 
+larger or smaller maximum packet sizes."
+
+The isp1760 has 63k of on chip memory.  The first 3K are used for PTDs the 
+remaining 60K is available for transfer buffers. 
+ 
+Let's allocate 2K per device, this means we can support a maximum of 15 devices.
+ 
+The 2K per device allocation is further broken into smaller per endpoint
+buffers after the devices endpoints have been determined. 
+ 
+ 
+*/
+
+
+// only buffer size then there are 126 total buffers
 
 // External APIs
 // -----------------------------------------------------------------------------
@@ -998,7 +1145,6 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
    if(Ret != ISP_SUCCESS) {
       ELOG("returning %d\n",Ret);
    }
-   LOG_DISABLE();
    return Ret;
 }
 
@@ -1042,12 +1188,8 @@ int submit_int_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
     // the callback need to be managed inside the driver
     isp_register_transfer(dev, pipe, buffer, transfer_len);
 
-#ifdef ISP_IRQ_DRIVEN
     // interval is not changeable
-    return isp_submit(dev, pipe, buffer, transfer_len, NULL);
-#else
-    return 0;
-#endif
+    return isp_submit(dev, pipe, buffer, transfer_len, NULL,0);
 }
 
 void usb_event_poll(void) {

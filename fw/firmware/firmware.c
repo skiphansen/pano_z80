@@ -33,6 +33,7 @@
 #include "cpm_io.h"
 #include "vt100.h"
 #include "rtc.h"
+#include "picorv32.h"
 
 // #define LOG_TO_SERIAL
 // #define LOG_TO_BOTH
@@ -53,21 +54,25 @@ unsigned char gFunctionRequest;
 
 void LoadInitProg(void);
 void HandleFunctionKey(int Function);
-uint32_t icosoc_timer(uint32_t ticks);
 uint32_t gTicker;
 
 void irq_handler(uint32_t pc,uint32_t IRQs) 
 {
    if(IRQs & 1) {
    // Timer interrupt, update RTC
-      icosoc_timer(CPU_HZ/TICKER_PER_SEC);
+      picorv32_timer(CPU_HZ/TICKER_PER_SEC);
       rtc_poll();
       gTicker++;
    }
    if(IRQs & 4) {
-      ELOG("Bus fault, IRQs: 0x%08x, pc: 0x%08x\n",IRQs,pc);
+      ELOG("\nBus fault, IRQs: 0x%08x, pc: 0x%08x\n",IRQs,pc);
       leds = LED_RED;
       while(1);
+   }
+   if(IRQs & 0x8) {
+      picorv32_maskirq(~0x7);
+      ELOG("\nExt Int1, IRQs: 0x%08x, pc: 0x%08x\n",IRQs,pc);
+      isp_isr();
    }
 }
 
@@ -87,20 +92,25 @@ void main()
    
    dly_tap = 0x03;
 
+#if 0
    // Set interrupt mask to zero (enable all interrupts)
    // This is a PicoRV32 custom instruction 
    asm(".word 0x0600000b");
+#else
+   picorv32_maskirq(~0x7);
+#endif
 
    vt100_init();
    ALOG_R("Pano Logic G1, Z80 @ 25 Mhz, PicoRV32 @ 25MHz\n");
    ALOG_R("Compiled " __DATE__ " " __TIME__ "\n\n");
 
 // Start heartbeat interrupt
-   icosoc_timer(CPU_HZ/TICKER_PER_SEC);
+   picorv32_timer(CPU_HZ/TICKER_PER_SEC);
 
    gCapsLockSwap = 1;
    usb_init();
    drv_usb_kbd_init();
+   picorv32_maskirq(~0xf);
 
    do {
       // Main loop
@@ -310,13 +320,6 @@ void IdlePoll()
       gFunctionRequest = 0;
    }
 }
-
-asm (
-".global icosoc_timer\n"
-"icosoc_timer:\n"
-".word 0x0a05650b\n" // picorv32_timer_insn(a0, a0)
-"ret\n"
-);
 
 /* 
  * Local Variables:

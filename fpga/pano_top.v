@@ -659,7 +659,7 @@ module pano_top(
         .ENABLE_IRQ_TIMER(1),
         .COMPRESSED_ISA(1),
         .PROGADDR_IRQ(PROGADDR_IRQ),
-        .MASKED_IRQ(32'hfffffff8),
+        .MASKED_IRQ(32'hfffffff0),
         .LATCHED_IRQ(32'hffffffff)
     ) cpu (
         .clk(clk_rv),

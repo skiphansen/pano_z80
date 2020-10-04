@@ -54,8 +54,8 @@
 #include "usb.h"
 #include "string.h"
 
-// #define DEBUG_LOGGING
-// #define VERBOSE_DEBUG_LOGGING
+#define DEBUG_LOGGING
+#define VERBOSE_DEBUG_LOGGING
 #define LOG_TO_SERIAL
 #include "log.h"
 
@@ -370,17 +370,23 @@ int usb_parse_config(struct usb_device *dev, unsigned char *buffer, int cfgno)
                dev->config.if_desc[ifno].num_altsetting++;
             }
             break;
-         case USB_DT_ENDPOINT:
+         case USB_DT_ENDPOINT: {
+            struct usb_endpoint_descriptor *pEpDesc;
             LOG("Parsing USB_DT_ENDPOINT\n");
-            epno = dev->config.if_desc[ifno].no_of_ep;
+            epno = dev->config.if_desc[ifno].no_of_ep++;
+            pEpDesc = &dev->config.if_desc[ifno].ep_desc[epno];
             /* found an endpoint */
-            dev->config.if_desc[ifno].no_of_ep++;
-            memcpy(&dev->config.if_desc[ifno].ep_desc[epno],
-                   &buffer[index], buffer[index]);
-            le16_to_cpus(&(dev->config.if_desc[ifno].ep_desc[epno].\
-                           wMaxPacketSize));
-            LOG("if %d, ep %d\n", ifno, epno);
+            memcpy(pEpDesc,&buffer[index], buffer[index]);
+            le16_to_cpus(&pEpDesc->wMaxPacketSize);
+            LOG("if %d, %s ep %d, ep_adr: %d, type: %d, interval: %d\n",
+                ifno, 
+                (pEpDesc->bEndpointAddress & 0x80) ? "in" : "out",
+                epno,
+                pEpDesc->bEndpointAddress & 0x7f,
+                pEpDesc->bmAttributes,
+                pEpDesc->bInterval);
             break;
+         }
          case USB_DT_HID:
             LOG("Parsing USB_DT_HID\n");
             memcpy(&dev->hid_descriptor,

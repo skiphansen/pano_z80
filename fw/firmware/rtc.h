@@ -11,6 +11,6 @@ struct tm *rtc_read();
 void readline(char *buf, int max);
 
 extern int have_rtc;
-#define TICKER_PER_SEC     1
-extern uint32_t gTicker;   // 1 hz uptime counter
+#define TICKER_PER_SEC     2
+extern uint32_t gTicker;   // 2 hz uptime counter
 #endif
