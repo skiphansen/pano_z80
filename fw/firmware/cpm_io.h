@@ -24,6 +24,8 @@
 #ifndef _CPM_IO_H_
 #define _CPM_IO_H_
 
+#include "ff.h"
+
 #define SCREEN_X    80
 #define SCREEN_Y    30
 
@@ -74,7 +76,6 @@
 #define WHITE           0xffffff
 #define GREEN           0x00ff00
 
-#define ANSI_CLS        "\033[2J"
 #define INIT_IMAGE_FILENAME   "BOOT.IMG"
 
 typedef enum {
@@ -91,6 +92,7 @@ extern uint32_t gWriteFlushTimeout;
 extern DWORD gBootImageLen;
 extern FIL *gSystemFp;
 extern MapMode gMountMode;
+extern unsigned char gZ80_ResetRequest;
 
 int MountCpmDrives();
 int LoadImage(const char *Filename,FSIZE_t Len);

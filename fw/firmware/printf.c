@@ -32,9 +32,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "printf.h"
-
+#include "string.h"
 
 // define this globally (e.g. gcc -DPRINTF_INCLUDE_CONFIG_H ...) to include the
 // printf_config.h header file
@@ -96,7 +97,6 @@
 // output function type
 typedef void (*out_fct_type)(char character, void* buffer, size_t idx, size_t maxlen);
 
-
 // wrapper (used as buffer) for output function type
 typedef struct {
   void  (*fct)(char character, void* arg);
@@ -140,36 +140,17 @@ static inline void _out_fct(char character, void* buffer, size_t idx, size_t max
   }
 }
 
-
-// internal secure strlen
-// \return The length of the string (excluding the terminating 0)
-//         limited by 'max' size if non-zero
-static inline unsigned int _strnlen_s(const char* str, size_t maxsize)
-{
-  const char* s;
-  for (s = str; *s && maxsize--; ++s);
-  return (unsigned int)(s - str);
-}
-
-
-// internal test if char is a digit (0-9)
-// \return true if char is a digit
-static inline bool _is_digit(char ch)
-{
-  return (ch >= '0') && (ch <= '9');
-}
-
-
 // internal ASCII string to unsigned int conversion
+// Unlike the regular C lib version, we count on the side-effect
+// of pointer advance.
 static unsigned int _atoi(const char** str)
 {
   unsigned int i = 0U;
-  while (_is_digit(**str)) {
+  while (isdigit(**str)) {
     i = i * 10U + (unsigned int)(*((*str)++) - '0');
   }
   return i;
 }
-
 
 // internal itoa format
 static size_t _ntoa_format(out_fct_type out, char* buffer, size_t idx, size_t maxlen, char* buf, size_t len, bool negative, unsigned int base, unsigned int prec, unsigned int width, unsigned int flags)
@@ -488,7 +469,7 @@ static int _vsnprintf(out_fct_type out, char* buffer, const size_t maxlen, const
 
     // evaluate width field
     width = 0U;
-    if (_is_digit(*format)) {
+    if (isdigit(*format)) {
       width = _atoi(&format);
     }
     else if (*format == '*') {
@@ -508,7 +489,7 @@ static int _vsnprintf(out_fct_type out, char* buffer, const size_t maxlen, const
     if (*format == '.') {
       flags |= FLAGS_PRECISION;
       format++;
-      if (_is_digit(*format)) {
+      if (isdigit(*format)) {
         precision = _atoi(&format);
       }
       else if (*format == '*') {
@@ -658,7 +639,7 @@ static int _vsnprintf(out_fct_type out, char* buffer, const size_t maxlen, const
 
       case 's' : {
         char* p = va_arg(va, char*);
-        unsigned int l = _strnlen_s(p, precision ? precision : (size_t)-1);
+        unsigned int l = strnlen(p, precision ? precision : (size_t)-1);
         // pre padding
         if (flags & FLAGS_PRECISION) {
           l = (l < precision ? l : precision);
