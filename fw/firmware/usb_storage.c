@@ -664,7 +664,8 @@ int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
          goto st;
    }
    if (result < 0) {
-      ELOG("usb_bulk_msg error status 0x%lx\n",us->pusb_dev->status);
+      ELOG("usb_bulk_msg error status 0x%lx, pipe: 0x%lx\n",
+           us->pusb_dev->status,pipe);
       usb_stor_BBB_reset(us);
       return USB_STOR_TRANSPORT_FAILED;
    }
@@ -857,9 +858,12 @@ static int usb_inquiry(ccb *srb, struct us_data *ss)
       srb->datalen = 36;
       srb->cmdlen = 12;
       i = ss->transport(srb, ss);
-      LOG("inquiry returns %d\n", i);
-      if (i == 0)
+      if (i == 0) {
          break;
+      }
+      else {
+         LOG("inquiry returned %d\n", i);
+      }
    } while (retry--);
 
    if (!retry) {
@@ -898,14 +902,19 @@ static int usb_request_sense(ccb *srb, struct us_data *ss)
 static int usb_test_unit_ready(ccb *srb, struct us_data *ss)
 {
    int retries = 10;
+   int Err;
 
    do {
       memset(&srb->cmd[0], 0, 12);
       srb->cmd[0] = SCSI_TST_U_RDY;
       srb->datalen = 0;
       srb->cmdlen = 12;
-      if (ss->transport(srb, ss) == USB_STOR_TRANSPORT_GOOD)
+      if((Err = ss->transport(srb, ss)) == USB_STOR_TRANSPORT_GOOD) {
          return 0;
+      }
+      else {
+         ELOG("transport failed: %d\n",Err);
+      }
       usb_request_sense(srb, ss);
       delay_ms(100);
    } while (retries--);
@@ -916,6 +925,8 @@ static int usb_test_unit_ready(ccb *srb, struct us_data *ss)
 static int usb_read_capacity(ccb *srb, struct us_data *ss)
 {
    int retry;
+   int Err;
+
    /* XXX retries */
    retry = 3;
    do {
@@ -923,8 +934,10 @@ static int usb_read_capacity(ccb *srb, struct us_data *ss)
       srb->cmd[0] = SCSI_RD_CAPAC;
       srb->datalen = 8;
       srb->cmdlen = 10;
-      if (ss->transport(srb, ss) == USB_STOR_TRANSPORT_GOOD)
+      if (ss->transport(srb, ss) == USB_STOR_TRANSPORT_GOOD) {
          return 0;
+      }
+      ELOG("transport failed: %d\n",Err);
    } while (retry--);
 
    return -1;
@@ -953,6 +966,8 @@ static int usb_read_10(ccb *srb, struct us_data *ss, unsigned long start,
 static int usb_write_10(ccb *srb, struct us_data *ss,
          unsigned long start, unsigned short blocks)
 {
+   int Err;
+
    memset(&srb->cmd[0], 0, 12);
    srb->cmd[0] = SCSI_WRITE10;
    srb->cmd[1] = srb->lun << 5;
@@ -964,7 +979,11 @@ static int usb_write_10(ccb *srb, struct us_data *ss,
    srb->cmd[8] = (unsigned char) blocks & 0xff;
    srb->cmdlen = 10;
    LOG("write10: start %lx blocks %x\n", start, blocks);
-   return ss->transport(srb, ss);
+   if((Err = ss->transport(srb, ss)) != USB_STOR_TRANSPORT_GOOD) {
+      ELOG("transport failed: %d\n",Err);
+   }
+
+   return Err;
 }
 
 
@@ -1057,9 +1076,9 @@ retry_it:
                   srb->sense_buf[2], srb->sense_buf[12],
                   srb->sense_buf[13]);
          }
-			else {
+         else {
             ELOG("Request Sense failed\n");
-			}
+         }
 
          if (retry--) {
             goto retry_it;

@@ -24,7 +24,7 @@
 
 #define DEBUG_LOGGING
 #define LOG_TO_SERIAL
-#define VERBOSE_DEBUG_LOGGING
+// #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
 /*--------------------------------------------------------------------------
@@ -4057,7 +4057,6 @@ FRESULT f_sync (
 
    LEAVE_FF(fs, res);
 }
-
 #endif /* !FF_FS_READONLY */
 
 

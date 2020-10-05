@@ -38,6 +38,8 @@ extern uint8_t gDumpPtd;
 
 interrupt_transfer_t registered_transfers[MAX_REG_INT_TRANSFER_NUM];
 
+void DumpPtd(const char *msg,uint32_t *p);
+
 // Define the interrupts that the driver will handle
 #define ISP_INT_MASK  0x00000080
 
@@ -343,28 +345,55 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
         // Wait for the setup to be completed
         uint32_t donemap;
         uint32_t check_count = 0;
-#if 1
-        uint32_t TimeNow;
-        for( ; ; ) {
-           donemap = isp_read_dword(reg_ptd_donemap);
-           if(donemap & 0x1) {
-              break;
+/*
+  Kludge!  Currently we only have expect four devices:
+     2 USB hubs (root hub in 1760 plus the Pano's built in 3 port hub)
+     1 USB keyboard
+     1 USB MSD
+ 
+   The hubs only use control transfers.
+   The keyboard only uses interrupt transfers.
+   The MSD uses bulk transfers.
+ 
+   So honor transfer timeout for interrupt and control transfers, but
+   wait forever for MSD bulk storage transfers.
+*/
+        if(ep_type == EP_BULK) {
+           uint32_t TimeNow;
+           uint32_t LastLog = start_ticks;
+           uint32_t LogInterval = 2000;   // wait 2 seconds before logging
+           for( ; ; ) {
+              donemap = isp_read_dword(reg_ptd_donemap);
+              if(donemap & 0x1) {
+                 break;
+              }
+              TimeNow = ticks_ms();
+              if((TimeNow - LastLog) > LogInterval) {
+                 ELOG("donemap not set after waiting %d milliseconds\n",
+                      TimeNow - start_ticks);
+                 LastLog = TimeNow;
+                 if(LogInterval != 1000) {
+                 // First timeout, dump more information
+                    int i;
+                    isp_read_memory(ptd_address,readback_ptd,PTD_SIZE_BYTE);
+                    DumpPtd("  ptd:\n",readback_ptd);
+                    for(i = 0; i < 6; i++) {
+                       ALOG_R("  0x%08x ",readback_ptd[i]);
+                    }
+                    ALOG_R("\n");
+                 }
+                 LogInterval = 1000;   // log once a second now
+              }
+              delay_us(5);
            }
-           TimeNow = ticks_ms();
-           if((TimeNow - start_ticks) > 5000) {
-              ELOG("donemap not set after waiting %d milliseconds\n",
-                   TimeNow - start_ticks);
-              break;
-           }
-           delay_us(5);
         }
-#else
-        do {
-            delay_us(5);
-            check_count++;
-            donemap = isp_read_dword(reg_ptd_donemap);
-        } while (!(donemap & 0x1) && (check_count < SETUP_TIMEOUT_MS*200));
-#endif
+        else {
+           do {
+               delay_us(5);
+               check_count++;
+               donemap = isp_read_dword(reg_ptd_donemap);
+           } while (!(donemap & 0x1) && (check_count < SETUP_TIMEOUT_MS*200));
+        }
 
         // Readback PTD header
         if (donemap & 0x1) {
@@ -557,6 +586,9 @@ static int isp_submit(
                             Timeout);
       toggle = 1;
       delay_us(50);
+      if(result != ISP_SUCCESS) {
+         ELOG("CONTROL (ATL) OUT failed\n");
+      }
    }
 
    if((length > 0 || req == NULL) && result == ISP_SUCCESS) {
@@ -585,8 +617,13 @@ static int isp_submit(
                             ep, NULL, 0, &ack_length, true,Timeout);
    }
 
-   if(result != ISP_SUCCESS) {
-      ELOG("result: %x\n",result);
+   if(result != ISP_SUCCESS && ep_type != EP_INTERRUPT) {
+      ELOG("result: %x, pipe: 0x%x\n",result,pipe);
+      if(req != NULL) {
+      // control request
+         ELOG("Control request:\n");
+         ELOG_HEX(req,sizeof(*req));
+      }
    }
 
    switch(result) {
@@ -611,7 +648,11 @@ static int isp_submit(
          break;
 
       default:
-         ELOG("Returning USB_ST_CRC_ERR, result: 0x%x\n",result);
+         if(ep_type != EP_INTERRUPT) {
+         // Don't log error for interrupt endpoints, this timeout is
+         // expected (keyboard)
+            ELOG("Returning USB_ST_CRC_ERR, result: 0x%x\n",result);
+         }
          dev->status = USB_ST_CRC_ERR;
          break;
    }
@@ -978,6 +1019,96 @@ void isp_poll_no_irq(void)
                         registered_transfers[i].device);
         }
     }
+}
+
+void print_1cr(const char *label,int value)
+{
+   ALOG_R("%s: 0x%x\n",label,value);
+}
+
+void DumpPtd(const char *msg,uint32_t *p)
+{
+   int i;
+   const char *TokenTbl[] = {
+      "OUT",
+      "IN",
+      "SETUP",
+      "PING"
+   };
+   const char *EpTypeTbl[] = {
+      "control",
+      "???",
+      "bulk",
+      "interrupt"
+   };
+   const char *SeTypeTbl[] = {
+      "full-speed",
+      "???",
+      "low-speed",
+      "???"
+   };
+   int EndPt;
+
+   ALOG_R("%s\n",msg);
+   EndPt = ((p[0] >> 31) & 1) + ((p[1] & 07) << 1);
+
+   print_1cr("V",p[0] & 1);
+   if((p[3] >> 29) & 0x1) {
+      ALOG_R("Babble!\n");
+   }
+   if((p[3] >> 30) & 0x1) {
+      ALOG_R("Halt!\n");
+   }
+
+   if((p[3] >> 28) & 0x1) {
+      ALOG_R("Error!\n");
+   }
+   print_1cr("A",(p[3] >> 31) & 0x1);
+   print_1cr("BytesTodo",(p[0] >> 3) & 0x7fff);
+   print_1cr("BytesDone",p[3] & 0x7fff);
+
+   print_1cr("NakCnt",(p[3] >> 19) & 0xf);
+   print_1cr("RL",(p[2] >> 25) & 0xf);
+
+   print_1cr("MaxPak",(p[0] >> 18) & 0x7ff);
+   print_1cr("Multp",(p[0] >> 29) & 0x3);
+   print_1cr("EndPt",EndPt);
+   print_1cr("DevAdr",(p[1] >> 3) & 0x7f);
+
+   ALOG_R("Token: %s\n",TokenTbl[(p[1] >> 10) & 0x3]);
+   ALOG_R("EpType: %s\n",EpTypeTbl[(p[1] >> 12) & 0x3]);
+   print_1cr("DT",(p[3] >> 25) & 0x1);
+
+   if((p[1] >> 14) & 0x1) {
+      if(p[3] & (1 << 27)) {
+         ALOG_R("End Split\n");
+      }
+      else {
+         ALOG_R("Start Split\n");
+      }
+      ALOG_R("  SE: %s\n",SeTypeTbl[(p[1] >> 16) & 0x3]);
+      print_1cr("  Port",(p[1] >> 18) & 0x7f);
+      print_1cr("  HubAdr",(p[1] >> 25) & 0x7f);
+   }
+   print_1cr("Start Adr",(((p[2] >> 8) & 0xffff) << 3) + 0x400);
+   print_1cr("Cerr",(p[3] >> 23) & 0x3);
+   print_1cr("Ping",(p[3] >> 26) & 0x1);
+
+   print_1cr("J",(p[4] >> 5) & 0x1);
+
+   if(((p[1] >> 12) & 0x3) == 3) {
+   // Interrupt PTD
+      print_1cr("uSA",p[4] & 0xf);
+      print_1cr("uFrame",p[2] & 0xff);
+      print_1cr("uSCS",p[5] & 0xff);
+   }
+   else {
+      print_1cr("NextPTD",p[4] & 0x1f);
+   }
+
+   for(i = 0; i < 8; i++) {
+      ALOG_R("DW%d: 0x%08x\n",i,p[i]);
+   }
 }
 
 // External APIs
