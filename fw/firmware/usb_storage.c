@@ -243,7 +243,7 @@ int usb_stor_scan(int mode)
    return -1;
 }
 
-static int usb_stor_irq(struct usb_device *dev)
+static int usb_stor_irq(struct usb_device *dev,int Result)
 {
    struct us_data *us;
    us = (struct us_data *)dev->privptr;

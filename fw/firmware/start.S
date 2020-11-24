@@ -9,85 +9,119 @@ nop
 nop
 nop
 
+/* 
+    The core has 4 additional 32-bit registers q0 ..  q3 that are used for 
+    IRQ handling.  When the IRQ handler is called, the register q0 contains 
+    the return address and q1 contains a bitmask of all IRQs to be handled.  
+    This means one call to the interrupt handler needs to service more than 
+    one IRQ when more than one bit is set in q1.  
+
+    If ENABLE_FASTIRQ is set then only save registers in IRQ wrapper that are 
+    to be saved by the caller in the RISC-V ABI, with the excpetion of the 
+    stack pointer.  The IRQ handler will save the rest if necessary.  
+    I.e.  skip x3, x4, x8, x9, and x18-x27.  
+
+    The only reason not to define ENABLE_FASTIRQ is to allow a fault handler 
+    to display all registers at the time of a fault.  
+*/ 
+
+#undef ENABLE_FASTIRQ
+
 irq:
-#.word 0x0000450B
-	/* save registers */
+        add sp,sp,-(32*4)
+// Save X1
+        sw x1,   1*4(x2)
 
- addi	sp,sp,-(32*4)
-	sw gp,   0*4(sp)
-	sw x1,   1*4(sp)
-	sw x2,   2*4(sp)
-	sw x3,   3*4(sp)
-	sw x4,   4*4(sp)
-	sw x5,   5*4(sp)
-	sw x6,   6*4(sp)
-	sw x7,   7*4(sp)
-	sw x8,   8*4(sp)
-	sw x9,   9*4(sp)
-	sw x10, 10*4(sp)
-	sw x11, 11*4(sp)
-	sw x12, 12*4(sp)
-	sw x13, 13*4(sp)
-	sw x14, 14*4(sp)
-	sw x15, 15*4(sp)
-	sw x16, 16*4(sp)
-	sw x17, 17*4(sp)
-	sw x18, 18*4(sp)
-	sw x19, 19*4(sp)
-	sw x20, 20*4(sp)
-	sw x21, 21*4(sp)
-	sw x22, 22*4(sp)
-	sw x23, 23*4(sp)
-	sw x24, 24*4(sp)
-	sw x25, 25*4(sp)
-	sw x26, 26*4(sp)
-	sw x27, 27*4(sp)
-	sw x28, 28*4(sp)
-	sw x29, 29*4(sp)
-	sw x30, 30*4(sp)
-	sw x31, 31*4(sp)
+#ifndef ENABLE_FASTIRQ
+// Save return address as x0
+        picorv32_getq_insn(x1, q0)
+        sw x1,   0*4(x2)
+        sw x2,   2*4(sp)
+        sw x3,   3*4(sp)
+        sw x4,   4*4(sp)
+#endif
+        sw x5,   5*4(sp)
+        sw x6,   6*4(sp)
+        sw x7,   7*4(sp)
+#ifndef ENABLE_FASTIRQ
+        sw x8,   8*4(sp)
+        sw x9,   9*4(sp)
+#endif
+        sw x10, 10*4(sp)
+        sw x11, 11*4(sp)
+        sw x12, 12*4(sp)
+        sw x13, 13*4(sp)
+        sw x14, 14*4(sp)
+        sw x15, 15*4(sp)
+        sw x16, 16*4(sp)
+        sw x17, 17*4(sp)
+#ifndef ENABLE_FASTIRQ
+        sw x18, 18*4(sp)
+        sw x19, 19*4(sp)
+        sw x20, 20*4(sp)
+        sw x21, 21*4(sp)
+        sw x22, 22*4(sp)
+        sw x23, 23*4(sp)
+        sw x24, 24*4(sp)
+        sw x25, 25*4(sp)
+        sw x26, 26*4(sp)
+        sw x27, 27*4(sp)
+#endif
+        sw x28, 28*4(sp)
+        sw x29, 29*4(sp)
+        sw x30, 30*4(sp)
+        sw x31, 31*4(sp)
 
-	/* call interrupt handler C function */
+// call interrupt handler C function 
+// arg0 - pointer to saved registers
+// arg1 - bitmask of IRQs to be handled
 
- addi a0, gp, 0
- addi a1, tp, 0
- call irq_handler
+        addi a0, sp, 0
+        picorv32_getq_insn(a1, q1)
+        call irq_handler
 
-	lw gp,   0*4(sp)
-	lw x1,   1*4(sp)
-	lw x2,   2*4(sp)
-	// do not restore x3 (gp)
-	lw x4,   4*4(sp)
-	lw x5,   5*4(sp)
-	lw x6,   6*4(sp)
-	lw x7,   7*4(sp)
-	lw x8,   8*4(sp)
-	lw x9,   9*4(sp)
-	lw x10, 10*4(sp)
-	lw x11, 11*4(sp)
-	lw x12, 12*4(sp)
-	lw x13, 13*4(sp)
-	lw x14, 14*4(sp)
-	lw x15, 15*4(sp)
-	lw x16, 16*4(sp)
-	lw x17, 17*4(sp)
-	lw x18, 18*4(sp)
-	lw x19, 19*4(sp)
-	lw x20, 20*4(sp)
-	lw x21, 21*4(sp)
-	lw x22, 22*4(sp)
-	lw x23, 23*4(sp)
-	lw x24, 24*4(sp)
-	lw x25, 25*4(sp)
-	lw x26, 26*4(sp)
-	lw x27, 27*4(sp)
-	lw x28, 28*4(sp)
-	lw x29, 29*4(sp)
-	lw x30, 30*4(sp)
-	lw x31, 31*4(sp)
- addi	sp,sp,(32*4)
+// Restore registers
+        lw x1,   1*4(sp)
+// No need to restore x2/sp
+//      lw x2,   2*4(sp)
 
-	picorv32_retirq_insn()
+#ifndef ENABLE_FASTIRQ
+        lw x3,   3*4(sp)
+        lw x4,   4*4(sp)
+#endif
+        lw x5,   5*4(sp)
+        lw x6,   6*4(sp)
+        lw x7,   7*4(sp)
+#ifndef ENABLE_FASTIRQ
+        lw x8,   8*4(sp)
+        lw x9,   9*4(sp)
+#endif
+        lw x10, 10*4(sp)
+        lw x11, 11*4(sp)
+        lw x12, 12*4(sp)
+        lw x13, 13*4(sp)
+        lw x14, 14*4(sp)
+        lw x15, 15*4(sp)
+        lw x16, 16*4(sp)
+        lw x17, 17*4(sp)
+#ifndef ENABLE_FASTIRQ
+        lw x18, 18*4(sp)
+        lw x19, 19*4(sp)
+        lw x20, 20*4(sp)
+        lw x21, 21*4(sp)
+        lw x22, 22*4(sp)
+        lw x23, 23*4(sp)
+        lw x24, 24*4(sp)
+        lw x25, 25*4(sp)
+        lw x26, 26*4(sp)
+        lw x27, 27*4(sp)
+#endif
+        lw x28, 28*4(sp)
+        lw x29, 29*4(sp)
+        lw x30, 30*4(sp)
+        lw x31, 31*4(sp)
+        addi    sp,sp,(32*4)
+        picorv32_retirq_insn()
 
 boot:
 # zero-initialize register file

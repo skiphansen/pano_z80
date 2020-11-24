@@ -25,9 +25,9 @@
 #include "isp_roothub.h"
 #include "string.h"
 
-#define DEBUG_LOGGING
-#define VERBOSE_DEBUG_LOGGING
-#define LOG_TO_SERIAL
+// #define DEBUG_LOGGING
+// #define LOG_TO_SERIAL
+// #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
 extern uint8_t gDumpPtd;
@@ -260,7 +260,7 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
         uint32_t device_address, uint32_t parent_port, uint32_t parent_address, 
         uint32_t max_packet_length, uint32_t *toggle,  usb_ep_type_t ep_type,
         uint32_t ep, uint8_t *buffer, uint32_t max_length, uint32_t *length,
-        int need_setup, int Timeout) 
+        int Flags, int Timeout) 
 {
     isp_result_t result = ISP_SUCCESS;
     uint32_t payload_address;
@@ -309,6 +309,7 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
             return result;
     }
 
+#if 0
  // find an available PTD for this transfer
     PtdBits = isp_read_dword(reg_ptd_skipmap);
 
@@ -321,8 +322,10 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
           break;
        }
     }
+    LOG("Assigned PtdBit: 0x%x, ptd_address: 0x%x\n",PtdBit,ptd_address)
+#endif
 
-    if (need_setup) {
+    if (Flags & ISP_FLG_NEED_SETUP) {
         // Disable all existing PTD entries
         // isp_write_dword(reg_ptd_skipmap, 0xffffffff);
 
@@ -345,13 +348,13 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
         // Only retry when NACK
         retry = 0;
 
-        if (need_setup) {
+        if (Flags & ISP_FLG_NEED_SETUP) {
             // Write PTD
            // Start process PTD ----- fix me -------
            // we need a unique PTD and PTD address per transfer
            // maximum transfer size is 512 bytes if we use this as the
            // only buffer size then there are 126 total buffers
-#if 0
+#if 1
             isp_write_memory(ptd_address, start_ptd, PTD_SIZE_BYTE);
 
             isp_write_dword(reg_ptd_skipmap, 0xfffffffe);
@@ -369,19 +372,27 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
 #ifdef ISP_IRQ_DRIVEN
             // If the transfer is a interrupt transfer, stop here.
             if (ep_type == EP_INTERRUPT) {
+               LOG_R("\n");
                 return 0;
             }
 #endif
         }
         
-        // Wait for the setup to be completed
         uint32_t donemap;
         uint32_t check_count = 0;
-        do {
-            delay_us(5);
-            check_count++;
-            donemap = isp_read_dword(reg_ptd_donemap);
-        } while (!(donemap & 0x1) && (check_count < SETUP_TIMEOUT_MS*200));
+
+        if(Flags & ISP_FLG_DONE) {
+           donemap = 1;
+        }
+        else {
+           // Wait for the setup to be completed
+           do {
+               delay_us(5);
+               check_count++;
+               donemap = isp_read_dword(reg_ptd_donemap);
+           } while (!(donemap & 0x1) && (check_count < SETUP_TIMEOUT_MS*200));
+        }
+                
 
         // Readback PTD header
         if (donemap & 0x1) {
@@ -412,8 +423,7 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
                 result = ISP_TRANSFER_ERROR;
                 LOG_R("ERR");
             }
-            else if ((direction == DIRECTION_OUT) && 
-                    (actual_transfer_length != *length)) {
+            else if(direction == DIRECTION_OUT && actual_transfer_length != *length) {
                 result = ISP_WRONG_LENGTH;
                 LOG_R("WLEN");
             }
@@ -425,22 +435,24 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
         }
         else {
             LOG_R("STO");
+            ELOG("\ndonemap 0x%x, reg_ptd_donemap: 0x%x, check_count: 0x%x\n",
+                 donemap,reg_ptd_donemap,check_count);
             result = ISP_SETUP_TIMEOUT;
         }
 
         // No matter what happens, end this PTD
         isp_write_dword(reg_ptd_skipmap, 0xffffffff);
     // only retry if: NAKed, not timed out, setup is required in this call
-    } while (retry && ((ticks_ms() - start_ticks) < NakTimeout) && need_setup);
+    } while (retry && ((ticks_ms() - start_ticks) < NakTimeout) && (Flags & ISP_FLG_NEED_SETUP));
 
     // If current direction is input, read payload back
     if (direction == DIRECTION_IN) {
         if (result == ISP_SUCCESS) {
             *length = actual_transfer_length & 0x0FFF;
-            if ((actual_transfer_length != 0) && 
-                    (actual_transfer_length <= max_length)) {
+            if(actual_transfer_length != 0 && actual_transfer_length <= max_length) {
                 isp_read_memory(payload_address, (uint32_t *)buffer, 
                         actual_transfer_length);
+
             }
         } 
         else {
@@ -570,8 +582,8 @@ static int isp_submit(
       uint32_t req_length = sizeof(*req);
       result = isp_transfer(ptd_type, speed, DIRECTION_OUT, TOKEN_SETUP, 
                             address, parent_port, parent_address, max_packet_length, &toggle, 
-                            ep_type, ep, (uint8_t *)req, 0, &req_length, true,
-                            Timeout);
+                            ep_type, ep, (uint8_t *)req, 0, &req_length, 
+                            ISP_FLG_NEED_SETUP, Timeout);
       toggle = 1;
       delay_us(50);
    }
@@ -586,8 +598,8 @@ static int isp_submit(
       new_toggle = toggle;
       result = isp_transfer(ptd_type, speed, direction, token, address, 
                             parent_port, parent_address, max_packet_length, &new_toggle, ep_type,
-                            ep, buffer, (uint32_t)length, (uint32_t *)&actual_length, true,
-                            Timeout);
+                            ep, buffer, (uint32_t)length, (uint32_t *)&actual_length, 
+                            ISP_FLG_NEED_SETUP,Timeout);
    }
 
 #ifdef ISP_IRQ_DRIVEN
@@ -608,7 +620,8 @@ static int isp_submit(
       (direction == DIRECTION_IN) ? TOKEN_IN : TOKEN_OUT;
       result = isp_transfer(ptd_type, speed, direction, token, address, 
                             parent_port, parent_address, max_packet_length, &toggle, ep_type,
-                            ep, NULL, 0, &ack_length, true,Timeout);
+                            ep, NULL, 0, &ack_length, ISP_FLG_NEED_SETUP,
+                            Timeout);
    }
 
    if(result != ISP_SUCCESS) {
@@ -893,9 +906,10 @@ void isp_register_transfer(
 {
    interrupt_transfer_t *p = registered_transfers;
    int i;
+   LOG("Called\n");
 
     // new transfer must come as scheduled
-    for (int i = 0; i < MAX_REG_INT_TRANSFER_NUM; i++) {
+    for(i = 0; i < MAX_REG_INT_TRANSFER_NUM; i++) {
         if (p->device == NULL) {
             p->device = dev;
             p->pipe = pipe;
@@ -906,6 +920,9 @@ void isp_register_transfer(
             break;
         }
         p++;
+    }
+    if(i == MAX_REG_INT_TRANSFER_NUM) {
+       ELOG("Error - MAX_REG_INT_TRANSFER_NUM exceeded\n");
     }
 }
 
@@ -924,7 +941,7 @@ void isp_deregister_transfer(struct usb_device *device)
 
 isp_result_t isp_finish_transfer(interrupt_transfer_t *p) 
 {
-    struct usb_device *dev = p->.device;
+    struct usb_device *dev = p->device;
     unsigned long pipe = p->pipe;
     uint32_t length = p->length;
     uint8_t *buffer = p->buffer;
@@ -943,7 +960,7 @@ isp_result_t isp_finish_transfer(interrupt_transfer_t *p)
     LOG("FI ");
     return isp_transfer(ptd_type, speed, direction, token, address, 
             parent_port, parent_address, max_packet_length, &toggle, ep_type,
-            ep, buffer, (uint32_t)length, (uint32_t *)&length, false,0);
+            ep, buffer, (uint32_t)length, (uint32_t *)&dev->act_len, ISP_FLG_DONE,0);
 }
 
 void isp_callback_irq(void) 
@@ -954,6 +971,28 @@ void isp_callback_irq(void)
    uint32_t donemap = isp_read_dword(ISP_INT_PTD_DONEMAP);
    donemap &= ~isp_read_dword(ISP_INT_PTD_SKIPMAP);
 
+#if 1
+   for(i = 0; i < MAX_REG_INT_TRANSFER_NUM; i++) {
+      if(p->device != NULL) {
+         if(p->state == STATE_SCHEDULED) {
+            int Again;
+            LOG("calling isp_finish_transfer\n");
+            result = isp_finish_transfer(p);
+            LOG("isp_finish_transfer returned: %d\n",result);
+            Again = p->device->irq_handle(p->device,result);
+            LOG("irq_handle returned: %d\n",Again);
+            if(Again) {
+               LOG("Calling isp_submit\n");
+                isp_submit(p->device,p->pipe,p->buffer,p->length,NULL,0);
+            }
+            else {
+               p->state = STATE_FINISHED;
+            }
+         }
+         p++;
+      }
+   }
+#else
     for(i = 0; i < MAX_REG_INT_TRANSFER_NUM; i++) {
        if(p->PtdBit & donemap) {
        // Transfer has completed
@@ -972,6 +1011,7 @@ void isp_callback_irq(void)
        }
        p++;
     }
+#endif
 }
 
 void isp_schedule(uint32_t id) {
@@ -1047,8 +1087,7 @@ void isp_isr(void)
     uint32_t interrupts;
     interrupts = isp_read_dword(ISP_INTERRUPT);
     LOG_ENABLE();
-    LOG("\n");
-    LOG_R(" active:",interrupts);
+    LOG("");
     LogInterrupts(" active: ",interrupts);
     LogInterrupts(" enabled: ",isp_read_dword(ISP_INTERRUPT_ENABLE));
 
@@ -1057,9 +1096,12 @@ void isp_isr(void)
         // An interrupt transfer has completed.
         // Call the callback
         isp_callback_irq();
-        isp_reschedule();
+        // isp_reschedule();
     }
-    LOG_DISABLE();
+    interrupts = isp_read_dword(ISP_INTERRUPT);
+    if(interrupts != 0) {
+       LogInterrupts(" still active: ",interrupts);
+    }
 }
 
 void isp_poll_no_irq(void) {
@@ -1072,7 +1114,7 @@ void isp_poll_no_irq(void) {
                     registered_transfers[i].length, NULL,0);
             if (result == 0)
                 registered_transfers[i].device->irq_handle(
-                        registered_transfers[i].device);
+                        registered_transfers[i].device,result);
         }
     }
 }
@@ -1101,8 +1143,6 @@ Let's allocate 2K per device, this means we can support a maximum of 15 devices.
  
 The 2K per device allocation is further broken into smaller per endpoint
 buffers after the devices endpoints have been determined. 
- 
- 
 */
 
 
@@ -1178,10 +1218,16 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
    return isp_submit(dev, pipe, buffer, transfer_len, setup,0);
 }
 
-int submit_int_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
-      int transfer_len, int interval) {
+int submit_int_msg(
+   struct usb_device *dev,
+   unsigned long pipe,
+   void *buffer,
+   int transfer_len,
+   int interval) 
+{
+   LOG("Called\n");
     if (usb_pipetype(pipe) != PIPE_INTERRUPT) {
-      LOG("non-interrupt pipe");
+      ELOG("non-interrupt pipe\n");
       return -1;
    }
     // interrupt messages usually have a callback function.
@@ -1192,15 +1238,9 @@ int submit_int_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
     return isp_submit(dev, pipe, buffer, transfer_len, NULL,0);
 }
 
-void usb_event_poll(void) {
-#ifdef ISP_IRQ_DRIVEN
-    // Check if there is any interrupts, if so, call the interrupt handler
-    // This is used when there is no hardware IRQs in the system
-    if ((isp_read_dword(ISP_INTERRUPT) & ISP_INT_MASK) != 0) {
-        isp_isr();
-    }
-    isp_write_dword(ISP_INTERRUPT, ISP_INT_MASK); // Clear interrupts
-#else
+void usb_event_poll(void) 
+{
+#ifndef ISP_IRQ_DRIVEN
     isp_poll_no_irq();
 #endif
 }

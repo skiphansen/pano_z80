@@ -54,9 +54,9 @@
 #include "usb.h"
 #include "string.h"
 
-#define DEBUG_LOGGING
-#define VERBOSE_DEBUG_LOGGING
-#define LOG_TO_SERIAL
+// #define DEBUG_LOGGING
+// #define VERBOSE_DEBUG_LOGGING
+// #define LOG_TO_SERIAL
 #include "log.h"
 
 #define MAX_TRIES 5

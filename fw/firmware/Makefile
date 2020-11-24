@@ -32,7 +32,7 @@ firmware.elf: $(OBJS) sections.lds
 %.o: %.S
 	$(TOOLCHAIN_PREFIX)gcc -c $(CFLAGS) $<
 
-prog: firmware.bin
+prog: all
 	make -C $(TOPDIR) prog_fw
 
 clean:

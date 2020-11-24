@@ -36,8 +36,8 @@
 #include "misc.h"
 #include "usb.h"
 
-// #define LOG_TO_SERIAL
-// #define DEBUG_LOGGING
+#define LOG_TO_SERIAL
+#define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
@@ -438,7 +438,7 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
 }
 
 /* Interrupt service routine */
-static int usb_kbd_irq(struct usb_device *dev)
+static int usb_kbd_irq(struct usb_device *dev,int Result)
 {
    int i,res;
    unsigned char Modifiers = new[0];
@@ -448,6 +448,7 @@ static int usb_kbd_irq(struct usb_device *dev)
       LOG("usb_keyboard Error %lX, len %d\n",dev->irq_status,dev->act_len);
       return 1;
    }
+// LOG("len %d\n",dev->act_len);
    res=0;
 
 #ifdef VERBOSE_DEBUG_LOGGING
@@ -565,11 +566,11 @@ static int usb_kbd_probe(struct usb_device *dev, unsigned int ifnum)
 
    if(!(ep->bEndpointAddress & 0x80)) return 0;
    if((ep->bmAttributes & 3) != 3) return 0;
-   LOG("USB KBD found set protocol...\n");
+   LOG("Set protocol...\n");
    /* ok, we found a USB Keyboard, install it */
    /* usb_kbd_get_hid_desc(dev); */
    usb_set_protocol(dev, iface->bInterfaceNumber, 0);
-   LOG("USB KBD found set idle...\n");
+   LOG("Set idle...\n");
    usb_set_idle(dev, iface->bInterfaceNumber, REPEAT_RATE, 0);
    memset(&new[0], 0, 8);
    memset(&old[0], 0, 8);
@@ -577,7 +578,7 @@ static int usb_kbd_probe(struct usb_device *dev, unsigned int ifnum)
    pipe = usb_rcvintpipe(dev, ep->bEndpointAddress);
    maxp = usb_maxpacket(dev, pipe);
    dev->irq_handle=usb_kbd_irq;
-   LOG("USB KBD enable interrupt pipe...\n");
+   LOG("Enable interrupt pipe...\n");
    usb_submit_int_msg(dev,pipe,&new[0], maxp > 8 ? 8 : maxp,ep->bInterval);
    LOG("USB KBD found\n");
    return 1;

@@ -56,8 +56,17 @@ void LoadInitProg(void);
 void HandleFunctionKey(int Function);
 uint32_t gTicker;
 
-void irq_handler(uint32_t pc,uint32_t IRQs) 
+const char *RegNames[] = {
+   "ra","sp","gp","tp","t0","t1","t2","s0","s1","a0","a1",
+   "a2","a3","a4","a5","a6","a7","s2","s3","s4","s5","s6","s7","s8",
+   "s9","s10","s11","t3","t4","t5","t6"
+};
+
+void irq_handler(uint32_t *Regs,uint32_t IRQs) 
 {
+   static uint32_t LastTicks;
+   int i;
+
    if(IRQs & 1) {
    // Timer interrupt, update RTC
       picorv32_timer(CPU_HZ/TICKER_PER_SEC);
@@ -65,14 +74,21 @@ void irq_handler(uint32_t pc,uint32_t IRQs)
       gTicker++;
    }
    if(IRQs & 4) {
-      ELOG("\nBus fault, IRQs: 0x%08x, pc: 0x%08x\n",IRQs,pc);
+      ELOG("Bus fault, IRQs: 0x%x, pc: 0x%08x\n",IRQs,Regs[0]);
       leds = LED_RED;
+      for(i = 1; i < 32; i++) {
+         ELOG_R("%s: 0x%x\n",RegNames[i-1],Regs[i]);
+      }
       while(1);
    }
    if(IRQs & 0x8) {
-      picorv32_maskirq(~0x7);
-      ELOG("\nExt Int1, IRQs: 0x%08x, pc: 0x%08x\n",IRQs,pc);
+      uint32_t Elapsed = ticks() - LastTicks;
+#if 0
+      ELOG("Ext Int1, IRQs: 0x%x, pc: 0x%08x, Elapsed: %u\n",IRQs,Regs[0],
+           Elapsed);
+#endif
       isp_isr();
+      LastTicks = ticks();
    }
 }
 
@@ -110,7 +126,7 @@ void main()
    gCapsLockSwap = 1;
    usb_init();
    drv_usb_kbd_init();
-   picorv32_maskirq(~0xf);
+   picorv32_maskirq(~0xe);
 
    do {
       // Main loop

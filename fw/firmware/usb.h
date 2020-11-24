@@ -190,7 +190,7 @@ struct usb_device {
 
    int have_langid;     /* whether string_langid is valid yet */
    int string_langid;      /* language ID for strings */
-   int (*irq_handle)(struct usb_device *dev);
+   int (*irq_handle)(struct usb_device *dev,int result);
    unsigned long irq_status;
    void *privptr;
 

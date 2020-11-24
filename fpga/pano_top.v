@@ -655,11 +655,11 @@ module pano_top(
         .STACKADDR(STACKADDR),
         .PROGADDR_RESET(PROGADDR_RESET),
         .ENABLE_IRQ(1),
-        .ENABLE_IRQ_QREGS(0),
+        .ENABLE_IRQ_QREGS(1),
         .ENABLE_IRQ_TIMER(1),
         .COMPRESSED_ISA(1),
         .PROGADDR_IRQ(PROGADDR_IRQ),
-        .MASKED_IRQ(32'hfffffff0),
+        .MASKED_IRQ(32'hffffffe0),
         .LATCHED_IRQ(32'hffffffff)
     ) cpu (
         .clk(clk_rv),
@@ -672,7 +672,7 @@ module pano_top(
         .mem_wstrb(mem_wstrb),
         .mem_rdata(mem_rdata),
         .mem_la_addr(mem_la_addr),
-        .irq({28'b0, !USB_IRQ, cpu_bus_error, 2'b0})
+        .irq({27'b0, !z80_Ready, !USB_IRQ, cpu_bus_error, 2'b0})
     );
         
     // Internal RAM & Boot ROM
@@ -870,6 +870,7 @@ module pano_top(
     // LED 
 //    assign LED_BLUE = !led_blue;
     assign LED_RED = !led_red;
-    assign LED_GREEN = !led_green;
+//    assign LED_GREEN = !led_green;
+    assign LED_GREEN = USB_IRQ;
     
 endmodule

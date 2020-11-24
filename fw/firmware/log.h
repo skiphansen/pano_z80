@@ -72,6 +72,7 @@ void LogPutc(char c,void * arg);
    #define ALOG_R(format, ...) _LOG(_ALOG_FLAGS,format,## __VA_ARGS__)
    // ELOG - error errors
    #define ELOG(format, ...) _LOG(LOG_BOTH,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
+   #define ELOG_R(format, ...) _LOG(LOG_BOTH,format,## __VA_ARGS__)
    #define ELOG_HEX(x,y) LogHex(_ALOG_FLAGS,x,y)
 #else
    #define ALOG(format, ...)
