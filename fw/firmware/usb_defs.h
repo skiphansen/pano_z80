@@ -179,6 +179,7 @@
 #define USB_ST_CRC_ERR          0x20   /* CRC/timeout Error */
 #define USB_ST_BIT_ERR          0x40   /* Bitstuff error */
 #define USB_ST_NAK_TO           0x80   /* NAK timeout */
+#define USB_ST_WRONG_LEN        0x100  /* Wrote less than requested */
 #define USB_ST_NOT_PROC         0x80000000L  /* Not yet processed */
 
 

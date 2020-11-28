@@ -46,6 +46,12 @@
 #define LED_GREEN          0x2
 #define LED_BLUE           0x4
 
+#define IRQ_TIMER          0x1
+#define IRQ_EBREAK         0x2
+#define IRQ_BUS_FAULT      0x4
+#define IRQ_USB            0x8
+#define IRQ_Z80            0x10
+
 #define z80_rst           *((volatile uint32_t *)Z80_RST_ADR)
 #define uart              *((volatile uint32_t *)UART_ADR)
 

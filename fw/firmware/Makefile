@@ -1,6 +1,6 @@
 TOPDIR := ../..
 
-OBJS = start.o firmware.o isp1760.o i2c.o misc.o ff.o 
+OBJS = start.o firmware.o isp_1760.o i2c.o misc.o ff.o 
 OBJS += ffsystem.o diskio.o usb.o usb_storage.o cpm_io.o printf.o usb_kbd.o
 OBJS += vt100.o rtc.o strptime.o gmtime.o mktime.o gets.o c_locale.o 
 OBJS += stdlib_char.o stdlib_str.o picorv32.o

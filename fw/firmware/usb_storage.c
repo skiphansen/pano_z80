@@ -563,7 +563,7 @@ int usb_stor_CBI_get_status(ccb *srb, struct us_data *us)
    int timeout;
 
    us->ip_wanted = 1;
-   submit_int_msg(us->pusb_dev, us->irqpipe,
+   usb_submit_int_msg(us->pusb_dev, us->irqpipe,
          (void *) &us->ip_data, us->irqmaxp, us->irqinterval);
    timeout = 1000;
    while (timeout--) {

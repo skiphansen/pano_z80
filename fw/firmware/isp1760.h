@@ -56,7 +56,7 @@
 
 #define ISP_INTERRUPT            0x0310
 #define ISP_INTERRUPT_ENABLE     0x0314
-#define ISP_ISO_IRQ_MASK_OR      0x0320
+#define ISP_ISO_IRQ_MASK_OR      0x0318
 #define ISP_INT_IRQ_MASK_OR      0x031C
 #define ISP_ATL_IRQ_MASK_OR      0x0320
 #define ISP_ISO_IRQ_MASK_AND     0x0324
@@ -111,7 +111,7 @@
 #define NACK_TIMEOUT_MS          (20)
 #define SETUP_TIMEOUT_MS         (10)
 
-#define MAX_REG_INT_TRANSFER_NUM (2)
+#define MAX_TRANSFERS            (30)
 
 // This should match the define in u-boot
 typedef enum {
@@ -150,6 +150,9 @@ typedef enum {
 } ptd_type_t;
 
 typedef enum {
+    ISP_TRANSFER_EMPTY = -3,
+    ISP_TRANSFER_INIT = -2, // Transfer has not been started yet
+    ISP_TRANSFER_BUSY = -1, // Transfer has not been completed yet
     ISP_SUCCESS = 0,
     ISP_GENERAL_FAILURE,
     ISP_NOT_IMPLEMENTED,
@@ -167,31 +170,36 @@ typedef enum {
     STATE_FINISHED
 } transfer_state_t;
 
-typedef struct interrupt_transfer {
-    struct usb_device *device;
-    unsigned long pipe;
-    void *buffer;
-    int length;
-    uint32_t PtdBit;
-    transfer_state_t state;
-} interrupt_transfer_t;
+typedef struct UsbTransferTAG {
+   struct UsbTransferTAG *Link;  // NB: must be first member
+   int TransferNum;
+   struct usb_device *Dev;
+   unsigned long Pipe;
+   usb_token_t Token;
+   void *Buf;
+   int Length;    // requested
+   uint32_t StartTime;
+   int Timeout;
+   volatile int ActualLen;
+   volatile int Result;
+   int (*CallBack)(struct UsbTransferTAG *pTransfer);
+} UsbTransfer;
 
-int isp_init();
+extern UsbTransfer *gEmptyTransferBufs;
+extern UsbTransfer *gIntTransferBufs;
+extern UsbTransfer *gAtlTransferBufs;
+extern UsbTransfer *gReadyTransferBufs;
+
 
 #define ISP_FLG_NEED_SETUP  1
 #define ISP_FLG_DONE        2
 
 // Internal Functions
-isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
+isp_result_t isp_transfer(struct usb_device *dev,unsigned long pipe, 
         transfer_direction_t direction, usb_token_t token, 
-        uint32_t device_address, uint32_t parent_port, uint32_t parent_address, 
-        uint32_t max_packet_length, uint32_t *toggle,  usb_ep_type_t ep_type,
-        uint32_t ep, uint8_t *buffer, uint32_t max_length, uint32_t *length,
-        int Flags, int Timeout) ;
-void isp_build_header(usb_speed_t speed, usb_token_t token, uint32_t device_address,
-        uint32_t parent_port, uint32_t parent_address, uint32_t toggle,
-        usb_ep_type_t ep_type, uint32_t ep, uint32_t *ptd, 
-        uint32_t payload_address, uint32_t length, uint32_t max_packet_length);
+        uint32_t *toggle,  
+        uint8_t *buffer, uint32_t max_length,uint32_t *length,
+        int Flags, int Timeout);
 
 // External API is defined in usb.h
 #endif

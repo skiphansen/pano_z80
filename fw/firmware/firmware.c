@@ -67,21 +67,22 @@ void irq_handler(uint32_t *Regs,uint32_t IRQs)
    static uint32_t LastTicks;
    int i;
 
-   if(IRQs & 1) {
+   if(IRQs & IRQ_TIMER) {
    // Timer interrupt, update RTC
       picorv32_timer(CPU_HZ/TICKER_PER_SEC);
       rtc_poll();
       gTicker++;
    }
-   if(IRQs & 4) {
-      ELOG("Bus fault, IRQs: 0x%x, pc: 0x%08x\n",IRQs,Regs[0]);
+   if(IRQs & IRQ_BUS_FAULT) {
+      uint32_t pc = (Regs[0] & 1) ? Regs[0] - 3 : Regs[0] - 4;
+      ELOG("Bus fault, IRQs: 0x%x, pc: 0x%08x\n",IRQs,pc);
       leds = LED_RED;
       for(i = 1; i < 32; i++) {
          ELOG_R("%s: 0x%x\n",RegNames[i-1],Regs[i]);
       }
       while(1);
    }
-   if(IRQs & 0x8) {
+   if(IRQs & IRQ_USB) {
       uint32_t Elapsed = ticks() - LastTicks;
 #if 0
       ELOG("Ext Int1, IRQs: 0x%x, pc: 0x%08x, Elapsed: %u\n",IRQs,Regs[0],
@@ -124,9 +125,9 @@ void main()
    picorv32_timer(CPU_HZ/TICKER_PER_SEC);
 
    gCapsLockSwap = 1;
+   picorv32_maskirq(~0xe);
    usb_init();
    drv_usb_kbd_init();
-   picorv32_maskirq(~0xe);
 
    do {
       // Main loop
