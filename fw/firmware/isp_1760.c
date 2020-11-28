@@ -25,19 +25,21 @@
 #include "isp_roothub.h"
 #include "string.h"
 
-// #define DEBUG_LOGGING
+#define DEBUG_LOGGING
 #define LOG_TO_SERIAL
-// #define VERBOSE_DEBUG_LOGGING
+#define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 #include "picorv32.h"
 
 #define INT_SAVE  uint32_t IntSave;
 #define DI() IntSave = picorv32_maskirq(0xffffffff)
 #define EI() picorv32_maskirq(IntSave)
+#define ISP_IRQ_DRIVEN
+
+#define ERR_CNT   3
 
 extern uint8_t gDumpPtd;
 
-#define ISP_IRQ_DRIVEN
 
 UsbTransfer *gEmptyTransferBufs;
 // Active INT transfers
@@ -48,6 +50,8 @@ UsbTransfer *gAtlTransferBufs;
 UsbTransfer *gReadyTransferBufs;
 
 UsbTransfer gTransferBufs[MAX_TRANSFERS];
+
+uint32_t gAtlDoneMap;
 
 // Define the interrupts that the driver will handle
 #define ISP_INT_MASK  0x00000180
@@ -165,7 +169,7 @@ int usb_lowlevel_init()
    gTransferBufs[i-1].Link = NULL;
 
    gEmptyTransferBufs = gTransferBufs;
-   // LOG_DISABLE();
+   LOG_DISABLE();
 
     // Reset the ISP1760 controller
     isp_reset();
@@ -234,9 +238,9 @@ int usb_lowlevel_init()
     isp_write_dword(ISP_HW_MODE_CONTROL, 0x00000000);
 
     isp_write_dword(ISP_ATL_IRQ_MASK_AND,0);
-    isp_write_dword(ISP_ATL_IRQ_MASK_OR,0xffffffff);
+    isp_write_dword(ISP_ATL_IRQ_MASK_OR,0);
     isp_write_dword(ISP_INT_IRQ_MASK_AND,0);
-    isp_write_dword(ISP_INT_IRQ_MASK_OR,0xffffffff);
+    isp_write_dword(ISP_INT_IRQ_MASK_OR,0);
     isp_write_dword(ISP_ISO_IRQ_MASK_AND,0);
     isp_write_dword(ISP_ISO_IRQ_MASK_OR,0);
 
@@ -302,16 +306,19 @@ void isp_callback_irq(void)
    UsbTransfer **pLast;
    uint32_t donemap = isp_read_dword(ISP_INT_PTD_DONEMAP);
    uint32_t PtdBit;
+   uint32_t PtdBits;
    int Again;
    int LogFlags;
 
 //   donemap &= ~isp_read_dword(ISP_INT_PTD_SKIPMAP);
 
    if(donemap != 0) {
-#if 0
+#if 1
       LogFlags = gLogFlags;
       gLogFlags |= LOG_DISABLED;
 #endif
+
+#if 0
       p = gIntTransferBufs;
       if(p != NULL) {
          LOG_R("gIntTransferBufs:");
@@ -321,6 +328,8 @@ void isp_callback_irq(void)
          }
          LOG_R("\n");
       }
+#endif
+
       p = gIntTransferBufs;
       pLast = &gIntTransferBufs;
 
@@ -346,6 +355,9 @@ void isp_callback_irq(void)
                p->Link = gEmptyTransferBufs;
                gEmptyTransferBufs = p;
                p = *pLast;
+            // Disable further interrupts for this PTD
+               PtdBits = isp_read_dword(ISP_INT_IRQ_MASK_OR);
+               isp_write_dword(ISP_INT_IRQ_MASK_OR,PtdBits & ~PtdBit);
             }
          }
          else {
@@ -356,15 +368,17 @@ void isp_callback_irq(void)
       if(donemap != 0) {
          ELOG("Error: Unhandled INT transfers: 0x%x\n",donemap);
       }
-#if 0
+#if 1
       gLogFlags = LogFlags;
 #endif
    }
 
    donemap = isp_read_dword(ISP_ATL_PTD_DONEMAP);
    // donemap &= ~isp_read_dword(ISP_ATL_PTD_SKIPMAP);
+   gAtlDoneMap = donemap;
 
    if(donemap != 0) {
+#if 0
       p = gAtlTransferBufs;
       if(p != NULL) {
          LOG_R("gAtlTransferBufs:");
@@ -374,6 +388,7 @@ void isp_callback_irq(void)
          }
          LOG_R("\n");
       }
+#endif
       p = gAtlTransferBufs;
       pLast = &gAtlTransferBufs;
       while(p != NULL) {
@@ -385,6 +400,9 @@ void isp_callback_irq(void)
          PtdBit = 1 << p->TransferNum;
          if(donemap & PtdBit) {
             donemap &= ~PtdBit;
+         // Disable further interrupts for this PTD
+            PtdBits = isp_read_dword(ISP_ATL_IRQ_MASK_OR);
+            isp_write_dword(ISP_ATL_IRQ_MASK_OR,PtdBits & ~PtdBit);
          // Remove transfer from active list
             *pLast = p->Link;
             isp_CompleteTransfer(p);
@@ -502,27 +520,27 @@ UsbTransfer *GetTransferBuf(struct usb_device *Dev,unsigned long Pipe)
 {
    UsbTransfer *p;
    INT_SAVE;
-   int TransferNum;
 
    DI();
    if((p = gEmptyTransferBufs) != NULL) {
       gEmptyTransferBufs = p->Link;
       EI();
-      TransferNum = p->TransferNum;
       if(p->Result != ISP_TRANSFER_EMPTY) {
          ELOG("TransferNum %d on empty list, but Result = %d\n",
-             TransferNum,p->Result);
+             p->TransferNum,p->Result);
          for( ; ; );
       }
-      memset(p,0,sizeof(*p));
-      p->TransferNum = TransferNum;
+      p->Link = NULL;
+      p->CallBack = NULL;
+      p->Length = 0;
+      p->StartTime = 0;
       p->Dev = Dev;
       p->Pipe = Pipe;
+      p->Result = ISP_TRANSFER_INIT;
    }
    else {
       EI();
    }
-   p->Result = ISP_TRANSFER_INIT;
 
    return p;
 }
@@ -551,7 +569,11 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
 {
    int Ret = -1;
    UsbTransfer *p;
-   LOG_ENABLE();
+   uint32_t StartTime = ticks_ms();
+   uint32_t Elapsed;
+   static uint32_t Slowest;
+   bool Retried = false;
+
    do {
       if(usb_pipetype(pipe) != PIPE_BULK) {
          ELOG("non-bulk pipe\n");
@@ -561,23 +583,41 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
          ELOG("No empty xfer bufs\n");
          break;
       }
-      p->Buf = buffer;
-      p->Length = transfer_len;
-      p->Timeout = Timeout;
-      p->Token = usb_pipein(pipe) ? TOKEN_IN : TOKEN_OUT;
-      if((Ret = isp_StartTransfer(p)) != ISP_SUCCESS) {
-         break;
-      }
-      while(p->Result < ISP_SUCCESS) {
-         usb_event_poll();
-      }
-      Ret = p->Result;
-   } while(false);
 
+      for( ; ; ) {
+         p->Buf = buffer;
+         p->Length = transfer_len;
+         p->Timeout = Timeout;
+         p->Token = usb_pipein(pipe) ? TOKEN_IN : TOKEN_OUT;
+
+         if((Ret = isp_StartTransfer(p)) != ISP_SUCCESS) {
+            break;
+         }
+         while((Ret = p->Result) < ISP_SUCCESS) {
+            usb_event_poll();
+         }
+         Elapsed = ticks_ms() - StartTime;
+         if(Ret != ISP_NACK_TIMEOUT) {
+            break;
+         }
+      // Retry NACK timeout ?
+
+         if(Elapsed > Timeout) {
+            break;
+         }
+         Retried = true;
+      }
+   } while(false);
    FreeTransferBuf(p);
 
+   if(Elapsed > Slowest) {
+      Slowest = Elapsed;
+      if(Retried) {
+         ELOG("New slowest successful transfer: %d ms\n",Slowest);
+      }
+   }
    if(Ret != ISP_SUCCESS) {
-      ELOG("returning %d\n",Ret);
+      ELOG("returning %d after %d ms\n",Ret,Elapsed);
    }
    return Ret;
 }
@@ -698,14 +738,12 @@ isp_result_t isp_StartTransfer(UsbTransfer *p)
    isp_result_t result = ISP_SUCCESS;
    int TransferNum = p->TransferNum;
    uint32_t reg_ptd_skipmap;
+   uint32_t reg_ptd_irq_or;
    uint32_t multiplier;
    uint32_t port_number;
    uint32_t hub_address;
-   uint32_t valid;
    uint32_t split;
    uint32_t se;
-   uint32_t start_complete;
-   uint32_t error_counter;
    uint32_t micro_frame;
    uint32_t micro_sa;
    uint32_t micro_scs;
@@ -714,6 +752,7 @@ isp_result_t isp_StartTransfer(UsbTransfer *p)
    uint32_t PtdBits1;
    ptd_type_t ptd_type = (usb_pipetype(pipe) == PIPE_INTERRUPT) ? TYPE_INT : TYPE_ATL;
    usb_speed_t speed = (usb_speed_t)usb_pipespeed(pipe);
+   uint32_t NakCnt = speed == SPEED_HIGH ? 15 : 0;
    uint32_t device_address = usb_pipedevice(pipe);
    uint32_t parent_address = (dev->parent != NULL) ? dev->parent->devnum : 0;
    uint32_t parent_port = dev->portnr;
@@ -729,21 +768,20 @@ isp_result_t isp_StartTransfer(UsbTransfer *p)
    UsbTransfer **pActiveList;
    INT_SAVE;
 
-   if(TransferNum == 1) {
-      LOG_ENABLE();
-      LOG("Logging enabled\n");
-   }
+   p->Starts++;
 
    switch(ptd_type) {
       case TYPE_ATL:
          ptd_address += MEM_ATL_BASE;
          reg_ptd_skipmap = ISP_ATL_PTD_SKIPMAP;
+         reg_ptd_irq_or = ISP_ATL_IRQ_MASK_OR;
          pActiveList = &gAtlTransferBufs;
          break;
 
       case TYPE_INT:
          ptd_address += MEM_INT_BASE;
          reg_ptd_skipmap = ISP_INT_PTD_SKIPMAP;
+         reg_ptd_irq_or = ISP_INT_IRQ_MASK_OR;
          pActiveList = &gIntTransferBufs;
          break;
 
@@ -762,9 +800,11 @@ isp_result_t isp_StartTransfer(UsbTransfer *p)
 
    // If direction is output, write payload into ISP1760
    if((token == TOKEN_OUT || token == TOKEN_SETUP) && length != 0) {
+#if 0
       LOG("Copy %d bytes of payload into controller memeory @ 0x%x:\n",
           length,payload_address);
       LOG_HEX(buffer,length);
+#endif
       isp_write_memory(payload_address,(uint32_t *)buffer,length);
    }
 
@@ -780,11 +820,8 @@ isp_result_t isp_StartTransfer(UsbTransfer *p)
    multiplier = (speed == SPEED_HIGH) ? 1 : 0;
    port_number = (speed == SPEED_HIGH) ? 0 : parent_port;
    hub_address = (speed == SPEED_HIGH) ? 0 : parent_address;
-   valid = 0x01;
    split = (speed == SPEED_HIGH) ? 0 : 1;
    se = (speed == SPEED_HIGH) ? 0 : (speed == SPEED_FULL) ? 0 : 2;
-   start_complete = 0x0;
-   error_counter = 0x3;
    micro_frame = (ep_type == EP_INTERRUPT) ? // Polling every 8 ms for FS/LS
                  ((speed == SPEED_HIGH) ? (0xff) : (0x20)) : (0x00);
    micro_sa = (ep_type == EP_INTERRUPT) ? 
@@ -797,7 +834,7 @@ isp_result_t isp_StartTransfer(UsbTransfer *p)
             ((multiplier & 0x3) << 29) |
             ((max_packet_length & 0x7FF) << 18) |
             ((length & 0x7FFF) << 3) |
-            (valid & 0x1);
+            1;    // Valid bit
    ptd[1] = ((hub_address & 0x7F) << 25) |
             ((port_number & 0x7F) << 18) |
             ((se & 0x3) << 16) |
@@ -807,11 +844,12 @@ isp_result_t isp_StartTransfer(UsbTransfer *p)
             ((device_address & 0x7F) << 3) |
             ((ep & 0xe) >> 1);
    ptd[2] = ((payload_address & 0xFFFF) << 8) |
+            (NakCnt << 25) |
             (micro_frame & 0xFF);
-   ptd[3] = ((valid & 0x1) << 31) |
-            ((start_complete & 0x1) << 27) |
+   ptd[3] = (1 << 31) | // Active bit
             (usb_gettoggle(dev,ep,usb_pipeout(pipe)) << 25) |
-            ((error_counter & 0x3) << 23);
+            (NakCnt << 19) |
+            (ERR_CNT << 23);
    ptd[4] = micro_sa & 0xff;
    ptd[5] = micro_scs & 0xff;
    ptd[6] = 0;
@@ -832,12 +870,15 @@ isp_result_t isp_StartTransfer(UsbTransfer *p)
    }
    p->Result = ISP_TRANSFER_BUSY;
 
-// Turn off skip bit for this PTD
    DI();
    p->Link = *pActiveList;
    *pActiveList = p;
+// Turn off skip bit for this PTD
    PtdBits = isp_read_dword(reg_ptd_skipmap);
    isp_write_dword(reg_ptd_skipmap, PtdBits & ~PtdBit);
+// Enable interrupt on this PTD
+   PtdBits = isp_read_dword(reg_ptd_irq_or);
+   isp_write_dword(reg_ptd_irq_or,PtdBits | PtdBit);
    EI();
 
 #if 0
@@ -893,8 +934,8 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
    int NakTimeout = p->Timeout != 0 ? p->Timeout : NACK_TIMEOUT_MS;
    ptd_type_t ptd_type = (usb_pipetype(pipe) == PIPE_INTERRUPT) ? 
                          TYPE_INT : TYPE_ATL;
+   p->Completions++;
 
-   LOG("Called\n");
    switch(ptd_type) {
       case TYPE_ATL:
          LOG_R("A");
@@ -925,12 +966,19 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
    }
 
    do {
-      // Check A bit
-      if(ptd[3] & (1u << 31)) {
-         ELOG("Error: PTD still active\n");
-         result = ISP_SETUP_TIMEOUT;
+   // Check V bit
+      if(ptd[0] & 1) {
+         ELOG("Error: PTD still valid\n");
+         gDumpPtd = 1;
+         LOG_ENABLE();
+         LOG("Readback transferNum: %d, ptd_address: 0x%x\n",TransferNum,ptd_address);;
+         LOG("Starts: %d, Completions: %d, gAtlDoneMap: 0x%x\n",
+             p->Starts,p->Completions,gAtlDoneMap);
+         DumpPtd(ptd);
+         result = ISP_WTF_ERROR;
          break;
       }
+
       // Check H bit
       if(ptd[3] & (1u << 30)) {
          // halt, do not retry
@@ -952,6 +1000,26 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
          LOG_R("ERR");
          result = ISP_TRANSFER_ERROR;
          dev->status = USB_ST_BUF_ERR;
+         break;
+      }
+
+   // Check A bit
+      if(ptd[3] & (1u << 31)) {
+      // Still active 
+         if(((ptd[3] >> 19) & 0xf) == 0) {
+         // Nack count decremented to zero
+            result = ISP_NACK_TIMEOUT;
+         }
+         else {
+            ELOG("PTD still active but NakCnt != 0\n");
+            result = ISP_WTF_ERROR;
+            gDumpPtd = 1;
+            LOG_ENABLE();
+            LOG("Readback transferNum: %d, ptd_address: 0x%x\n",TransferNum,ptd_address);;
+            LOG("Starts: %d, Completions: %d, gAtlDoneMap: 0x%x\n",
+                p->Starts,p->Completions,gAtlDoneMap);
+            DumpPtd(ptd);
+         }
          break;
       }
 
@@ -1008,7 +1076,6 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
    isp_write_dword(reg_ptd_skipmap,PtdBits | PtdBit);
    EI();
 
-   LOG("Set Result to %d\n",result);
    p->Result = result;
    if(Retry) {
       isp_StartTransfer(p);
@@ -1124,6 +1191,6 @@ void DumpPtd(uint32_t *p)
 
 EnableUsbDebug()
 {
-   LOG_ENABLE();
+   // LOG_ENABLE();
 }
 

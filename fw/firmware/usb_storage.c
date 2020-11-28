@@ -55,7 +55,7 @@
 #include "misc.h"
 #include "usb.h"
 //
-//#define DEBUG_LOGGING
+// #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
 #define LOG_TO_SERIAL
 #include "log.h"
@@ -1081,6 +1081,8 @@ static unsigned long usb_stor_write(int device, unsigned long blknr,
 
    if (blkcnt == 0)
       return 0;
+
+   EnableUsbDebug();
 
    /* Setup  device */
    LOG("\nusb_write: dev %d \n", device);

@@ -24,7 +24,7 @@
 
 #define DEBUG_LOGGING
 #define LOG_TO_SERIAL
-#define VERBOSE_DEBUG_LOGGING
+// #define VERBOSE_DEBUG_LOGGING
 #include "log.h"
 
 /*--------------------------------------------------------------------------

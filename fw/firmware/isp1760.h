@@ -162,6 +162,7 @@ typedef enum {
     ISP_TRANSFER_HALT, // H bit being marked in the PTD
     ISP_BABBLE,        // B bit being marked in the PTD
     ISP_TRANSFER_ERROR,// X bit being marked in the PTD
+    ISP_WTF_ERROR
 } isp_result_t;
 
 typedef enum {
@@ -182,6 +183,8 @@ typedef struct UsbTransferTAG {
    int Timeout;
    volatile int ActualLen;
    volatile int Result;
+   int Starts;
+   int Completions;
    int (*CallBack)(struct UsbTransferTAG *pTransfer);
 } UsbTransfer;
 
