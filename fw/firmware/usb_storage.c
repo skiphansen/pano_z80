@@ -1082,7 +1082,6 @@ static unsigned long usb_stor_write(int device, unsigned long blknr,
    if (blkcnt == 0)
       return 0;
 
-   EnableUsbDebug();
 
    /* Setup  device */
    LOG("\nusb_write: dev %d \n", device);

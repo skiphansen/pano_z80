@@ -327,6 +327,7 @@ void LoadInitProg()
 
 void IdlePoll()
 {
+   rtc_poll();
    usb_event_poll();
    if(gWriteFlushTimeout != 0 && ticks_ms() >= gWriteFlushTimeout) {
       gWriteFlushTimeout = 0;

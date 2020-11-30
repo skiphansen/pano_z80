@@ -183,8 +183,6 @@ typedef struct UsbTransferTAG {
    int Timeout;
    volatile int ActualLen;
    volatile int Result;
-   int Starts;
-   int Completions;
    int (*CallBack)(struct UsbTransferTAG *pTransfer);
 } UsbTransfer;
 

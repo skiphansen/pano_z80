@@ -28,6 +28,7 @@
 #define DEBUG_LOGGING
 #define LOG_TO_SERIAL
 #define VERBOSE_DEBUG_LOGGING
+#define DEBUG_CHECKS
 #include "log.h"
 #include "picorv32.h"
 
@@ -153,23 +154,16 @@ int usb_lowlevel_init()
     LOG_R("\033[2J");
     LOG("Called, disabling logging\n");
 // Init links
-#if 0
-   for(i = 0; i < MAX_TRANSFERS-1; i++) {
-      gTransferBufs[i].TransferNum = i + 1;
-      gTransferBufs[i].Result = ISP_TRANSFER_EMPTY;
-      gTransferBufs[i].Link = &gTransferBufs[i + 1];
-   }
-#else
     for(i = 0; i < MAX_TRANSFERS; i++) {
        gTransferBufs[i].TransferNum = i;
        gTransferBufs[i].Result = ISP_TRANSFER_EMPTY;
        gTransferBufs[i].Link = &gTransferBufs[i + 1];
     }
-#endif
    gTransferBufs[i-1].Link = NULL;
 
    gEmptyTransferBufs = gTransferBufs;
    LOG_DISABLE();
+   // gDumpPtd = 1;
 
     // Reset the ISP1760 controller
     isp_reset();
@@ -318,7 +312,7 @@ void isp_callback_irq(void)
       gLogFlags |= LOG_DISABLED;
 #endif
 
-#if 0
+#ifdef DEBUG_CHECKS
       p = gIntTransferBufs;
       if(p != NULL) {
          LOG_R("gIntTransferBufs:");
@@ -344,6 +338,7 @@ void isp_callback_irq(void)
             donemap &= ~PtdBit;
             *pLast = p->Link;
             isp_CompleteTransfer(p);
+            p->Dev->act_len = p->ActualLen;  // **CHANGE ME**
             if(p->Dev->irq_handle != NULL && 
                p->Dev->irq_handle(p->Dev,p->Result)) 
             {  // Start another transfer
@@ -378,7 +373,7 @@ void isp_callback_irq(void)
    gAtlDoneMap = donemap;
 
    if(donemap != 0) {
-#if 0
+#ifdef DEBUG_CHECKS
       p = gAtlTransferBufs;
       if(p != NULL) {
          LOG_R("gAtlTransferBufs:");
@@ -423,7 +418,7 @@ void isp_callback_irq(void)
       }
       p = gAtlTransferBufs;
       if(p != NULL) {
-         ELOG("gAtlTransferBufs not empty:");
+         LOG("gAtlTransferBufs not empty:");
          while(p != NULL) {
             LOG_R(" %d",p->TransferNum);
             p = p->Link;
@@ -511,11 +506,9 @@ larger or smaller maximum packet sizes."
 The isp1760 has 63k of on chip memory.  The first 3K are used for PTDs the 
 remaining 60K is available for transfer buffers. 
  
-Let's allocate 1K per transfer, this means we can support a maximum of 30 
-simultanous transfers.
- 
+If we allocate the maximum of 1K per transfer, we can support 60 simultaneous 
+transfers.
 */ 
-
 UsbTransfer *GetTransferBuf(struct usb_device *Dev,unsigned long Pipe)
 {
    UsbTransfer *p;
@@ -597,6 +590,7 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
             usb_event_poll();
          }
          Elapsed = ticks_ms() - StartTime;
+#if 0
          if(Ret != ISP_NACK_TIMEOUT) {
             break;
          }
@@ -605,9 +599,14 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
          if(Elapsed > Timeout) {
             break;
          }
+#else
+         break;
+#endif
          Retried = true;
       }
    } while(false);
+
+   dev->act_len = p->ActualLen;  // **CHANGE ME**
    FreeTransferBuf(p);
 
    if(Elapsed > Slowest) {
@@ -618,6 +617,8 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
    }
    if(Ret != ISP_SUCCESS) {
       ELOG("returning %d after %d ms\n",Ret,Elapsed);
+      LOG_ENABLE();
+      gDumpPtd = 1;
    }
    return Ret;
 }
@@ -627,6 +628,7 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
 {
    int Ret = -1;
    UsbTransfer *p;
+   int ActualLen = 0;
 
    {
       uint32_t address = usb_pipedevice(pipe);
@@ -660,21 +662,39 @@ int submit_control_msg(struct usb_device *dev, unsigned long pipe, void *buffer,
       p->Buf = buffer;
       p->Length = transfer_len;
       p->Token = TOKEN_IN;
+      p->Result == ISP_TRANSFER_INIT;
       if((Ret = isp_StartTransfer(p)) != ISP_SUCCESS) {
          break;
       }
       while(p->Result < ISP_SUCCESS) {
          usb_event_poll();
       }
+      ActualLen = p->ActualLen;
       LOG("Transfer phase complete, result: %d, ActualLen: %d\n",
-          p->Result,p->ActualLen);
+          p->Result,ActualLen);
+      if(transfer_len != 0) {
+      // Send ACK
+         p->Length = -1;
+         p->Token = TOKEN_OUT;
+         p->Result == ISP_TRANSFER_INIT;
+         if((Ret = isp_StartTransfer(p)) != ISP_SUCCESS) {
+            break;
+         }
+         LOG("Waiting for ack phase to complete...\n");
+         while(p->Result < ISP_SUCCESS) {
+            usb_event_poll();
+         }
+         LOG("Ack phase complete, result: %d\n",p->Result);
+      }
       Ret = p->Result;
    } while(false);
 
    FreeTransferBuf(p);
 
+   dev->act_len = ActualLen;  // **CHANGE ME**
    if(Ret != ISP_SUCCESS) {
       ELOG("returning %d\n",Ret);
+      LOG_ENABLE();
    }
    return Ret;
 }
@@ -766,9 +786,15 @@ isp_result_t isp_StartTransfer(UsbTransfer *p)
    uint32_t ptd_address = TransferNum * (PTD_SIZE_BYTE >> 3);
    uint32_t PtdBit = 1 << TransferNum;
    UsbTransfer **pActiveList;
+   uint32_t Toggle = usb_gettoggle(dev,ep,usb_pipeout(pipe));
    INT_SAVE;
 
-   p->Starts++;
+   p->ActualLen = 0;
+   if(length == -1) {
+   // Ack, use last toggle
+      Toggle ^= 1;
+      length = 0;
+   }
 
    switch(ptd_type) {
       case TYPE_ATL:
@@ -847,7 +873,7 @@ isp_result_t isp_StartTransfer(UsbTransfer *p)
             (NakCnt << 25) |
             (micro_frame & 0xFF);
    ptd[3] = (1 << 31) | // Active bit
-            (usb_gettoggle(dev,ep,usb_pipeout(pipe)) << 25) |
+            (Toggle << 25) |
             (NakCnt << 19) |
             (ERR_CNT << 23);
    ptd[4] = micro_sa & 0xff;
@@ -918,9 +944,7 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
    struct usb_device *dev = p->Dev;
    unsigned long pipe = p->Pipe;
    uint32_t ep = usb_pipeendpoint(pipe);
-   int length = p->Length;
    isp_result_t result = ISP_SUCCESS;
-   bool Retry = false;
    INT_SAVE;
    int TransferNum = p->TransferNum;
    uint32_t payload_address = MEM_PAYLOAD_BASE + ((TransferNum * 1024) >> 3);
@@ -932,9 +956,9 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
    uint32_t PtdBits;
    uint32_t PtdBit = 1 << TransferNum;
    int NakTimeout = p->Timeout != 0 ? p->Timeout : NACK_TIMEOUT_MS;
-   ptd_type_t ptd_type = (usb_pipetype(pipe) == PIPE_INTERRUPT) ? 
-                         TYPE_INT : TYPE_ATL;
-   p->Completions++;
+   ptd_type_t ptd_type;
+   ptd_type = (usb_pipetype(pipe) == PIPE_INTERRUPT) ? TYPE_INT : TYPE_ATL;
+   uint32_t Elapsed;
 
    switch(ptd_type) {
       case TYPE_ATL:
@@ -972,8 +996,6 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
          gDumpPtd = 1;
          LOG_ENABLE();
          LOG("Readback transferNum: %d, ptd_address: 0x%x\n",TransferNum,ptd_address);;
-         LOG("Starts: %d, Completions: %d, gAtlDoneMap: 0x%x\n",
-             p->Starts,p->Completions,gAtlDoneMap);
          DumpPtd(ptd);
          result = ISP_WTF_ERROR;
          break;
@@ -1008,7 +1030,9 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
       // Still active 
          if(((ptd[3] >> 19) & 0xf) == 0) {
          // Nack count decremented to zero
+            Elapsed = ticks_ms() - p->StartTime;
             result = ISP_NACK_TIMEOUT;
+            LOG_R("TO\n");
          }
          else {
             ELOG("PTD still active but NakCnt != 0\n");
@@ -1016,8 +1040,6 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
             gDumpPtd = 1;
             LOG_ENABLE();
             LOG("Readback transferNum: %d, ptd_address: 0x%x\n",TransferNum,ptd_address);;
-            LOG("Starts: %d, Completions: %d, gAtlDoneMap: 0x%x\n",
-                p->Starts,p->Completions,gAtlDoneMap);
             DumpPtd(ptd);
          }
          break;
@@ -1030,19 +1052,7 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
          LOG_R("WLEN");
          break;
       }
-#if 0
-      // NACK, retry later
-      if(ticks_ms() - p->StartTime >= NakTimeout) {
-         result = ISP_NACK_TIMEOUT;
-         break;
-      }
-      else {
-         Retry = true;
-         // LOG_R("NACK");
-         //delay_us(100);
-         break;
-      }
-#endif
+
       if(p->Token == TOKEN_SETUP) {
          Toggle = 1;
          usb_settoggle(dev,ep,0,Toggle);
@@ -1054,6 +1064,8 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
       }
       result = ISP_SUCCESS;
       dev->status = 0;
+      p->ActualLen = TransferLen;
+
       LOG_R("OK\n");
       // If current direction is input, read payload back
       if(usb_pipein(pipe) && result == ISP_SUCCESS) {
@@ -1062,13 +1074,11 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
                ELOG("Requested %d, got %d\n",p->Length,TransferLen);
             // Only copy what will fit in the buffer
                TransferLen = p->Length;
+               p->ActualLen = TransferLen;
             }
-            p->ActualLen = TransferLen;
             isp_read_memory(payload_address,p->Buf,TransferLen);
          }
       }
-   // This should probably be changed !!!
-      dev->act_len = TransferLen;
    } while(false);
 // No matter what happens, end this PTD
    DI();
@@ -1076,15 +1086,24 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
    isp_write_dword(reg_ptd_skipmap,PtdBits | PtdBit);
    EI();
 
-   p->Result = result;
-   if(Retry) {
+   if(result == ISP_NACK_TIMEOUT && Elapsed < NakTimeout) {
+   // Try again
+      LOG("Retry transfer, Elapsed: %d ms\n",Elapsed);
       isp_StartTransfer(p);
    }
-   else if(usb_pipetype(pipe) != PIPE_INTERRUPT) {
-      if(p->CallBack != NULL) {
+   else {
+      p->Result = result;
+      if(result == ISP_NACK_TIMEOUT) {
+      // Try again
+         LOG("Timeout, NakTimeout: %d, Timeout: %d, Elapsed: %d ms\n",
+             NakTimeout,p->Timeout,Elapsed);
+      }
+      if(usb_pipetype(pipe) != PIPE_INTERRUPT) {
+         if(p->CallBack != NULL) {
          // There is a callback function, put the transfer on the ready list
-         p->Link = gReadyTransferBufs;
-         gReadyTransferBufs = p;
+            p->Link = gReadyTransferBufs;
+            gReadyTransferBufs = p;
+         }
       }
    }
 
@@ -1191,6 +1210,9 @@ void DumpPtd(uint32_t *p)
 
 EnableUsbDebug()
 {
-   // LOG_ENABLE();
+#if 0
+   LOG_ENABLE();
+   gDumpPtd = 1;
+#endif
 }
 

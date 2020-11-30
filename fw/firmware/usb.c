@@ -56,7 +56,7 @@
 
 // #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
-// #define LOG_TO_SERIAL
+#define LOG_TO_SERIAL
 #include "log.h"
 
 #define MAX_TRIES 5
@@ -180,6 +180,8 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe,
                     unsigned short value, unsigned short index,
                     void *data, unsigned short size, int timeout)
 {
+   int Err;
+
    if((timeout == 0) && (!asynch_allowed)) {
       /* request for a asynch control pipe is not allowed */
       return -1;
@@ -195,7 +197,9 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe,
        request, requesttype, value, index, size);
    dev->status = USB_ST_NOT_PROC; /*not yet processed */
 
-   submit_control_msg(dev, pipe, data, size, &setup_packet);
+   if((Err = submit_control_msg(dev,pipe,data,size,&setup_packet)) != 0) {
+      ELOG("submit_control_msg failed: %d\n",Err);
+   }
    if(timeout == 0)
       return(int)size;
 
@@ -429,8 +433,10 @@ int usb_clear_halt(struct usb_device *dev, int pipe)
                             endp, NULL, 0, USB_CNTL_TIMEOUT * 3);
 
    /* don't clear if failed */
-   if(result < 0)
+   if(result < 0) {
+      ELOG("usb_control_msg failed: %d\n",result);
       return result;
+   }
 
    /*
     * NOTE: we do not get status and verify reset was successful
@@ -1102,7 +1108,9 @@ static int hub_port_reset(struct usb_device *dev, int port,
    LOG("resetting port %d...\n", port + 1);
    for(tries = 0; tries < MAX_TRIES; tries++) {
 
-      usb_set_port_feature(dev, port + 1, USB_PORT_FEAT_RESET);
+      if(usb_set_port_feature(dev, port + 1, USB_PORT_FEAT_RESET)) {
+         ELOG("usb_set_port_feature failed\n");
+      }
       wait_ms(200);
       usb_clear_port_feature(dev, port + 1, USB_PORT_FEAT_C_RESET);
 
@@ -1149,7 +1157,9 @@ void usb_hub_port_connect_change(struct usb_device *dev, int port)
    portchange = le16_to_cpu(portsts.wPortChange);
 
    /* Clear the connection change status */
-   usb_clear_port_feature(dev, port + 1, USB_PORT_FEAT_C_CONNECTION);
+   if(usb_clear_port_feature(dev, port + 1, USB_PORT_FEAT_C_CONNECTION) < 0) {
+      ELOG("usb_clear_port_feature failed\n");
+   }
 
    /* Disconnect any existing devices under this port */
    if(((!(portstatus & USB_PORT_STAT_CONNECTION)) &&
