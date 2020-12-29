@@ -25,10 +25,10 @@
 #include "isp_roothub.h"
 #include "string.h"
 
-#define DEBUG_LOGGING
+// #define DEBUG_LOGGING
 //#define LOG_TO_SERIAL
-#define LOG_TO_RAM
-#define VERBOSE_DEBUG_LOGGING
+// #define LOG_TO_RAM
+// #define VERBOSE_DEBUG_LOGGING
 // #define DEBUG_CHECKS
 #include "log.h"
 #include "picorv32.h"
@@ -613,9 +613,11 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
    }
    if(Ret != ISP_SUCCESS) {
       ELOG("returning %d after %d ms\n",Ret,Elapsed);
+#ifdef RAM_LOG_ENABLED
       ELOG("Calling DumpRamLog\n");
       DumpRamLog();
       ELOG("DumpRamLog complete\n");
+#endif
       LOG_ENABLE();
       gDumpPtd = 1;
    }
@@ -730,7 +732,7 @@ int submit_int_msg (
 }
 
 // Called from the foreground, check for completed transfers.
-// If the transfer has a call callback the call it
+// If the transfer has a call callback then call it
 void usb_event_poll(void) 
 {
     UsbTransfer *p;
@@ -1210,12 +1212,4 @@ void DumpPtd(uint32_t *p)
    while(Die);
 }
 #endif
-
-EnableUsbDebug()
-{
-#if 0
-   LOG_ENABLE();
-   gDumpPtd = 1;
-#endif
-}
 

@@ -871,6 +871,6 @@ module pano_top(
 //    assign LED_BLUE = !led_blue;
     assign LED_RED = !led_red;
 //    assign LED_GREEN = !led_green;
-    assign LED_GREEN = USB_IRQ;
+    assign LED_GREEN = !z80_Ready;
     
 endmodule

@@ -708,26 +708,11 @@ void UartPutc(char c)
    uart = (uint32_t) c;
 }
 
-#define RAM_LOG_ENABLED 1
-
 #ifdef RAM_LOG_ENABLED
 #define RAM_LOG_LEN     (1024 * 1024)
 char gRamLog[RAM_LOG_LEN];
 uint32_t gWriteIdx;
 uint32_t gReadIdx = 0xffffffff;
-#endif
-
-void RamPutc(char c)
-{
-   INT_SAVE;
-
-   DI();
-   gRamLog[gWriteIdx++] = c;
-   if(gWriteIdx >= RAM_LOG_LEN) {
-      gWriteIdx = 0;
-   }
-   EI();
-}
 
 // Dump the entire RAM log to the console
 void DumpRamLog()
@@ -761,24 +746,7 @@ void DumpRamLog()
    }
    EI();
 }
-
-void LogPutc(char c,void *arg)
-{
-   int LogFlags = (int) arg;
-
-   if(!(LogFlags & LOG_DISABLED)) {
-      if(LogFlags & LOG_SERIAL) {
-         UartPutc(c);
-      }
-
-      if(LogFlags & LOG_MONITOR) {
-         PrintfPutc(c);
-      }
-      if(LogFlags & LOG_RAM) {
-         RamPutc(c);
-      }
-   }
-}
+#endif
 
 void PrintfPutc(char c)
 {
@@ -833,6 +801,7 @@ void Log(int LogFlags,char *fmt, ...)
          }
       }
 
+#ifdef RAM_LOG_ENABLED
       if(LogFlags & LOG_RAM) {
          INT_SAVE;
 
@@ -855,6 +824,7 @@ void Log(int LogFlags,char *fmt, ...)
             memcpy(&gRamLog[WriteOffset],Temp,WriteLen);
          }
       }
+#endif
    }
 }
 #endif

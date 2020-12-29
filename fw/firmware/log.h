@@ -41,8 +41,8 @@
 #define LOG_DISABLED          0x04
 #define LOG_VERBOSE_DISABLED  0x08
 #define LOG_RAM               0x10
+// #define RAM_LOG_ENABLED    1
 
-void LogPutc(char c,void * arg);
 void DumpRamLog(void);
 
 #if !defined(LOGGING_DISABLED) || defined(VERBOSE_DEBUG_LOGGING) || defined(DEBUG_LOGGING)

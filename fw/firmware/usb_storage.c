@@ -55,9 +55,9 @@
 #include "misc.h"
 #include "usb.h"
 //
-#define DEBUG_LOGGING
+// #define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
-#define LOG_TO_RAM
+// #define LOG_TO_RAM
 // #define LOG_TO_SERIAL
 #include "log.h"
 
