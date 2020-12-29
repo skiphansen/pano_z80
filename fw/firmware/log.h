@@ -40,19 +40,26 @@
 #define LOG_BOTH              0x03
 #define LOG_DISABLED          0x04
 #define LOG_VERBOSE_DISABLED  0x08
+#define LOG_RAM               0x10
+
 void LogPutc(char c,void * arg);
+void DumpRamLog(void);
 
 #if !defined(LOGGING_DISABLED) || defined(VERBOSE_DEBUG_LOGGING) || defined(DEBUG_LOGGING)
-   void LogHex(char *LogFlags,void *Data,int Len);
+   void LogHex(int LogFlags,void *Data,int Len);
+   void Log(int LogFlags,char *fmt, ...);
+
    #if defined(LOG_TO_SERIAL)
       static int gLogFlags = LOG_SERIAL;
    #elif defined(LOG_TO_BOTH)
       static int gLogFlags = LOG_SERIAL | LOG_MONITOR;
+   #elif defined(LOG_TO_RAM)
+      static int gLogFlags = LOG_RAM;
    #else
       static int gLogFlags = LOG_MONITOR;
    #endif
    #define _LOG(LogFlags,format, ...) \
-      fctprintf(LogPutc,(void *)LogFlags,format,## __VA_ARGS__)
+      Log(LogFlags,format,## __VA_ARGS__)
    #define LOG_DISABLE() gLogFlags |= LOG_DISABLED
    #define LOG_ENABLE() gLogFlags &= ~LOG_DISABLED
    #define VLOG_DISABLE() gLogFlags |= LOG_VERBOSE_DISABLED
@@ -67,7 +74,7 @@ void LogPutc(char c,void * arg);
 // These always log:
 // ALOG - Normal messages 
 #ifndef LOGGING_DISABLED
-   #define _ALOG_FLAGS  (void *)(gLogFlags & ~LOG_DISABLED)
+   #define _ALOG_FLAGS (gLogFlags & ~LOG_DISABLED)
    #define ALOG(format, ...) _LOG(_ALOG_FLAGS,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
    #define ALOG_R(format, ...) _LOG(_ALOG_FLAGS,format,## __VA_ARGS__)
    // ELOG - error errors
@@ -84,7 +91,7 @@ void LogPutc(char c,void * arg);
 
 #ifdef DEBUG_LOGGING
    // These only log when debug is enabled
-   #define _LOG_FLAGS  ((void *)(gLogFlags))
+   #define _LOG_FLAGS  (gLogFlags)
 
    // LOG - normal debug messages
    #define LOG(format, ...) _LOG(_LOG_FLAGS,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)

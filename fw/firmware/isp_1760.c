@@ -26,16 +26,12 @@
 #include "string.h"
 
 #define DEBUG_LOGGING
-#define LOG_TO_SERIAL
+//#define LOG_TO_SERIAL
+#define LOG_TO_RAM
 #define VERBOSE_DEBUG_LOGGING
-#define DEBUG_CHECKS
+// #define DEBUG_CHECKS
 #include "log.h"
 #include "picorv32.h"
-
-#define INT_SAVE  uint32_t IntSave;
-#define DI() IntSave = picorv32_maskirq(0xffffffff)
-#define EI() picorv32_maskirq(IntSave)
-#define ISP_IRQ_DRIVEN
 
 #define ERR_CNT   3
 
@@ -162,7 +158,7 @@ int usb_lowlevel_init()
    gTransferBufs[i-1].Link = NULL;
 
    gEmptyTransferBufs = gTransferBufs;
-   LOG_DISABLE();
+   // LOG_DISABLE();
    // gDumpPtd = 1;
 
     // Reset the ISP1760 controller
@@ -617,6 +613,9 @@ int submit_bulk_msg(struct usb_device *dev, unsigned long pipe,
    }
    if(Ret != ISP_SUCCESS) {
       ELOG("returning %d after %d ms\n",Ret,Elapsed);
+      ELOG("Calling DumpRamLog\n");
+      DumpRamLog();
+      ELOG("DumpRamLog complete\n");
       LOG_ENABLE();
       gDumpPtd = 1;
    }
@@ -841,7 +840,7 @@ isp_result_t isp_StartTransfer(UsbTransfer *p)
    LOG_R((speed == SPEED_HIGH) ? "HS " : "FS ");
    LOG_R((token == TOKEN_IN) ? "TIN " : (token == TOKEN_OUT) ? "TOUT " : (token == TOKEN_SETUP) ? "TSETUP " : "TPING ");
    LOG_R((ep_type == EP_BULK) ? "EB" : (ep_type == EP_CONTROL) ? "EC" : "EI");
-   LOG_R("%d L %d M %d\n",ep,length,max_packet_length);
+   LOG_R("%d L %d M %d T %d\n",ep,length,max_packet_length,Toggle);
 
    multiplier = (speed == SPEED_HIGH) ? 1 : 0;
    port_number = (speed == SPEED_HIGH) ? 0 : parent_port;
@@ -1033,6 +1032,10 @@ isp_result_t isp_CompleteTransfer(UsbTransfer *p)
             Elapsed = ticks_ms() - p->StartTime;
             result = ISP_NACK_TIMEOUT;
             LOG_R("TO\n");
+            if(!gDumpPtd) {
+               gDumpPtd = 1;
+               DumpPtd(ptd);
+            }
          }
          else {
             ELOG("PTD still active but NakCnt != 0\n");

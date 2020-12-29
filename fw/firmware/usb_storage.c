@@ -55,9 +55,10 @@
 #include "misc.h"
 #include "usb.h"
 //
-// #define DEBUG_LOGGING
+#define DEBUG_LOGGING
 // #define VERBOSE_DEBUG_LOGGING
-#define LOG_TO_SERIAL
+#define LOG_TO_RAM
+// #define LOG_TO_SERIAL
 #include "log.h"
 
 
@@ -463,7 +464,7 @@ int usb_stor_BBB_comdat(ccb *srb, struct us_data *us)
 #endif
    /* sanity checks */
    if (!(srb->cmdlen <= CBWCDBLENGTH)) {
-      LOG("usb_stor_BBB_comdat:cmdlen too large\n");
+      ELOG("usb_stor_BBB_comdat:cmdlen too large\n");
       return -1;
    }
 
@@ -481,8 +482,14 @@ int usb_stor_BBB_comdat(ccb *srb, struct us_data *us)
    memcpy(cbw.CBWCDB, srb->cmd, srb->cmdlen);
    result = usb_bulk_msg(us->pusb_dev, pipe, &cbw, UMASS_BBB_CBW_SIZE,
                &actlen, USB_CNTL_TIMEOUT * 5);
-   if (result < 0)
-      LOG("usb_stor_BBB_comdat:usb_bulk_msg error\n");
+   if (result < 0) {
+      ELOG("usb_stor_BBB_comdat:usb_bulk_msg error\n");
+      ELOG("dir %d lun %d cmdlen %d datalen %d:\n",
+         dir_in, srb->lun, srb->cmdlen,srb->datalen);
+      if(srb->cmdlen) {
+         ELOG_HEX(srb->cmd,srb->cmdlen);
+      }
+   }
    return result;
 }
 
@@ -634,11 +641,11 @@ int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
    LOG("COMMAND phase\n");
    result = usb_stor_BBB_comdat(srb, us);
    if (result < 0) {
-      ELOG("\nfailed to send CBW status %ld\n",us->pusb_dev->status);
+      ELOG("failed to send CBW status %ld\n",us->pusb_dev->status);
       usb_stor_BBB_reset(us);
       return USB_STOR_TRANSPORT_FAILED;
    }
-   delay_ms(5);
+   // delay_ms(5); // Why ???
    pipein = usb_rcvbulkpipe(us->pusb_dev, us->ep_in);
    pipeout = usb_sndbulkpipe(us->pusb_dev, us->ep_out);
    /* DATA phase + error handling */
@@ -655,7 +662,7 @@ int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
                &data_actlen, USB_CNTL_TIMEOUT * 5);
    /* special handling of STALL in DATA phase */
    if ((result < 0) && (us->pusb_dev->status & USB_ST_STALLED)) {
-      ELOG("\nDATA:stall\n");
+      ELOG("DATA:stall\n");
       /* clear the STALL on the endpoint */
       result = usb_stor_BBB_clear_endpt_stall(us,
                dir_in ? us->ep_in : us->ep_out);
@@ -827,6 +834,7 @@ do_retry:
             srb->sense_buf[12], srb->sense_buf[13]);
          return USB_STOR_TRANSPORT_FAILED;
       } else {
+         LOG("Not ready, delaying\n");
          delay_ms(100);
          goto do_retry;
       }
@@ -898,11 +906,19 @@ static int usb_test_unit_ready(ccb *srb, struct us_data *ss)
       srb->cmd[0] = SCSI_TST_U_RDY;
       srb->datalen = 0;
       srb->cmdlen = 12;
-      if (ss->transport(srb, ss) == USB_STOR_TRANSPORT_GOOD)
+      if (ss->transport(srb, ss) == USB_STOR_TRANSPORT_GOOD) {
+         LOG("Ready\n");
          return 0;
+      }
       usb_request_sense(srb, ss);
+      LOG("Not ready yet\n");
       delay_ms(100);
    } while (retries--);
+
+   ELOG("Device NOT ready\n"
+          "   Request Sense returned %02X %02X %02X\n",
+          srb->sense_buf[2], srb->sense_buf[12],
+          srb->sense_buf[13]);
 
    return -1;
 }
@@ -999,7 +1015,7 @@ unsigned long usb_stor_read(int device, unsigned long blknr,
 
    device &= 0xff;
    /* Setup  device */
-   LOG("\nusb_read: dev %d \n", device);
+   LOG("usb_read: dev %d \n", device);
    dev = NULL;
    for (i = 0; i < USB_MAX_DEVICE; i++) {
       dev = usb_get_dev_index(i);
@@ -1017,13 +1033,11 @@ unsigned long usb_stor_read(int device, unsigned long blknr,
    start = blknr;
    blks = blkcnt;
    if (usb_test_unit_ready(srb, (struct us_data *)dev->privptr)) {
-      ELOG("Device NOT ready\n   Request Sense returned %02X %02X"
-             " %02X\n", srb->sense_buf[2], srb->sense_buf[12],
-             srb->sense_buf[13]);
+      ELOG("Device NOT ready\n");
       return 0;
    }
 
-   LOG("\nusb_read: dev %d startblk %lx, blccnt %lx"
+   LOG("usb_read: dev %d startblk %lx, blccnt %lx"
          " buffer %lx\n", device, start, blks, buf_addr);
 
    do {
@@ -1041,7 +1055,7 @@ retry_it:
       srb->pdata = (unsigned char *)buf_addr;
       Err = usb_read_10(srb,(struct us_data *)dev->privptr,start,smallblks);
       if(Err != 0) {
-         ELOG("\nRead ERROR, usb_read_10 returned %d\n",Err);
+         ELOG("Read ERROR, usb_read_10 returned %d\n",Err);
          usb_request_sense(srb, (struct us_data *)dev->privptr);
          ELOG("Request Sense returned %02X %02X %02X\n",
                srb->sense_buf[2], srb->sense_buf[12],
@@ -1082,14 +1096,12 @@ static unsigned long usb_stor_write(int device, unsigned long blknr,
    if (blkcnt == 0)
       return 0;
 
-
    /* Setup  device */
-   LOG("\nusb_write: dev %d \n", device);
    dev = NULL;
    for (i = 0; i < USB_MAX_DEVICE; i++) {
       dev = usb_get_dev_index(i);
       if (dev == NULL) {
-         ELOG("Error - Device not found\n");
+         ELOG("Error - Device %d not found\n",device);
          return 0;
       }
       if (dev->devnum == usb_dev_desc[device].target)
@@ -1104,8 +1116,12 @@ static unsigned long usb_stor_write(int device, unsigned long blknr,
    start = blknr;
    blks = blkcnt;
 
-   LOG("\nusb_write: dev %d startblk %lx, blccnt %lx buffer %lx\n",
-         device, start, blks, buf_addr);
+   if(usb_test_unit_ready(srb, (struct us_data *)dev->privptr)) {
+      ELOG("Device NOT ready\n");
+      return 0;
+   }
+
+   LOG("dev %d startblk %lx, blccnt %lx buffer %lx\n",device,start,blks,buf_addr);
 
    do {
       /* If write fails retry for max retry count else
@@ -1139,12 +1155,12 @@ retry_it:
    } while (blks != 0);
    // ss->flags &= ~USB_READY;
 
+#if 0
    LOG("usb_write: end startblk %lx, blccnt %x buffer %lx\n",
          start, smallblks, buf_addr);
+#endif
 
    usb_disable_asynch(0); /* asynch transfer allowed */
-   if (blkcnt >= USB_MAX_WRITE_BLK)
-      LOG("\n");
    return blkcnt;
 }
 
@@ -1360,10 +1376,7 @@ int usb_stor_get_info(struct usb_device *dev, struct us_data *ss,
    LOG("ISO Vers %x, Response Data %x\n", usb_buf[2],
          usb_buf[3]);
    if (usb_test_unit_ready(pccb, ss)) {
-      ELOG("Device NOT ready\n"
-             "   Request Sense returned %02X %02X %02X\n",
-             pccb->sense_buf[2], pccb->sense_buf[12],
-             pccb->sense_buf[13]);
+      ELOG("Device NOT ready\n");
       if (dev_desc->removable == 1) {
          dev_desc->type = perq;
          return 1;

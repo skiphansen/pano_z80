@@ -20,5 +20,11 @@
 uint32_t picorv32_timer(uint32_t ticks);
 uint32_t picorv32_maskirq(uint32_t mask);
 
+#define INT_SAVE  uint32_t IntSave;
+#define DI() IntSave = picorv32_maskirq(0xffffffff)
+#define EI() picorv32_maskirq(IntSave)
+#define ISP_IRQ_DRIVEN
+
+
 #endif   // _PICORV32_H_
 

@@ -41,6 +41,7 @@
 #include "vt100.h"
 #include "misc.h"
 #include "rtc.h"
+#include "picorv32.h"
 
 // #define DEBUG_LOGGING
 // #define LOG_TO_BOTH
@@ -107,8 +108,8 @@ struct dskdef gDisks[MAX_LOGICAL_DRIVES];
 
 uint8_t gDiskStatus;
 
-static BYTE clkcmd;		/* clock command */
-static BYTE clkfmt = 0;		/* clock format, 0 = BCD, 1 = decimal */
+static BYTE clkcmd;     /* clock command */
+static BYTE clkfmt = 0;    /* clock format, 0 = BCD, 1 = decimal */
 
 static void fdco_out(uint8_t Data);
 void CopyToZ80(uint8_t *pTo,uint8_t *pFrom,int Len);
@@ -139,7 +140,7 @@ void CopyFromZ80(uint8_t *pTo,uint8_t *pFrom,int Len)
 }
 
 /*
- *	Convert an integer to BCD
+ * Convert an integer to BCD
  */
 static int to_bcd(int val)
 {
@@ -155,9 +156,9 @@ static int to_bcd(int val)
 }
 
 /*
- *	Calculate number of days since 1.1.1978
- *	CP/M 3 and MP/M 2 are Y2K bug fixed and can handle the date,
- *	so the Y2K bug here is intentional.
+ * Calculate number of days since 1.1.1978
+ * CP/M 3 and MP/M 2 are Y2K bug fixed and can handle the date,
+ * so the Y2K bug here is intentional.
  */
 static int get_date(struct tm *t)
 {
@@ -174,9 +175,9 @@ static int get_date(struct tm *t)
 }
 
 /*
- *	I/O handler for write clock command:
- *	set the wanted clock command
- *	toggle BCD/decimal format if toggle command (255)
+ * I/O handler for write clock command:
+ * set the wanted clock command
+ * toggle BCD/decimal format if toggle command (255)
  */
 static void clkc_out(BYTE data)
 {
@@ -186,18 +187,18 @@ static void clkc_out(BYTE data)
 }
 
 /*
- *	I/O handler for read clock data:
- *	dependent on the last clock command the following
- *	informations are returned from the system clock:
- *		0 - seconds in BCD or decimal
- *		1 - minutes in BCD or decimal
- *		2 - hours in BCD or decimal
- *		3 - low byte number of days since 1.1.1978
- *		4 - high byte number of days since 1.1.1978
- *		5 - day of month in BCD or decimal
- *		6 - month in BCD or decimal
- *		7 - year in BCD or decimal
- *	for every other clock command a 0 is returned
+ * I/O handler for read clock data:
+ * dependent on the last clock command the following
+ * informations are returned from the system clock:
+ *    0 - seconds in BCD or decimal
+ *    1 - minutes in BCD or decimal
+ *    2 - hours in BCD or decimal
+ *    3 - low byte number of days since 1.1.1978
+ *    4 - high byte number of days since 1.1.1978
+ *    5 - day of month in BCD or decimal
+ *    6 - month in BCD or decimal
+ *    7 - year in BCD or decimal
+ * for every other clock command a 0 is returned
  */
 static BYTE clkd_in(void)
 {
@@ -207,43 +208,43 @@ static BYTE clkd_in(void)
    t = rtc_read();
    
    switch(clkcmd) {
-   case 0:			/* seconds */
+   case 0:        /* seconds */
       if (clkfmt)
          val = t->tm_sec;
       else
          val = to_bcd(t->tm_sec);
       break;
-   case 1:			/* minutes */
+   case 1:        /* minutes */
       if (clkfmt)
          val = t->tm_min;
       else
          val = to_bcd(t->tm_min);
       break;
-   case 2:			/* hours */
+   case 2:        /* hours */
       if (clkfmt)
          val = t->tm_hour;
       else
          val = to_bcd(t->tm_hour);
       break;
-   case 3:			/* low byte days */
+   case 3:        /* low byte days */
       val = get_date(t) & 255;
       break;
-   case 4:			/* high byte days */
+   case 4:        /* high byte days */
       val = get_date(t) >> 8;
       break;
-   case 5:			/* day of month */
+   case 5:        /* day of month */
       if (clkfmt)
          val = t->tm_mday;
       else
          val = to_bcd(t->tm_mday);
       break;
-   case 6:			/* month */
+   case 6:        /* month */
       if (clkfmt)
          val = t->tm_mon;
       else
          val = to_bcd(t->tm_mon);
       break;
-   case 7:			/* year */
+   case 7:        /* year */
       if (clkfmt)
          val = t->tm_year;
       else
@@ -257,9 +258,9 @@ static BYTE clkd_in(void)
 }
 
 /*
- *	I/O handler for write clock data:
- *	under UNIX the system clock only can be set by the
- *	super user, so we do nothing here
+ * I/O handler for write clock data:
+ * under UNIX the system clock only can be set by the
+ * super user, so we do nothing here
  */
 static void clkd_out(BYTE data)
 {
@@ -707,6 +708,60 @@ void UartPutc(char c)
    uart = (uint32_t) c;
 }
 
+#define RAM_LOG_ENABLED 1
+
+#ifdef RAM_LOG_ENABLED
+#define RAM_LOG_LEN     (1024 * 1024)
+char gRamLog[RAM_LOG_LEN];
+uint32_t gWriteIdx;
+uint32_t gReadIdx = 0xffffffff;
+#endif
+
+void RamPutc(char c)
+{
+   INT_SAVE;
+
+   DI();
+   gRamLog[gWriteIdx++] = c;
+   if(gWriteIdx >= RAM_LOG_LEN) {
+      gWriteIdx = 0;
+   }
+   EI();
+}
+
+// Dump the entire RAM log to the console
+void DumpRamLog()
+{
+   INT_SAVE;
+   uint32_t i = gReadIdx;
+
+   DI();
+   if(i == 0xffffffff) {
+   // First read, dump the entire log
+      if(gRamLog[gWriteIdx] != 0) {
+      // Assumption, we never log a NULL so if the next byte to be 
+      // written isn't NULL then the buffer has wrapped
+         i = gWriteIdx + 1;
+      }
+      else {
+         i = 0;
+      }
+   }
+
+   for( ; ; ) {
+      if(i >= RAM_LOG_LEN) {
+         i = 0;
+      }
+      if(i == gWriteIdx) {
+      // Reached the next byte to write
+         gReadIdx = i;
+         break;
+      }
+      uart = (uint32_t) gRamLog[i++];
+   }
+   EI();
+}
+
 void LogPutc(char c,void *arg)
 {
    int LogFlags = (int) arg;
@@ -718,6 +773,9 @@ void LogPutc(char c,void *arg)
 
       if(LogFlags & LOG_MONITOR) {
          PrintfPutc(c);
+      }
+      if(LogFlags & LOG_RAM) {
+         RamPutc(c);
       }
    }
 }
@@ -734,7 +792,7 @@ void PrintfPutc(char c)
 }
 
 #ifndef LOGGING_DISABLED
-void LogHex(char *LogFlags,void *Data,int Len)
+void LogHex(int LogFlags,void *Data,int Len)
 {
    int i;
    uint8_t *cp = (uint8_t *) Data;
@@ -750,6 +808,53 @@ void LogHex(char *LogFlags,void *Data,int Len)
    }
    if(((i - 1) & 0xf) != 0) {
       _LOG(LogFlags,"\n");
+   }
+}
+
+void Log(int LogFlags,char *fmt, ...)
+{
+   va_list args;
+   va_start(args,fmt);
+   int WriteLen;
+   char  Temp[1024];
+   char *cp = Temp;
+   char c;
+   int WriteOffset;
+   int CopyLen;
+
+   if(!(LogFlags & LOG_DISABLED)) {
+      WriteLen = vsnprintf(Temp,sizeof(Temp),fmt,args);
+      while((c = *cp++) != 0) {
+         if(LogFlags & LOG_SERIAL) {
+            UartPutc(c);
+         }
+         if(LogFlags & LOG_MONITOR) {
+            PrintfPutc(c);
+         }
+      }
+
+      if(LogFlags & LOG_RAM) {
+         INT_SAVE;
+
+         DI();
+         WriteOffset = gWriteIdx;
+         gWriteIdx += WriteLen;
+         if(gWriteIdx >= RAM_LOG_LEN) {
+         // handle wrap
+            gWriteIdx -= RAM_LOG_LEN;
+            EI();
+            CopyLen = RAM_LOG_LEN - WriteOffset;
+         // copy up to the end of the buffer
+            memcpy(&gRamLog[WriteOffset],Temp,CopyLen);
+         // copy the rest of line
+            memcpy(&gRamLog[0],&Temp[CopyLen],WriteLen - CopyLen);
+         }
+         else {
+         // No wrap
+            EI();
+            memcpy(&gRamLog[WriteOffset],Temp,WriteLen);
+         }
+      }
    }
 }
 #endif
