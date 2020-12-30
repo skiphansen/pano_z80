@@ -145,6 +145,9 @@ different devices and they all work, but they were are all "Bulk/Bulk/Bulk"
 type devices at the low level.  "Control/Bulk" and "Control/Bulk/Interrupt" 
 type devices also exist, but I haven't found any to test with.
 
+If you have problems please try the usb_interrupt_support development branch
+and send feedback via https://github.com/skiphansen/pano_z80/discussions.
+
 If a flash drive isn't recognized or doesn't work try a different one.
 
 If you are worried about compatibility the specific device I'm using
