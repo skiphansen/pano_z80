@@ -35,6 +35,7 @@
 #define DLY_TAP_ADR        0x03000000
 #define LEDS_ADR           0x03000004
 #define Z80_RST_ADR        0x0300000c
+#define SEC_COUNTER_ADR    0x03000020
 #define UART_ADR           0x03000100
 #define Z80_MEMORY_ADR     0x05000000
 #define VRAM_ADR           0x08000000
@@ -42,6 +43,8 @@
 #define VRAM              *((volatile uint32_t *)VRAM_ADR)
 #define DLY_TAP           *((volatile uint32_t *)DLY_TAP_ADR)
 #define LEDS              *((volatile uint32_t *)LEDS_ADR)
+#define SEC_COUNTER       *((volatile uint32_t *)SEC_COUNTER_ADR)
+
 #define LED_RED            0x1
 #define LED_GREEN          0x2
 #define LED_BLUE           0x4

@@ -70,7 +70,6 @@ void irq_handler(uint32_t *Regs,uint32_t IRQs)
    if(IRQs & IRQ_TIMER) {
    // Timer interrupt, update RTC
       picorv32_timer(CPU_HZ/TICKER_PER_SEC);
-      rtc_poll();
       gTicker++;
    }
    if(IRQs & IRQ_BUS_FAULT) {
@@ -320,7 +319,6 @@ void LoadInitProg()
 
 void IdlePoll()
 {
-   rtc_poll();
    usb_event_poll();
    if(gWriteFlushTimeout != 0 && ticks_ms() >= gWriteFlushTimeout) {
       gWriteFlushTimeout = 0;

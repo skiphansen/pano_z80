@@ -303,7 +303,6 @@ void HandleIoIn(uint8_t IoPort)
          
       case 26: // clock data
          if (have_rtc) {
-            rtc_poll();
             Data = clkd_in();
          }
          else {

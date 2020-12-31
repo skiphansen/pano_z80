@@ -267,6 +267,9 @@ module pano_top(
     wire [3:0] mem_wstrb;
     wire [31:0] mem_addr;
     wire [31:0] mem_wdata;
+    reg [24:0] sec_prescale;
+    reg [31:0] second_cntr;
+    
 
 `ifdef Z80_RAM_2K
     // RAMB16_S9_S9: Spartan-3/3E/3A/3AN/3AD 2k x 8 + 1 Parity bit Dual-Port RAM
@@ -710,6 +713,7 @@ module pano_top(
     // 03000014 (5)  - W:  i2c_scl
     // 03000018 (6)  - RW: i2c_sda
     // 0300001c (7)  - W:  usb_rst_n
+    // 03000020 (8)  - RW: second_cntr
     
     reg [31:0] gpio_rdata;
     reg led_green;
@@ -720,7 +724,13 @@ module pano_top(
     reg i2c_sda;
     
     always@(posedge clk_rv) begin
-        if (gpio_valid)
+        sec_prescale <= sec_prescale + 1;
+        if (sec_prescale >= 25000000 ) begin
+            sec_prescale <= 0;
+            second_cntr <= second_cntr + 1;
+        end
+
+        if (gpio_valid) begin
              if (mem_wstrb != 0) begin
                 case (mem_addr[5:2])
                     4'd0: delay_sel_val[4:0] <= mem_wdata[4:0];
@@ -733,6 +743,10 @@ module pano_top(
                     4'd5: i2c_scl <= mem_wdata[0];
                     4'd6: i2c_sda <= mem_wdata[0];
                     4'd7: usb_rstn <= mem_wdata[0];
+                    4'd8: begin
+                        second_cntr <= mem_wdata;
+                        sec_prescale <= 0;
+                    end
                 endcase
              end
              else begin
@@ -741,8 +755,11 @@ module pano_top(
                     4'd1: gpio_rdata <= {29'd0, led_blue, led_green, led_red};
                     4'd3: gpio_rdata <= {31'd0, z80_rst};
                     4'd6: gpio_rdata <= {31'd0, AUDIO_SDA};
+                    4'd8: gpio_rdata <= second_cntr;
                 endcase
              end
+         end
+
          if (!rst_rv) begin
             delay_sel_val[4:0] <= delay_sel_val_det[4:0];
             led_green <= 1'b0;
@@ -752,6 +769,8 @@ module pano_top(
             z80_rst <= 1'b1;
             i2c_scl <= 1'b1;
             i2c_sda <= 1'b1;
+            sec_prescale <= 0;
+            second_cntr <= 0;
         end
     end
     

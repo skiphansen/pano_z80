@@ -3,9 +3,7 @@
 #include "string.h"
 #include "vt100.h"
 #include <limits.h>
-
-static time_t unix_time;
-static uint32_t prev_ticks;
+#include "cpm_io.h"
 
 int have_rtc = 0;
 
@@ -40,38 +38,13 @@ time_t dateparse(const char *dtstring, size_t buflen) {
 }
 
 void rtc_init(time_t utime) {
-   unix_time = utime;
-   prev_ticks = ticks();
+   SEC_COUNTER = utime;
    have_rtc = 1;
 }
 
 struct tm *rtc_read() {
+   time_t unix_time = SEC_COUNTER;
    return gmtime(&unix_time);
-}
-
-void rtc_poll(void) {
-   uint32_t curr_ticks;
-   uint32_t elapsed_ticks;
-
-   if (!have_rtc) return;
-   
-   curr_ticks = ticks();
-   if(curr_ticks > prev_ticks) {
-      elapsed_ticks = curr_ticks - prev_ticks;
-   }
-   else {
-      // assume a single ounter wrap. No legitimate RISCV based
-      // operation should span multiples.
-      elapsed_ticks = (UINT_MAX - prev_ticks) + 1 + curr_ticks;
-   }
-   if(elapsed_ticks > CPU_HZ) {
-      // has been at least 1 sec since last counter read
-      unix_time += elapsed_ticks / CPU_HZ;
-      // ALOG_R("\r%d", unix_time);
-   }
-   // try to avoid accumulated loss by rounding back to an
-   // even second.
-   prev_ticks = curr_ticks - (curr_ticks % CPU_HZ);
 }
 
 /* 
