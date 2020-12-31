@@ -285,11 +285,6 @@ void HandleIoIn(uint8_t IoPort)
          }
          if(!gZ80_ResetRequest) {
             Data = (uint8_t) (usb_kbd_getc() & 0x7f);
-            if(!usb_kbd_testc()) {
-               z80_con_status = 0;
-               VLOG("No more data available, z80_con_status: 0x%x\n",
-                    z80_con_status);
-            }
          }
          break;
 
@@ -308,6 +303,7 @@ void HandleIoIn(uint8_t IoPort)
          
       case 26: // clock data
          if (have_rtc) {
+            rtc_poll();
             Data = clkd_in();
          }
          else {
@@ -524,7 +520,7 @@ static void fdco_out(uint8_t Data)
 
       switch(Data) {
          case 0:  /* read */
-            leds = LED_GREEN;
+            LEDS = LED_GREEN;
             if((Err = f_read(fp,&Buf,CPM_SECTOR_SIZE,&Read)) != FR_OK) {
                ELOG("f_read failed: %d\n",Err);
                status = 5;
@@ -537,11 +533,11 @@ static void fdco_out(uint8_t Data)
             else {
                CopyToZ80(pBuf,Buf,CPM_SECTOR_SIZE);
             }
-            leds = 0;
+            LEDS = 0;
             break;
 
          case 1:  /* write */
-            leds = LED_GREEN;
+            LEDS = LED_GREEN;
             CopyFromZ80(Buf,pBuf,CPM_SECTOR_SIZE);
             if((Err = f_write(fp,Buf,CPM_SECTOR_SIZE,&Wrote)) != FR_OK) {
                ELOG("f_write failed: %d\n",Err);
@@ -556,7 +552,7 @@ static void fdco_out(uint8_t Data)
                gWriteFlushTimeout = ticks_ms() + WRITE_FLUSH_TO;
                pDisk->bFlushWriteCache = true;
             }
-            leds = 0;
+            LEDS = 0;
             break;
 
          default:    /* illegal command */

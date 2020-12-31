@@ -76,7 +76,7 @@ void irq_handler(uint32_t *Regs,uint32_t IRQs)
    if(IRQs & IRQ_BUS_FAULT) {
       uint32_t pc = (Regs[0] & 1) ? Regs[0] - 3 : Regs[0] - 4;
       ELOG("Bus fault, IRQs: 0x%x, pc: 0x%08x\n",IRQs,pc);
-      leds = LED_RED;
+      LEDS = LED_RED;
       for(i = 1; i < 32; i++) {
          ELOG_R("%s: 0x%x\n",RegNames[i-1],Regs[i]);
       }
@@ -107,15 +107,10 @@ void main()
    uint32_t Timeout = 0;
    bool bWasHalted = false;
    
-   dly_tap = 0x03;
+   DLY_TAP = 0x03;
 
-#if 0
-   // Set interrupt mask to zero (enable all interrupts)
-   // This is a PicoRV32 custom instruction 
-   asm(".word 0x0600000b");
-#else
-   picorv32_maskirq(~0x7);
-#endif
+// Enable all Bus fault an instruction fault interrupts
+   picorv32_maskirq(~(IRQ_BUS_FAULT | IRQ_EBREAK));
 
    vt100_init();
    ALOG_R("Pano Logic G1, Z80 @ 25 Mhz, PicoRV32 @ 25MHz\n");
@@ -125,7 +120,8 @@ void main()
    picorv32_timer(CPU_HZ/TICKER_PER_SEC);
 
    gCapsLockSwap = 1;
-   picorv32_maskirq(~0xe);
+// Enable USB interrupts
+   picorv32_maskirq(~(IRQ_USB | IRQ_BUS_FAULT | IRQ_EBREAK));
    usb_init();
    drv_usb_kbd_init();
 
@@ -202,9 +198,6 @@ void main()
 
    for( ; ; ) {
       IdlePoll();
-      if(usb_kbd_testc()) {
-         z80_con_status = 0xff;  // console input ready
-      }
 
       do {
          IoState = z80_io_state;
@@ -257,7 +250,7 @@ void main()
       }
    }
 
-   leds = LED_BLUE;  // "blue screen of death"
+   LEDS = LED_BLUE;  // "blue screen of death"
    while(1);
 }
 

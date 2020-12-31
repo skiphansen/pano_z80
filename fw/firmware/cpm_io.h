@@ -40,8 +40,8 @@
 #define VRAM_ADR           0x08000000
 
 #define VRAM              *((volatile uint32_t *)VRAM_ADR)
-#define dly_tap           *((volatile uint32_t *)DLY_TAP_ADR)
-#define leds              *((volatile uint32_t *)LEDS_ADR)
+#define DLY_TAP           *((volatile uint32_t *)DLY_TAP_ADR)
+#define LEDS              *((volatile uint32_t *)LEDS_ADR)
 #define LED_RED            0x1
 #define LED_GREEN          0x2
 #define LED_BLUE           0x4

@@ -31,10 +31,12 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include "string.h"
+#include <stdint.h>
 #include <stdbool.h>
+#include "string.h"
 #include "misc.h"
 #include "usb.h"
+#include "cpm_io.h"
 
 #define LOG_TO_SERIAL
 #define DEBUG_LOGGING
@@ -170,6 +172,8 @@ static void usb_kbd_put_queue(char data)
       usb_in_pointer++;
    }
    usb_kbd_buffer[usb_in_pointer]=data;
+   z80_con_status = 0xff;
+
    return;
 }
 
@@ -198,6 +202,10 @@ char usb_kbd_getc(void)
    else
       usb_out_pointer++;
    c=usb_kbd_buffer[usb_out_pointer];
+
+   if(usb_in_pointer == usb_out_pointer) {
+      z80_con_status = 0;
+   }
    return c;
 }
 

@@ -26,11 +26,11 @@
 // registers are updated, the io_port_status register is set to IO_STAT_WRITE
 // and then the z80 is held in wait until the riscv reads the data.
 // 
-// RISC V  Z80
-// Adr     Adr  Usage                        Read     Write    Notes
+// RISC V         Z80
+// Adr            Adr  Usage                  Read    Write    Notes
 // 0x00 (0)       0  - Console status         Z80     RISC V    
-//        --      1  - Console in             Z80     ---       1 
-//        --      1  - Console out            ---     Z80       2 
+// --             1  - Console in             Z80     ---       1 
+// --             1  - Console out            ---     Z80       2 
 // 0x04 (1)       10 - Drive                  Both    Z80       
 // 0x08 (2)       11 - Track                  Both    Z80       
 // 0x0c (3)       12 - Sector low             Both    Z80       
@@ -53,7 +53,7 @@
 //  2 - Z80 held in wait until RISC V reads data for I/O write from the 
 //      Z80 In Data register
 //  3 - FSM state, written by hardware
-//  4 - Handled by generic I/O hander
+//  4 - Handled by generic I/O handler
 
 module cpm_io(
     input wire clk,
