@@ -4,7 +4,7 @@
 #include "time.h"
 
 time_t dateparse(const char *dtstring, size_t buflen);
-void rtc_init(time_t utime);
+void rtc_init(void);
 struct tm *rtc_read();
   
 void readline(char *buf, int max);

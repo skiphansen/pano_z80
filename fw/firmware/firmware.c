@@ -103,7 +103,6 @@ void main()
    char DriveSave;
    uint8_t LastIoState = 0xff;
    uint32_t IoState;
-   uint32_t Timeout = 0;
    bool bWasHalted = false;
    
    DLY_TAP = 0x03;
@@ -178,56 +177,20 @@ void main()
    term_enable_uart(false);
 #endif
 
-   time_t t = 0;
-   while (1) {
-      char line[40];
-      ALOG_R("Time and date (MM/DD/YY HH:MM:SS) or <Enter> for no RTC: ");
-      readline(line, 40);
-      ALOG_R("\n");
-      if (strnlen(line, 40) == 0) {
-         ALOG_R("Continuing with no RTC\n");
-         break;
-      }
-      t = dateparse(line, 40);
-      if (t != 0) {
-         rtc_init(t);
-         break;
-      }
-   }
-
    for( ; ; ) {
       IdlePoll();
 
       do {
          IoState = z80_io_state;
-
-         if(LastIoState != IoState) {
-            LastIoState = IoState;
-            VLOG("z80_io_state: %d\n",IoState);
-            if((IoState & IO_STAT_HALTED) && !bWasHalted) {
-               bWasHalted = true;
-               LOG("Z80 HALTED\n");
-               DisplayString("Z80 HALTED",29,0);
-            }
-            else if((IoState & IO_STAT_HALTED) == 0 && bWasHalted) {
-               bWasHalted = false;
-               DisplayString("          ",29,0);
-            }
-         }
          
          switch((IoState & IO_STATE_MASK)) {
             case IO_STAT_WRITE:  // Z80 out
                HandleIoOut(z80_io_adr,z80_out_data);
-               if(Timeout == 0) {
-               // Give the z80 a chance to output another character before
-               // we break out of this loop and call usb_event_poll again...
-                  Timeout = ticks_ms() + 50;
-               }
-               break;
+               continue;   // Loop until we find nothing to do
 
             case IO_STAT_READ:   // z80 In
                HandleIoIn(z80_io_adr);
-               break;
+               continue;   // Loop until we find nothing to do
 
             case IO_STAT_IDLE:
             case IO_STAT_READY:
@@ -237,8 +200,21 @@ void main()
                LOG("IoState 0x%x\n",IoState);
                break;
          }
-      } while(ticks_ms() < Timeout && gFunctionRequest == 0);
-      Timeout = 0;
+      } while(false);
+
+      if(LastIoState != IoState) {
+         LastIoState = IoState;
+         VLOG("z80_io_state: %d\n",IoState);
+         if((IoState & IO_STAT_HALTED) && !bWasHalted) {
+            bWasHalted = true;
+            LOG("Z80 HALTED\n");
+            DisplayString("Z80 HALTED",29,0);
+         }
+         else if((IoState & IO_STAT_HALTED) == 0 && bWasHalted) {
+            bWasHalted = false;
+            DisplayString("          ",29,0);
+         }
+      }
 
       if(gZ80_ResetRequest) {
          gZ80_ResetRequest = 0;

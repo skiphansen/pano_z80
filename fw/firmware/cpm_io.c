@@ -293,20 +293,20 @@ void HandleIoIn(uint8_t IoPort)
          break;
          
       case 25: // clock command
-         if (have_rtc) {
-            Data = clkcmd;
+         if(have_rtc == 0) {
+            rtc_init();
          }
-         else {
-            ELOG("Unexpected input from port 0x%x\n",IoPort);
+         if(have_rtc == 1) {
+            Data = clkcmd;
          }
          break;
          
       case 26: // clock data
-         if (have_rtc) {
-            Data = clkd_in();
+         if(have_rtc == 0) {
+            rtc_init();
          }
-         else {
-            ELOG("Unexpected input from port 0x%x\n",IoPort);
+         if(have_rtc == 1) {
+            Data = clkd_in();
          }
          break;
          
@@ -393,20 +393,20 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data)
          break;
 
       case 25: // clock command
-         if (have_rtc) {
-            clkc_out(Data);
+         if(have_rtc == 0) {
+            rtc_init();
          }
-         else {
-            ELOG("Unexpected output of 0x%x to port 0x%x\n",Data,IoPort);
+         if (have_rtc == 1) {
+            clkc_out(Data);
          }
          break;
          
       case 26: // clock data
-         if (have_rtc) {
-            clkd_out(Data);
+         if(have_rtc == 0) {
+            rtc_init();
          }
-         else {
-            ELOG("Unexpected output of 0x%x to port 0x%x\n",Data,IoPort);
+         if (have_rtc == 1) {
+            clkd_out(Data);
          }
          break;
          

@@ -1032,10 +1032,12 @@ unsigned long usb_stor_read(int device, unsigned long blknr,
    buf_addr = (unsigned long)buffer;
    start = blknr;
    blks = blkcnt;
+#ifdef ALWAYS_TEST_UNIT_READY
    if (usb_test_unit_ready(srb, (struct us_data *)dev->privptr)) {
       ELOG("Device NOT ready\n");
       return 0;
    }
+#endif
 
    LOG("usb_read: dev %d startblk %lx, blccnt %lx"
          " buffer %lx\n", device, start, blks, buf_addr);
@@ -1116,10 +1118,12 @@ static unsigned long usb_stor_write(int device, unsigned long blknr,
    start = blknr;
    blks = blkcnt;
 
+#ifdef ALWAYS_TEST_UNIT_READY
    if(usb_test_unit_ready(srb, (struct us_data *)dev->privptr)) {
       ELOG("Device NOT ready\n");
       return 0;
    }
+#endif
 
    LOG("dev %d startblk %lx, blccnt %lx buffer %lx\n",device,start,blks,buf_addr);
 

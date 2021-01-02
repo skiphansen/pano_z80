@@ -258,6 +258,7 @@ int usb_kbd_deregister(void)
 
 static void usb_kbd_setled(struct usb_device *dev)
 {
+
    struct usb_interface_descriptor *iface;
    iface = &dev->config.if_desc[0];
    leds=0;
@@ -269,10 +270,13 @@ static void usb_kbd_setled(struct usb_device *dev)
    leds<<=1;
    if(num_lock!=0)
       leds|=1;
+#if 0
+// Calling usb_control_msg() from an interrupt handler causes lockup
+// ** FixME **
    usb_control_msg(dev, usb_sndctrlpipe(dev, 0),
                    USB_REQ_SET_REPORT, USB_TYPE_CLASS | USB_RECIP_INTERFACE,
                    0x200, iface->bInterfaceNumber,(void *)&leds, 1, 0);
-
+#endif
 }
 
 
