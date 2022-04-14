@@ -468,6 +468,7 @@ This project also uses code from several other projects including:
 - The [HUMONGOUS](http://www.classiccmp.org/cpmarchives/) CP/M software Archives
 - The [Unofficial CP/M Web site](http://www.cpm.z80.de/)
 - The [Retrocomputing Archive](http://www.retroarchive.org/)
+- Schron.ch [OPERATING SYSTEMS (8 BIT, CP/M AND SIMILAR)](https://schorn.ch/altair_4.php)
 
 
 ## Pano Links
