@@ -49,6 +49,7 @@ DWORD gBootImageLen;
 #define F_SCREEN_COLOR        6  // F6
 #define F_RESET_Z80           7  // F7
 #define F_VERBOSE_LOG_TOGGLE  8  // F8
+#define F_CHARSET             9  // F9
 unsigned char gFunctionRequest;
 
 void LoadInitProg(void);
@@ -265,6 +266,12 @@ void HandleFunctionKey(int Function)
 
       case F_VERBOSE_LOG_TOGGLE:
          LOG("z80_io_state: %d, z80_io_adr: %d\n",z80_io_state,z80_io_adr);
+         break;
+
+      case F_CHARSET:
+      // cycle national character sets
+         vt100_set_charset((vt100_get_charset() + 1) % CHARSET_COUNT);
+         LOG("Character set: %s\n",vt100_charset_name(vt100_get_charset()));
          break;
    }
 }

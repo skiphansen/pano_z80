@@ -778,7 +778,7 @@ module pano_top(
     wire vga_vs;
     wire [6:0] dbg_x;
     wire [4:0] dbg_y;
-    wire [6:0] dbg_char;
+    wire [7:0] dbg_char;
     wire dbg_clk;
     wire [23:0] font_fg_color;
     wire [23:0] font_bg_color;
@@ -830,7 +830,7 @@ module pano_top(
         .addrb(rd_addr[11:0]),
         .doutb(vram_dout)
     );
-    assign dbg_char = vram_dout[6:0];
+    assign dbg_char = vram_dout[7:0];
     
  // Z80 <-> RISC V I/O interface
     cpm_io cpm_io(
