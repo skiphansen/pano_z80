@@ -13,6 +13,7 @@ Features:
 - Compatible with disk images created for the [Multicomp](http://searle.wales//Multicomp/cpm/fpgaCPM.html) project
 - ANSI support for keyboard and monitor
 - Function key selection of retro "Green Screen" or normal screen modes
+- Function key selection of national character sets (US ASCII, German DIN 66003)
 - Function key selection of retro or normal control key placement
 - RISC-V I/O co-processor
 - No soldering required!
@@ -87,6 +88,12 @@ F6 is used to toggle the display between green on black, white on black, or
 black on white.  
 
 F7 is used to reset Z80 processor.
+
+F9 is used to cycle the national character set.  The console is 7-bit ASCII
+like the terminals of the era, so national characters replace a few of the
+less common symbols, as defined by ISO 646.  The German set (DIN 66003) 
+displays `@ [ \ ] { | } ~` as `§ Ä Ö Ü ä ö ü ß`.  Characters already on the
+screen are not redrawn when the character set changes.
 
 ## HW Requirements
 

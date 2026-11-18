@@ -33,9 +33,19 @@ extern "C" {
 #define VT100_HEIGHT 24
 #define START_OFFSET (3 * VT100_WIDTH)
 
+// National character sets (ISO 646 variants)
+enum {
+   CHARSET_US = 0,
+   CHARSET_GERMAN,
+   CHARSET_COUNT
+};
+
 void vt100_init(void);
 void vt100_putc(uint8_t ch);
 void vt100_puts(const char *str);
+void vt100_set_charset(int Charset);
+int vt100_get_charset(void);
+const char *vt100_charset_name(int Charset);
 
 #ifdef __cplusplus
 }
