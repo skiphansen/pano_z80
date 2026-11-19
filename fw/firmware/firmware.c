@@ -93,7 +93,15 @@ void main()
       // Main loop
       res = f_mount(&FatFs, "", 1);
       if(res != FR_OK) {
-         ELOG("Unable to mount filesystem: %d\n", (int)res);
+         if(res == FR_NOT_READY) {
+            ALOG_R("No USB storage detected.\n");
+         }
+         else if(res == FR_NO_FILESYSTEM) {
+            ALOG_R("USB drive has no FAT filesystem.\n");
+         }
+         else {
+            ELOG("Unable to mount filesystem: %d\n", (int)res);
+         }
          break;
       }
 
