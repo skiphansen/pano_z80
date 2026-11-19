@@ -95,6 +95,7 @@ extern MapMode gMountMode;
 extern unsigned char gZ80_ResetRequest;
 
 int MountCpmDrives();
+void SwapDiskMenu(void);
 int LoadImage(const char *Filename,FSIZE_t Len);
 void HandleIoIn(uint8_t IoPort);
 void HandleIoOut(uint8_t IoPort,uint8_t Data);

@@ -89,8 +89,10 @@ struct dskdef {
    unsigned int sectors;
    bool bFlushWriteCache;
    bool bMultiCompDrive;
+   bool bNeedRelogin;        // set after a runtime swap: writes refused until re-login
    FIL *fp;           // file object strcture
    DiskType Type;
+   char ImageName[13];       // source 8.3 filename, for the swap menu
 };
 
 FIL FpArray[MAX_MOUNTED_DRIVES+1];
@@ -502,6 +504,23 @@ static void fdco_out(uint8_t Data)
          status = 3;
          break;
       }
+
+      // Runtime disk-swap support.  A read of A: track 0 means CP/M is
+      // (warm) booting, which re-logs every drive, so clear the swap guard.
+      if(Data == 0 && Drive == 0 && Track == 0) {
+         for(i = 0; i < MAX_LOGICAL_DRIVES; i++) {
+            gDisks[i].bNeedRelogin = false;
+         }
+      }
+      // Refuse writes to a just-swapped drive until CP/M re-logs it, so the
+      // old disk's cached allocation data cannot corrupt the new image.
+      if(Data == 1 && pDisk->bNeedRelogin) {
+         ELOG("Write to %c: refused, disk swapped: warm-boot (^C) to re-log\n",
+              'A' + Drive);
+         status = 6;
+         break;
+      }
+
       pos = (((long)Track) * ((long)pDisk->sectors) + Sector - 1) << 7;
 
       if(pDisk->bMultiCompDrive) {
@@ -615,6 +634,8 @@ int MountCpmDrive(char *Filename,FSIZE_t ImageSize)
       }
       gMountedDrives++;
       gDisks[Drive].fp = Fp;
+      gDisks[Drive].bNeedRelogin = false;
+      strcpy(gDisks[Drive].ImageName,Filename);
       LOG("Mounted %s image on %c:\n",FormatLookup[gDisks[Drive].Type].Desc,
           'A' + Drive);
       Ret = 0;
@@ -754,6 +775,175 @@ void LogHex(char *LogFlags,void *Data,int Len)
    }
 }
 #endif
+
+// Runtime disk swap, invoked from the F10 function key.  Replaces the image
+// backing a mounted drive without a power cycle.  Data drives (B: .. P:) are
+// made read-only until CP/M re-logs the new disk (see fdco_out); the system
+// drive A: is swapped by rebooting onto the new disk.
+void SwapDiskMenu(void)
+{
+   DIR Dir;
+   FILINFO Info;
+   FRESULT Err;
+   char Avail[16][13];
+   FSIZE_t AvailSize[16];
+   int NumAvail = 0;
+   int i;
+   int Slot;
+   int Choice;
+   char c;
+   struct dskdef *pDisk;
+
+   if(gMountMode != MAP_Z80PACK) {
+      ALOG_R("\nDisk swap is only supported in z80pack mode.\n");
+      return;
+   }
+
+   ALOG_R("\n--- Swap disk (F10) ---\nMounted drives:\n");
+   for(i = 0; i < MAX_LOGICAL_DRIVES; i++) {
+      if(gDisks[i].fp != NULL && !gDisks[i].bMultiCompDrive) {
+         ALOG_R("  %c: %-12s %s\n",'A' + i,gDisks[i].ImageName,
+                FormatLookup[gDisks[i].Type].Desc);
+      }
+   }
+
+   // Collect DRIVE?.DSK images on the USB drive that are not already mounted
+   if((Err = f_opendir(&Dir,"")) != FR_OK) {
+      ELOG("f_opendir failed: %d\n",Err);
+      return;
+   }
+   for( ; ; ) {
+      Err = f_readdir(&Dir,&Info);
+      if(Err != FR_OK || Info.fname[0] == 0) {
+         break;
+      }
+      if(strstr(Info.fname,"DRIVE") == NULL || strstr(Info.fname,".DSK") == NULL) {
+         continue;
+      }
+      for(i = 0; i < MAX_LOGICAL_DRIVES; i++) {
+         if(gDisks[i].fp != NULL &&
+            strcmp(gDisks[i].ImageName,Info.fname) == 0) {
+            break;
+         }
+      }
+      if(i < MAX_LOGICAL_DRIVES) {
+         continue;   // already mounted
+      }
+      if(NumAvail < 16) {
+         strcpy(Avail[NumAvail],Info.fname);
+         AvailSize[NumAvail] = Info.fsize;
+         NumAvail++;
+      }
+   }
+   f_closedir(&Dir);
+
+   if(NumAvail == 0) {
+      ALOG_R("No un-mounted DRIVE?.DSK images found on the USB drive.\n");
+      return;
+   }
+   ALOG_R("\nAvailable images:\n");
+   for(i = 0; i < NumAvail; i++) {
+      ALOG_R("  %d: %s\n",i + 1,Avail[i]);
+   }
+
+   // Which drive slot to replace
+   ALOG_R("\nDrive to replace (A-%c, ESC cancels): ",
+          'A' + MAX_LOGICAL_DRIVES - 1);
+   while(!usb_kbd_testc()) {
+      IdlePoll();
+   }
+   c = usb_kbd_getc();
+   if(c == 0x1b) { ALOG_R("cancelled\n"); return; }
+   if(c >= 'a' && c <= 'z') {
+      c -= 0x20;
+   }
+   ALOG_R("%c\n",c);
+   Slot = c - 'A';
+   if(Slot < 0 || Slot >= MAX_LOGICAL_DRIVES || gDisks[Slot].fp == NULL ||
+      gDisks[Slot].bMultiCompDrive) {
+      ALOG_R("%c: is not a swappable drive\n",c);
+      return;
+   }
+
+   // Which image to put there (multi-digit, Enter confirms; i = got a digit)
+   ALOG_R("Image number (1-%d, ESC cancels): ",NumAvail);
+   Choice = 0;
+   i = 0;
+   for( ; ; ) {
+      while(!usb_kbd_testc()) {
+         IdlePoll();
+      }
+      c = usb_kbd_getc();
+      if(c == 0x1b) { ALOG_R("cancelled\n"); return; }
+      if(c == '\r' || c == '\n') {
+         break;
+      }
+      if(c >= '0' && c <= '9') {
+         Choice = Choice * 10 + (c - '0');
+         i = 1;
+         ALOG_R("%c",c);
+      }
+   }
+   ALOG_R("\n");
+   if(!i) { ALOG_R("cancelled\n"); return; }
+   Choice -= 1;
+   if(Choice < 0 || Choice >= NumAvail) {
+      ALOG_R("invalid choice\n");
+      return;
+   }
+
+   // The new image must match a supported disk geometry (by file size)
+   for(i = 0; FormatLookup[i].Desc != NULL; i++) {
+      if(AvailSize[Choice] == FormatLookup[i].FileSize) {
+         break;
+      }
+   }
+   if(FormatLookup[i].Desc == NULL) {
+      ALOG_R("%s has an unsupported size, not swapped\n",Avail[Choice]);
+      return;
+   }
+
+   if(Slot == 0) {
+      ALOG_R("Swapping A: reboots CP/M and loses any running program.\n");
+      ALOG_R("Continue? (y/N): ");
+      while(!usb_kbd_testc()) {
+         IdlePoll();
+      }
+      c = usb_kbd_getc();
+      ALOG_R("%c\n",c);
+      if(c != 'y' && c != 'Y') {
+         ALOG_R("cancelled\n");
+         return;
+      }
+   }
+
+   // Perform the swap: flush and close the old image, open the new one
+   pDisk = &gDisks[Slot];
+   FlushWriteCache();
+   f_sync(pDisk->fp);
+   f_close(pDisk->fp);
+   if((Err = f_open(pDisk->fp,Avail[Choice],FA_READ | FA_WRITE)) != FR_OK) {
+      ELOG("Couldn't open %s: %d - drive %c: now unusable, please reboot\n",
+           Avail[Choice],Err,'A' + Slot);
+      pDisk->fp = NULL;
+      return;
+   }
+   pDisk->sectors = FormatLookup[i].Sectors;
+   pDisk->tracks = FormatLookup[i].Tracks;
+   pDisk->Type = i;
+   strcpy(pDisk->ImageName,Avail[Choice]);
+
+   if(Slot == 0) {
+      ALOG_R("A: swapped to %s - rebooting\n",Avail[Choice]);
+      gZ80_ResetRequest = 1;
+   }
+   else {
+      pDisk->bNeedRelogin = true;
+      ALOG_R("%c: swapped to %s (warm-booting to re-log; press ^C if a program is running)\n",
+             'A' + Slot,Avail[Choice]);
+      usb_kbd_inject(0x03);   // ^C: at the CP/M prompt this warm-boots and re-logs
+   }
+}
 
 void FlushWriteCache()
 {

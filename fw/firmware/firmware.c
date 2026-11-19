@@ -49,6 +49,7 @@ DWORD gBootImageLen;
 #define F_SCREEN_COLOR        6  // F6
 #define F_RESET_Z80           7  // F7
 #define F_VERBOSE_LOG_TOGGLE  8  // F8
+#define F_SWAP_DISK          10  // F10
 unsigned char gFunctionRequest;
 
 void LoadInitProg(void);
@@ -265,6 +266,10 @@ void HandleFunctionKey(int Function)
 
       case F_VERBOSE_LOG_TOGGLE:
          LOG("z80_io_state: %d, z80_io_adr: %d\n",z80_io_state,z80_io_adr);
+         break;
+
+      case F_SWAP_DISK:
+         SwapDiskMenu();
          break;
    }
 }

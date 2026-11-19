@@ -14,6 +14,7 @@ Features:
 - ANSI support for keyboard and monitor
 - Function key selection of retro "Green Screen" or normal screen modes
 - Function key selection of retro or normal control key placement
+- Runtime swapping of disk images from a function key
 - RISC-V I/O co-processor
 - No soldering required!
 
@@ -87,6 +88,14 @@ F6 is used to toggle the display between green on black, white on black, or
 black on white.  
 
 F7 is used to reset Z80 processor.
+
+F10 brings up a menu to swap a disk image into a mounted drive without a
+power cycle (z80pack mode only).  It lists the mounted drives and the other
+DRIVE?.DSK images on the USB drive and lets you replace any drive A: .. P:.
+Swapping a data drive (B: .. P:) holds it read-only until CP/M re-logs the
+new disk; the firmware sends a Ctrl-C to warm-boot CP/M for you, so run the
+swap from the CP/M prompt (A>).  Swapping the system drive A: reboots CP/M
+onto the new disk, which must be bootable.
 
 ## HW Requirements
 
