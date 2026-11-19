@@ -90,12 +90,22 @@ black on white.
 F7 is used to reset Z80 processor.
 
 F10 brings up a menu to swap a disk image into a mounted drive without a
-power cycle (z80pack mode only).  It lists the mounted drives and the other
-DRIVE?.DSK images on the USB drive and lets you replace any drive A: .. P:.
-Swapping a data drive (B: .. P:) holds it read-only until CP/M re-logs the
-new disk; the firmware sends a Ctrl-C to warm-boot CP/M for you, so run the
-swap from the CP/M prompt (A>).  Swapping the system drive A: reboots CP/M
-onto the new disk, which must be bootable.
+power cycle (z80pack mode only).  Pick the drive to replace and the menu lists
+every other `*.DSK` image on the USB drive of the same type as that drive (the
+disk geometry of each drive letter is fixed in the CBIOS, so a floppy image can
+only replace a floppy and a hard disk image a hard disk).  Only images named
+`DRIVEx.DSK` are mounted automatically at power-on, so give images that are
+only meant to be swapped in any other name - `GAMES.DSK`, `WORK2.DSK`, ...
+Swapping a data drive holds it read-only until CP/M re-logs the new disk; the
+firmware sends a Ctrl-C to warm-boot CP/M for you, so run the swap from the
+CP/M prompt (A>).  Swapping the system drive A: reboots CP/M onto the new
+disk, which must be bootable.
+
+In z80pack mode the stock CBIOS only knows drives A: to D: (8 inch floppies,
+256256 byte images), I: and J: (4 MB hard disks, 4177920 byte images) and, in
+newer versions, P: (512 MB).  A `DRIVEx.DSK` whose size does not match its
+drive letter is not mounted and a message says why; mounting it anyway would
+only give an empty directory or `Bdos Err On x: Select`.
 
 ## HW Requirements
 

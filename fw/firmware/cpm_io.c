@@ -592,6 +592,38 @@ static void fdco_out(uint8_t Data)
    }
 }
 
+// The disk geometry is not stored on the media, it is compiled into the CBIOS
+// per drive letter.  The stock z80pack CP/M 2.2 CBIOS has 8" floppies on
+// A: .. D:, 4 MB hard disks on I: and J:, and (newer versions) a 512 MB hard
+// disk on P:.  An image of the wrong type on a drive reads as garbage -
+// typically an empty directory - and a drive letter the CBIOS does not know
+// gives "Bdos Err On x: Select".  Catch both here instead.
+static bool Z80packDriveOk(int Drive,int Type)
+{
+   switch(Type) {
+      case DSK_FLOPPY_SSSD:
+         return Drive >= 0 && Drive <= 3;
+      case DSK_Z80PACK_4MB:
+         return Drive == 8 || Drive == 9;
+      case DSK_Z80PACK_512MB:
+         return Drive == 15;
+   }
+   return false;
+}
+
+static const char *Z80packDrivesFor(int Type)
+{
+   switch(Type) {
+      case DSK_FLOPPY_SSSD:
+         return "A: - D:";
+      case DSK_Z80PACK_4MB:
+         return "I: or J:";
+      case DSK_Z80PACK_512MB:
+         return "P:";
+   }
+   return "no z80pack drive";
+}
+
 // Filename "driveX.dsk" where x= 'a' -> 'p'
 int MountCpmDrive(char *Filename,FSIZE_t ImageSize)
 {
@@ -625,6 +657,12 @@ int MountCpmDrive(char *Filename,FSIZE_t ImageSize)
 
       if(FormatLookup[i].Desc == NULL) {
          LOG("Couldn't mount '%s', disk format not supported\n",Filename);
+         break;
+      }
+
+      if(gMountMode == MAP_Z80PACK && !Z80packDriveOk(Drive,i)) {
+         ALOG_R("Not mounting %s: a %s image can only be %s\n",
+                Filename,FormatLookup[i].Desc,Z80packDrivesFor(i));
          break;
       }
 
@@ -780,18 +818,37 @@ void LogHex(char *LogFlags,void *Data,int Len)
 // backing a mounted drive without a power cycle.  Data drives (B: .. P:) are
 // made read-only until CP/M re-logs the new disk (see fdco_out); the system
 // drive A: is swapped by rebooting onto the new disk.
+//
+// Any *.DSK file on the USB drive that is not currently mounted and is the
+// same type as the drive being replaced can be swapped in.  Only files named
+// DRIVEx.DSK are mounted automatically at power-on, so images meant purely for
+// swapping should be given other names (GAMES.DSK, ITT03.DSK, ...).
+#define SWAP_MAX_IMAGES    24
+
+static char SwapGetKey(void)
+{
+   while(!usb_kbd_testc()) {
+      IdlePoll();
+   }
+   return usb_kbd_getc();
+}
+
 void SwapDiskMenu(void)
 {
    DIR Dir;
    FILINFO Info;
    FRESULT Err;
-   char Avail[16][13];
-   FSIZE_t AvailSize[16];
+   char Avail[SWAP_MAX_IMAGES][13];
+   char OldName[13];
    int NumAvail = 0;
+   bool bMore = false;
    int i;
    int Slot;
+   int Type;
    int Choice;
+   int Digits;
    char c;
+   char *cp;
    struct dskdef *pDisk;
 
    if(gMountMode != MAP_Z80PACK) {
@@ -807,7 +864,29 @@ void SwapDiskMenu(void)
       }
    }
 
-   // Collect DRIVE?.DSK images on the USB drive that are not already mounted
+   // Which drive to replace
+   ALOG_R("\nDrive to replace (ESC cancels): ");
+   c = SwapGetKey();
+   if(c == 0x1b) {
+      ALOG_R("cancelled\n");
+      return;
+   }
+   if(c >= 'a' && c <= 'z') {
+      c -= 0x20;
+   }
+   ALOG_R("%c\n",c);
+   Slot = c - 'A';
+   if(Slot < 0 || Slot >= MAX_LOGICAL_DRIVES || gDisks[Slot].fp == NULL ||
+      gDisks[Slot].bMultiCompDrive) {
+      ALOG_R("%c: is not a mounted drive\n",c);
+      return;
+   }
+   pDisk = &gDisks[Slot];
+   Type = pDisk->Type;
+
+   // Collect the *.DSK images of the same type that are not already mounted.
+   // (A different type cannot work: the geometry of each drive is fixed in
+   // the CBIOS.)
    if((Err = f_opendir(&Dir,"")) != FR_OK) {
       ELOG("f_opendir failed: %d\n",Err);
       return;
@@ -817,7 +896,14 @@ void SwapDiskMenu(void)
       if(Err != FR_OK || Info.fname[0] == 0) {
          break;
       }
-      if(strstr(Info.fname,"DRIVE") == NULL || strstr(Info.fname,".DSK") == NULL) {
+      if((Info.fattrib & AM_DIR) || Info.fname[0] == '.' || Info.fname[0] == '_') {
+         continue;
+      }
+      cp = strstr(Info.fname,".DSK");
+      if(cp == NULL || cp[4] != 0) {
+         continue;
+      }
+      if(Info.fsize != FormatLookup[Type].FileSize) {
          continue;
       }
       for(i = 0; i < MAX_LOGICAL_DRIVES; i++) {
@@ -829,87 +915,63 @@ void SwapDiskMenu(void)
       if(i < MAX_LOGICAL_DRIVES) {
          continue;   // already mounted
       }
-      if(NumAvail < 16) {
+      if(NumAvail < SWAP_MAX_IMAGES) {
          strcpy(Avail[NumAvail],Info.fname);
-         AvailSize[NumAvail] = Info.fsize;
          NumAvail++;
+      }
+      else {
+         bMore = true;
       }
    }
    f_closedir(&Dir);
 
    if(NumAvail == 0) {
-      ALOG_R("No un-mounted DRIVE?.DSK images found on the USB drive.\n");
+      ALOG_R("No other %s images (*.DSK, %lu bytes) on the USB drive.\n",
+             FormatLookup[Type].Desc,(unsigned long)FormatLookup[Type].FileSize);
       return;
    }
-   ALOG_R("\nAvailable images:\n");
+   ALOG_R("\n%s images available for %c:\n",FormatLookup[Type].Desc,'A' + Slot);
    for(i = 0; i < NumAvail; i++) {
-      ALOG_R("  %d: %s\n",i + 1,Avail[i]);
+      ALOG_R("  %2d: %s\n",i + 1,Avail[i]);
+   }
+   if(bMore) {
+      ALOG_R("  (more images exist than can be listed)\n");
    }
 
-   // Which drive slot to replace
-   ALOG_R("\nDrive to replace (A-%c, ESC cancels): ",
-          'A' + MAX_LOGICAL_DRIVES - 1);
-   while(!usb_kbd_testc()) {
-      IdlePoll();
-   }
-   c = usb_kbd_getc();
-   if(c == 0x1b) { ALOG_R("cancelled\n"); return; }
-   if(c >= 'a' && c <= 'z') {
-      c -= 0x20;
-   }
-   ALOG_R("%c\n",c);
-   Slot = c - 'A';
-   if(Slot < 0 || Slot >= MAX_LOGICAL_DRIVES || gDisks[Slot].fp == NULL ||
-      gDisks[Slot].bMultiCompDrive) {
-      ALOG_R("%c: is not a swappable drive\n",c);
-      return;
-   }
-
-   // Which image to put there (multi-digit, Enter confirms; i = got a digit)
-   ALOG_R("Image number (1-%d, ESC cancels): ",NumAvail);
+   // Which image to put there (multi-digit, Enter confirms)
+   ALOG_R("Image number (1-%d, Enter confirms, ESC cancels): ",NumAvail);
    Choice = 0;
-   i = 0;
+   Digits = 0;
    for( ; ; ) {
-      while(!usb_kbd_testc()) {
-         IdlePoll();
+      c = SwapGetKey();
+      if(c == 0x1b) {
+         ALOG_R("cancelled\n");
+         return;
       }
-      c = usb_kbd_getc();
-      if(c == 0x1b) { ALOG_R("cancelled\n"); return; }
       if(c == '\r' || c == '\n') {
          break;
       }
-      if(c >= '0' && c <= '9') {
+      if(c >= '0' && c <= '9' && Digits < 3) {
          Choice = Choice * 10 + (c - '0');
-         i = 1;
+         Digits++;
          ALOG_R("%c",c);
       }
    }
    ALOG_R("\n");
-   if(!i) { ALOG_R("cancelled\n"); return; }
+   if(Digits == 0) {
+      ALOG_R("cancelled\n");
+      return;
+   }
    Choice -= 1;
    if(Choice < 0 || Choice >= NumAvail) {
       ALOG_R("invalid choice\n");
       return;
    }
 
-   // The new image must match a supported disk geometry (by file size)
-   for(i = 0; FormatLookup[i].Desc != NULL; i++) {
-      if(AvailSize[Choice] == FormatLookup[i].FileSize) {
-         break;
-      }
-   }
-   if(FormatLookup[i].Desc == NULL) {
-      ALOG_R("%s has an unsupported size, not swapped\n",Avail[Choice]);
-      return;
-   }
-
    if(Slot == 0) {
       ALOG_R("Swapping A: reboots CP/M and loses any running program.\n");
       ALOG_R("Continue? (y/N): ");
-      while(!usb_kbd_testc()) {
-         IdlePoll();
-      }
-      c = usb_kbd_getc();
+      c = SwapGetKey();
       ALOG_R("%c\n",c);
       if(c != 'y' && c != 'Y') {
          ALOG_R("cancelled\n");
@@ -917,20 +979,25 @@ void SwapDiskMenu(void)
       }
    }
 
-   // Perform the swap: flush and close the old image, open the new one
-   pDisk = &gDisks[Slot];
+   // Perform the swap: flush and close the old image, open the new one.
+   // Geometry is unchanged because the new image is the same type.
+   strcpy(OldName,pDisk->ImageName);
    FlushWriteCache();
    f_sync(pDisk->fp);
    f_close(pDisk->fp);
    if((Err = f_open(pDisk->fp,Avail[Choice],FA_READ | FA_WRITE)) != FR_OK) {
-      ELOG("Couldn't open %s: %d - drive %c: now unusable, please reboot\n",
-           Avail[Choice],Err,'A' + Slot);
-      pDisk->fp = NULL;
+      ELOG("Couldn't open %s: %d\n",Avail[Choice],Err);
+      // Put the previous image back so the drive stays usable
+      if((Err = f_open(pDisk->fp,OldName,FA_READ | FA_WRITE)) != FR_OK) {
+         ELOG("Couldn't re-open %s: %d - drive %c: is now unusable, please reboot\n",
+              OldName,Err,'A' + Slot);
+         pDisk->fp = NULL;
+      }
+      else {
+         ALOG_R("%c: left unchanged (%s)\n",'A' + Slot,OldName);
+      }
       return;
    }
-   pDisk->sectors = FormatLookup[i].Sectors;
-   pDisk->tracks = FormatLookup[i].Tracks;
-   pDisk->Type = i;
    strcpy(pDisk->ImageName,Avail[Choice]);
 
    if(Slot == 0) {
