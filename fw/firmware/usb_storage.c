@@ -127,6 +127,20 @@ typedef struct {
 } umass_bbb_csw_t;
 #define UMASS_BBB_CSW_SIZE 13
 
+/*
+ * Timeout for each bulk phase (CBW, data, CSW) of a mass-storage command.
+ *
+ * This used to be USB_CNTL_TIMEOUT * 5 = 500 ms, the control-transfer value.
+ * That is far too short for storage: a flash drive may legitimately NAK for
+ * much longer than that while it becomes ready after power-up or reset, or
+ * while it finishes internal housekeeping, and larger/newer drives do so more
+ * often.  A timeout here aborts the command, resets the device and retries,
+ * which is what produced the "usb_bulk_msg error status 128" (NAK timeout)
+ * messages at boot.  U-Boot's EHCI driver, which this code was written
+ * against, waits 5 s for bulk transfers.
+ */
+#define USB_STOR_TIMEOUT_MS   5000
+
 static int usb_max_devs; /* number of highest available usb device */
 
 static block_dev_desc_t usb_dev_desc[USB_MAX_STOR_DEV];
@@ -480,7 +494,7 @@ int usb_stor_BBB_comdat(ccb *srb, struct us_data *us)
    /* DST SRC LEN!!! */
    memcpy(cbw.CBWCDB, srb->cmd, srb->cmdlen);
    result = usb_bulk_msg(us->pusb_dev, pipe, &cbw, UMASS_BBB_CBW_SIZE,
-               &actlen, USB_CNTL_TIMEOUT * 5);
+               &actlen, USB_STOR_TIMEOUT_MS);
    if (result < 0)
       LOG("usb_stor_BBB_comdat:usb_bulk_msg error\n");
    return result;
@@ -652,7 +666,7 @@ int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
    else
       pipe = pipeout;
    result = usb_bulk_msg(us->pusb_dev, pipe, srb->pdata, srb->datalen,
-               &data_actlen, USB_CNTL_TIMEOUT * 5);
+               &data_actlen, USB_STOR_TIMEOUT_MS);
    /* special handling of STALL in DATA phase */
    if ((result < 0) && (us->pusb_dev->status & USB_ST_STALLED)) {
       ELOG("\nDATA:stall\n");
@@ -678,7 +692,7 @@ st:
 again:
    LOG("STATUS phase\n");
    result = usb_bulk_msg(us->pusb_dev, pipein, &csw, UMASS_BBB_CSW_SIZE,
-            &actlen, USB_CNTL_TIMEOUT*5);
+            &actlen, USB_STOR_TIMEOUT_MS);
 
    /* special handling of STALL in STATUS phase */
    if ((result < 0) && (retry < 1) &&
@@ -724,6 +738,19 @@ again:
    } else if (data_actlen > srb->datalen) {
       ELOG("transferred %dB instead of %dB\n",
          data_actlen, srb->datalen);
+      return USB_STOR_TRANSPORT_FAILED;
+   } else if (csw.bCSWStatus == CSWSTATUS_GOOD &&
+              (srb->cmd[0] == SCSI_READ10 || srb->cmd[0] == SCSI_WRITE10) &&
+              data_actlen != (int)srb->datalen) {
+      /* A READ(10)/WRITE(10) that the device reports as GOOD always moves
+       * exactly the requested number of bytes.  If the host controller saw
+       * fewer, part of the buffer was never filled (or never sent) - fail the
+       * command so it is retried rather than silently using it.  Deliberately
+       * limited to READ/WRITE and to the host's own byte count: other commands
+       * may legitimately return short data, and some devices report a wrong
+       * dCSWDataResidue. */
+      ELOG("short data phase: %dB of %dB\n", data_actlen, (int)srb->datalen);
+      usb_stor_BBB_reset(us);
       return USB_STOR_TRANSPORT_FAILED;
    } else if (csw.bCSWStatus == CSWSTATUS_FAILED) {
       ELOG("FAILED\n");
@@ -1027,8 +1054,9 @@ unsigned long usb_stor_read(int device, unsigned long blknr,
          " buffer %lx\n", device, start, blks, buf_addr);
 
    do {
-      /* XXX need some comment here */
-      retry = 2;
+      /* Retry a failed read several times; each retry re-issues the whole
+       * READ(10) after a device reset, which recovers transient USB glitches. */
+      retry = 4;
       srb->pdata = (unsigned char *)buf_addr;
       if (blks > USB_MAX_READ_BLK)
          smallblks = USB_MAX_READ_BLK;

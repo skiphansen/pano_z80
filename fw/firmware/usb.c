@@ -230,6 +230,8 @@ int usb_bulk_msg(struct usb_device *dev, unsigned int pipe,
 
    do {
       dev->status = USB_ST_NOT_PROC; /*not yet processed */
+      dev->act_len = 0;   /* only a successful transfer sets it; do not
+                             report the previous transfer's length on failure */
       Err = submit_bulk_msg(dev, pipe, data, len,timeout);
 
       if(Err != 0 || dev->status != 0) {
