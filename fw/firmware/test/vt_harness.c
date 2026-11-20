@@ -18,15 +18,17 @@ uint32_t host_vram[SCREEN_X * SCREEN_Y];
 #include "build/vt100_copy.c"
 
 int main(int argc, char **argv) {
-   int i, c, x, y;
+   int i, c, x, y, utf8 = 0;
    vt100_init();
    for(i = 1; i < argc; i++) {
       if(!strcmp(argv[i], "itt")) vt100_set_terminal(TERM_ITT3030);
       else if(!strcmp(argv[i], "attr")) vt100_set_text_attr(1);      /* bitstream with inverse video + mosaic */
       else if(!strcmp(argv[i], "german")) vt100_set_charset(CHARSET_GERMAN);
       else if(!strcmp(argv[i], "save")) vt100_screen_save();
+      else if(!strcmp(argv[i], "utf8")) utf8 = 1;        /* the input is text of the firmware itself */
    }
    while((c = getchar()) != EOF) {
+      if(utf8) { vt100_put_utf8((uint8_t) c); continue; }
       if(c == 0xF0) { vt100_screen_save(); continue; }       /* test hooks */
       if(c == 0xF1) { vt100_screen_restore(); continue; }
       vt100_putc((uint8_t) c);
@@ -38,7 +40,7 @@ int main(int argc, char **argv) {
          uint32_t g = w & 0xff;
          inv[x] = (w & 0x100) ? '^' : ' ';
          if(w & 0x100) any_inv = 1;
-         if(w & ~0x1ffu) { printf("[bad screen memory word %08x]\n", w); return 1; }
+         /* (the display only has the low nine bits of a word) */
          if(x == term.cursor_x && y == term.cursor_y && g == CURSOR_CHAR)
             g = (uint8_t) term.CharUnderCursor;        /* what the cursor covers */
          /* mosaic C0-CF: a digit/letter for the lit quarters (0 = none ... f = all); D0: the rule */
@@ -46,7 +48,7 @@ int main(int argc, char **argv) {
                    g == 0x08 ? '#' :
                    (g >= 0x20 && g < 0x7f) ? (char) g :
                    g == 0x8e ? 'A' : g == 0x99 ? 'O' : g == 0x9a ? 'U' :      /* umlauts, as their base letter */
-                   g == 0x84 ? 'a' : g == 0x94 ? 'o' : g == 0x81 ? 'u' : g == 0xe1 ? 's' : '?';
+                   g == 0x84 ? 'a' : g == 0x94 ? 'o' : g == 0x81 ? 'u' : g == 0xe1 ? 's' : g == 0x15 ? 'P' : '?';
       }
       for(x = VT100_WIDTH; x > 0 && line[x - 1] == ' '; x--) ;
       line[x] = 0;

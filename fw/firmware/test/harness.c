@@ -23,6 +23,7 @@ static uint32_t g_fpga_magic, g_fpga_id;     /* stand-ins for the FPGA's build I
 #include "build/flash_update_copy.c"  /* verbatim copy of ../flash_update.c */
 #include "build/crc32_extract.c"      /* crc32() cut out of ../spiflash.c */
 #include "build/fwinfo_copy.c"        /* verbatim copy of ../fwinfo.c */
+#include "../messages.c"              /* Translate(), IsYes() */
 
 static uint8_t g_flash_head[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xAA, 0x99, 0x55, 0x66};
 static const char *g_path, *g_keys = "";
@@ -94,6 +95,7 @@ int main(int argc, char **argv) {
       else if(!strncmp(argv[i], "flashret=", 9)) g_flash_ret = atoi(argv[i] + 9);
       else if(!strncmp(argv[i], "failread=", 9)) g_fail_read_at = atoi(argv[i] + 9);
       else if(!strncmp(argv[i], "failbig=", 8)) g_fail_big_at = atoi(argv[i] + 8);
+      else if(!strncmp(argv[i], "lang=", 5)) LanguageSet(atoi(argv[i] + 5));
       else if(!strncmp(argv[i], "fpgaid=", 7)) { g_fpga_magic = 0x42494431u; g_fpga_id = (uint32_t)strtoul(argv[i] + 7, 0, 16); }
       else if(!strncmp(argv[i], "flash0=", 7)) {
          int k; for(k = 0; k < 8; k++) { unsigned v; sscanf(argv[i] + 7 + 2 * k, "%2x", &v); g_flash_head[k] = (uint8_t)v; }

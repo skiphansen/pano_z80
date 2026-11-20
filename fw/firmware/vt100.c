@@ -27,6 +27,7 @@
 #include <stdbool.h>
 #include "string.h"
 #include "vt100.h"
+#include "messages.h"
 #include "printf.h"
 #include "ff.h"
 #include "cpm_io.h"
@@ -496,7 +497,7 @@ static const struct {
    const uint8_t (*Map)[2];   // {ascii, glyph} pairs ending with {0, 0}
 } gCharsets[CHARSET_COUNT] = {
    [CHARSET_US]     = {"US ASCII", NULL},
-   [CHARSET_GERMAN] = {"German (DIN 66003)", gGermanMap},
+   [CHARSET_GERMAN] = {TR_N("German (DIN 66003)"), gGermanMap},
 };
 
 static int gCharset;
@@ -567,6 +568,48 @@ void vt100_puts(const char *str)
    while(*str) {
       vt100_putc(*str++);
    }
+}
+
+// The characters beyond ASCII that the font has, by their code point (all of
+// them are in U+0080..U+00FF, two bytes in UTF-8), and their glyphs.
+static const uint8_t gLatin1Glyphs[][2] = {
+   {0xa7, 0x15},  // §
+   {0xc4, 0x8e},  // Ä
+   {0xd6, 0x99},  // Ö
+   {0xdc, 0x9a},  // Ü
+   {0xdf, 0xe1},  // ß
+   {0xe4, 0x84},  // ä
+   {0xf6, 0x94},  // ö
+   {0xfc, 0x81},  // ü
+   {0, 0}
+};
+
+void vt100_put_utf8(uint8_t ch)
+{
+   static uint8_t Lead;    // first byte of a two byte sequence, 0 = none
+   const uint8_t (*p)[2];
+   uint8_t Code;
+
+   if(Lead != 0 && (ch & 0xc0) == 0x80) {
+      Code = (uint8_t) ((Lead << 6) | (ch & 0x3f));
+      Lead = 0;
+      for(p = gLatin1Glyphs; (*p)[0] != 0; p++) {
+         if((*p)[0] == Code) {
+            _vt100_removeCursor(&term);
+            _vt100_putGlyph(&term, (*p)[1], false);
+            _vt100_drawCursor(&term);
+            return;
+         }
+      }
+      vt100_putc('?');
+      return;
+   }
+   Lead = 0;
+   if(ch == 0xc2 || ch == 0xc3) {
+      Lead = ch;
+      return;
+   }
+   vt100_putc(ch);
 }
 
 STATE(_st_command_arg, term, ev, arg){

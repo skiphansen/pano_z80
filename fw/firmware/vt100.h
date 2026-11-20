@@ -56,6 +56,10 @@ void vt100_set_text_attr(int HasTextAttr);
 int vt100_get_terminal(void);
 const char *vt100_terminal_name(int Terminal);
 void vt100_puts(const char *str);
+// Text of the firmware itself (its messages, in whatever language) is UTF-8:
+// characters beyond ASCII that the font has are shown as what they are,
+// whichever national character set is selected for the program's output.
+void vt100_put_utf8(uint8_t ch);
 void vt100_set_charset(int Charset);
 
 // Keep the screen and the cursor aside while a menu uses the display, and put

@@ -36,6 +36,7 @@
 #include "misc.h"
 #include "usb.h"
 #include "vt100.h"
+#include "messages.h"
 
 // #define LOG_TO_SERIAL
 // #define DEBUG_LOGGING
@@ -171,7 +172,7 @@ static const struct kbd_layout gKbdLayouts[] = {
       0,
       { {0, 0} }
    },
-   {  "de", "German",
+   {  "de", TR_N("German"),
       /*                                                           sz (~)
        *  acute  ue (})  +    #    #   oe (|)  ae ({)   ^    ,    .    -    */
       {  '1', '2', '3', '4', '5', '6', '7', '8', '9', '0','\r',0x1b,'\b','\t',' ', '~',

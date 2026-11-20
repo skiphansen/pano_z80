@@ -22,22 +22,25 @@ test: build/harness build/setup_harness build/vt_harness
 	./build/harness fuzzbit=$(BIT)
 	python3 run_setup_tests.py
 	python3 run_vt_tests.py
+	python3 run_lang_tests.py
 
 # The settings file and the setup menu (../setup.c), the same way.
-build/setup_harness: setup_harness.c ../setup.c ../setup.h stubs_setup/*.h
+build/setup_harness: setup_harness.c ../setup.c ../setup.h stubs_setup/*.h \
+                     ../messages.c ../messages.h ../lang/*.h
 	mkdir -p build
 	cp ../setup.c build/setup_copy.c
 	$(HOSTCC) -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra \
-	    -Wno-unused-parameter -iquote stubs_setup -iquote .. -iquote . \
+	    -Wno-unused-parameter -Wno-format-security -iquote stubs_setup -iquote .. -iquote . \
 	    -o $@ setup_harness.c
 
-build/harness: harness.c ../flash_update.c ../fwinfo.c ../fwinfo.h ../spiflash.c ../spiflash.h stubs/*.h
+build/harness: harness.c ../flash_update.c ../fwinfo.c ../fwinfo.h ../spiflash.c ../spiflash.h stubs/*.h \
+               ../messages.c ../messages.h ../lang/*.h
 	mkdir -p build
 	cp ../flash_update.c build/flash_update_copy.c
 	cp ../fwinfo.c build/fwinfo_copy.c
 	sed -n '/^uint32_t crc32(const uint8_t \*buf, uint32_t len)$$/,$$p' ../spiflash.c > build/crc32_extract.c
 	$(HOSTCC) -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra \
-	    -Wno-unused-parameter -Wno-unused-result -iquote stubs -iquote .. -iquote . \
+	    -Wno-unused-parameter -Wno-format-security -Wno-unused-result -iquote stubs -iquote .. -iquote . \
 	    -o $@ harness.c -lz
 
 clean:
