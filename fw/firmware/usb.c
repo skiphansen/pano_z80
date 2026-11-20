@@ -821,9 +821,12 @@ int usb_new_device(struct usb_device *dev)
       dev->epmaxpacketout[0] = 64;
 
       err = usb_get_descriptor(dev, USB_DT_DEVICE, 0, desc, 64);
-      if(err < 0) {
-         ELOG("usb_get_descriptor() failed, try %d, err: %d\n",tries + 1,err);
+      if(err >= 0) {
+      // Got it.  (This used to go round all five times regardless, which
+      // made every device, hubs included, take a second to set up.)
+         break;
       }
+      ELOG("usb_get_descriptor() failed, try %d, err: %d\n",tries + 1,err);
       wait_ms(200);
    }
 
