@@ -14,6 +14,9 @@ enum {
    COLOR_COUNT
 };
 
+/* The real time clock is in use: ask for date and time at power-on */
+extern unsigned char gRtcOn;
+
 void ScreenColorSet(int Color);
 int ScreenColorGet(void);
 

@@ -188,7 +188,7 @@ void main()
 #endif
 
    time_t t = 0;
-   while (1) {
+   while (gRtcOn) {
       char line[40];
       ALOG_R("Time and date (MM/DD/YY HH:MM:SS) or <Enter> for no RTC: ");
       readline(line, 40);
