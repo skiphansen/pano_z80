@@ -13,13 +13,14 @@
  *    terminal=itt3030
  *    keyboard=de
  *    language=de
+ *    rtc=off
  *
  * The file is read once at power-on and rewritten whenever a setting is
  * changed, here or with F5 / F6.  Lines the firmware does not understand are
  * ignored (and are not kept when the file is rewritten).  Without a file the
  * defaults apply, and those are what this firmware did before it had
  * settings: green on black, US ASCII, Caps Lock and Ctrl swapped, VT100, US
- * keyboard, English.
+ * keyboard, English, RTC on.
  *
  * F12 brings up the setup menu, which changes these settings and gives access
  * to the less frequent actions (swap a disk, update from USB, reset the Z80)
@@ -76,6 +77,11 @@ static const char *const gTerminalKeys[TERM_COUNT] = {
 };
 
 static int gColor = COLOR_GREEN;
+
+/* The real time clock.  It has no battery: "on" means that the firmware asks
+ * for the date and time at power-on, "off" that it does not and the clock
+ * device of the Z80 system stays unset. */
+unsigned char gRtcOn = 1;
 
 void ScreenColorSet(int Color)
 {
@@ -177,6 +183,14 @@ static void ApplyLine(char *Line)
          }
       }
    }
+   else if(WordIs(Key, "rtc")) {
+      if(WordIs(Value, "on")) {
+         gRtcOn = 1;
+      }
+      else if(WordIs(Value, "off")) {
+         gRtcOn = 0;
+      }
+   }
    else if(WordIs(Key, "capslock")) {
       if(WordIs(Value, "ctrl")) {
          gCapsLockSwap = 1;
@@ -236,13 +250,15 @@ int SettingsSave(void)
                   "capslock=%s\r\n"
                   "terminal=%s\r\n"
                   "keyboard=%s\r\n"
-                  "language=%s\r\n",
+                  "language=%s\r\n"
+                  "rtc=%s\r\n",
                   gColors[gColor].Key,
                   gCharsetKeys[vt100_get_charset()],
                   gCapsLockSwap ? "ctrl" : "capslock",
                   gTerminalKeys[vt100_get_terminal()],
                   KbdLayoutKey(KbdLayoutGet()),
-                  LanguageKey(LanguageGet()));
+                  LanguageKey(LanguageGet()),
+                  gRtcOn ? "on" : "off");
    if(Len <= 0 || Len >= (int) sizeof(Text)) {
       return -1;
    }
@@ -339,6 +355,8 @@ static void DrawMenu(void)
           vt100_terminal_name(vt100_get_terminal()));
    ALOG_R("  5  Keyboard             %s\n", TR(KbdLayoutName(KbdLayoutGet())));
    ALOG_R("  6  Language             %s\n", LanguageName(LanguageGet()));
+   ALOG_R("  7  RTC                  %s\n",
+          gRtcOn ? TR("on (asks for date and time at power-on)") : TR("off"));
    ALOG_R("\n");
    ALOG_R("  D  Swap a disk image\n");
    ALOG_R("  U  Update firmware and bitstream from the USB drive\n");
@@ -391,6 +409,11 @@ void SetupMenu(void)
 
          case '6':
             LanguageSet((LanguageGet() + 1) % LanguageCount());
+            Changed = true;
+            break;
+
+         case '7':
+            gRtcOn = gRtcOn ? 0 : 1;
             Changed = true;
             break;
 

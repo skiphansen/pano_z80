@@ -106,12 +106,17 @@ The settings are kept in a small text file in the root of the USB drive,
     terminal=itt3030     (vt100 or itt3030)
     keyboard=de          (us or de)
     language=de          (en or de)
+    rtc=off              (on or off)
 
 The file is rewritten whenever a setting is changed, from the menu or with
 F5 or F6.  It can also be edited on a PC; anything the firmware does not
 understand in it is ignored.  Without the file everything is as it was before
 there were settings: green on black, US ASCII, Caps Lock and Ctrl swapped,
-VT100, US keyboard, English.
+VT100, US keyboard, English, RTC on.
+
+The real time clock has no battery, so with the RTC on the firmware asks for
+the date and time at every power-on.  Turn it off if nothing you run reads the
+clock: then it does not ask.
 
 The character set is a national one, chosen in the setup menu.  The console
 is 7-bit ASCII like the terminals of the era, so national characters replace a

@@ -72,8 +72,8 @@ FRESULT f_write(FIL *fp, const void *buf, UINT n, UINT *put) {
 FRESULT f_close(FIL *fp) { (void)fp; return FR_OK; }
 
 static void state(void) {
-   printf("[state: color=%d fg=%06x bg=%06x charset=%d caps=%d term=%d kbd=%d lang=%s | saved=%d restored=%d forgot=%d writes=%d reset=%d keys-left=%d]\n",
-          ScreenColorGet(), font_fg_color, font_bg_color, g_charset, gCapsLockSwap, g_terminal, g_kbd, LanguageKey(LanguageGet()),
+   printf("[state: color=%d fg=%06x bg=%06x charset=%d caps=%d term=%d kbd=%d lang=%s rtc=%d | saved=%d restored=%d forgot=%d writes=%d reset=%d keys-left=%d]\n",
+          ScreenColorGet(), font_fg_color, font_bg_color, g_charset, gCapsLockSwap, g_terminal, g_kbd, LanguageKey(LanguageGet()), gRtcOn,
           g_saved, g_restored, g_forgot, g_writes, gZ80_ResetRequest, (int)strlen(g_keys));
    if(g_filelen >= 0) { printf("[file:\n"); fwrite(g_file, 1, (size_t)g_filelen, stdout); printf("]\n"); }
 }
