@@ -10,7 +10,14 @@
 
 // `define Z80_RAM_2K
 
-module pano_top(
+module pano_top #(
+    // Identifies this build of the bitstream: the time it was built, in
+    // seconds since 1970 (UTC).  xilinx/build.tcl sets it, and gives bitgen
+    // the same value as the UserID so it also appears in the .bit file header.
+    // The firmware reads it from the GPIO block to tell the user which
+    // bitstream is running.  0 = not set (e.g. built from the ISE GUI).
+    parameter [31:0] BUILD_ID = 32'd0
+) (
     // Global Clock Input
     input wire CLK_OSC,
     
@@ -728,6 +735,8 @@ module pano_top(
     // 03000014 (5)  - W:  i2c_scl
     // 03000018 (6)  - RW: i2c_sda
     // 0300001c (7)  - W:  usb_rst_n
+    // 03000038 (14) - R:  32'h42494431 ("BID1"): the build ID register exists
+    // 0300003c (15) - R:  BUILD_ID, see the module parameter
     
     reg [31:0] gpio_rdata;
     reg led_green;
@@ -759,6 +768,8 @@ module pano_top(
                     4'd1: gpio_rdata <= {29'd0, led_blue, led_green, led_red};
                     4'd3: gpio_rdata <= {31'd0, z80_rst};
                     4'd6: gpio_rdata <= {31'd0, AUDIO_SDA};
+                    4'd14: gpio_rdata <= 32'h42494431;
+                    4'd15: gpio_rdata <= BUILD_ID;
                 endcase
              end
          if (!rst_rv) begin
