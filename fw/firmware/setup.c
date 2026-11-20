@@ -2,19 +2,20 @@
  * Settings and the setup menu.
  *
  * The things one can choose - screen colour, national character set, whether
- * Caps Lock and Ctrl are swapped - are kept in a small text file in the root
+ * Caps Lock and Ctrl are swapped, the terminal emulation - are kept in a small text file in the root
  * of the USB drive, PANOZ80.CFG, so that they survive a power cycle:
  *
  *    # Pano Z80 settings
  *    color=green
  *    charset=german
  *    capslock=ctrl
+ *    terminal=itt3030
  *
  * The file is read once at power-on and rewritten whenever a setting is
  * changed, here or with F5 / F6.  Lines the firmware does not understand are
  * ignored (and are not kept when the file is rewritten).  Without a file the
  * defaults apply, and those are what this firmware did before it had
- * settings: green on black, US ASCII, Caps Lock and Ctrl swapped.
+ * settings: green on black, US ASCII, Caps Lock and Ctrl swapped, VT100.
  *
  * F12 brings up the setup menu, which changes these settings and gives access
  * to the less frequent actions (swap a disk, update from USB, reset the Z80)
@@ -61,6 +62,12 @@ static const struct {
 static const char *const gCharsetKeys[CHARSET_COUNT] = {
    [CHARSET_US]     = "us",
    [CHARSET_GERMAN] = "german",
+};
+
+/* The names of the terminal emulations in the settings file, by TERM_xxx */
+static const char *const gTerminalKeys[TERM_COUNT] = {
+   [TERM_VT100]   = "vt100",
+   [TERM_ITT3030] = "itt3030",
 };
 
 static int gColor = COLOR_GREEN;
@@ -144,6 +151,13 @@ static void ApplyLine(char *Line)
          }
       }
    }
+   else if(WordIs(Key, "terminal")) {
+      for(i = 0; i < TERM_COUNT; i++) {
+         if(WordIs(Value, gTerminalKeys[i])) {
+            vt100_set_terminal(i);
+         }
+      }
+   }
    else if(WordIs(Key, "capslock")) {
       if(WordIs(Value, "ctrl")) {
          gCapsLockSwap = 1;
@@ -200,10 +214,12 @@ int SettingsSave(void)
                   "# Pano Z80 settings - change them with the setup menu (F12)\r\n"
                   "color=%s\r\n"
                   "charset=%s\r\n"
-                  "capslock=%s\r\n",
+                  "capslock=%s\r\n"
+                  "terminal=%s\r\n",
                   gColors[gColor].Key,
                   gCharsetKeys[vt100_get_charset()],
-                  gCapsLockSwap ? "ctrl" : "capslock");
+                  gCapsLockSwap ? "ctrl" : "capslock",
+                  gTerminalKeys[vt100_get_terminal()]);
    if(Len <= 0 || Len >= (int) sizeof(Text)) {
       return -1;
    }
@@ -296,6 +312,8 @@ static void DrawMenu(void)
           vt100_charset_name(vt100_get_charset()));
    ALOG_R("  3  Caps Lock key        %s\n",
           gCapsLockSwap ? "is Ctrl (and Ctrl is Caps Lock)" : "is Caps Lock");
+   ALOG_R("  4  Terminal             %s\n",
+          vt100_terminal_name(vt100_get_terminal()));
    ALOG_R("\n");
    ALOG_R("  D  Swap a disk image\n");
    ALOG_R("  U  Update firmware and bitstream from the USB drive\n");
@@ -333,6 +351,11 @@ void SetupMenu(void)
 
          case '3':
             gCapsLockSwap = gCapsLockSwap ? 0 : 1;
+            Changed = true;
+            break;
+
+         case '4':
+            vt100_set_terminal((vt100_get_terminal() + 1) % TERM_COUNT);
             Changed = true;
             break;
 

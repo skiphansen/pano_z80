@@ -15,7 +15,7 @@
 uint32_t font_fg_color, font_bg_color;
 unsigned char gCapsLockSwap = 1, gZ80_ResetRequest;
 const struct fw_info gFwInfo = {{'P','A','N','O','F','W','I','D'}, "host-test", "now"};
-static int g_charset, g_saved, g_restored, g_forgot;
+static int g_charset, g_terminal, g_saved, g_restored, g_forgot;
 static char g_file[2048]; static int g_filelen = -1, g_writes, g_failwrite;
 /* Keys arrive the way they do from a person: one at a time, with a pause
  * between them.  A '+' in the script glues the next key to the previous one,
@@ -26,6 +26,9 @@ static int g_swap_result;
 void vt100_set_charset(int c) { g_charset = c; }
 int vt100_get_charset(void) { return g_charset; }
 const char *vt100_charset_name(int c) { return c ? "German (DIN 66003)" : "US ASCII"; }
+void vt100_set_terminal(int t) { g_terminal = t; }
+int vt100_get_terminal(void) { return g_terminal; }
+const char *vt100_terminal_name(int t) { return t ? "ITT 3030" : "VT100"; }
 void vt100_screen_save(void) { g_saved++; }
 void vt100_screen_restore(void) { g_restored++; }
 void vt100_screen_forget(void) { g_forgot++; }
@@ -62,8 +65,8 @@ FRESULT f_write(FIL *fp, const void *buf, UINT n, UINT *put) {
 FRESULT f_close(FIL *fp) { (void)fp; return FR_OK; }
 
 static void state(void) {
-   printf("[state: color=%d fg=%06x bg=%06x charset=%d caps=%d | saved=%d restored=%d forgot=%d writes=%d reset=%d keys-left=%d]\n",
-          ScreenColorGet(), font_fg_color, font_bg_color, g_charset, gCapsLockSwap,
+   printf("[state: color=%d fg=%06x bg=%06x charset=%d caps=%d term=%d | saved=%d restored=%d forgot=%d writes=%d reset=%d keys-left=%d]\n",
+          ScreenColorGet(), font_fg_color, font_bg_color, g_charset, gCapsLockSwap, g_terminal,
           g_saved, g_restored, g_forgot, g_writes, gZ80_ResetRequest, (int)strlen(g_keys));
    if(g_filelen >= 0) { printf("[file:\n"); fwrite(g_file, 1, (size_t)g_filelen, stdout); printf("]\n"); }
 }

@@ -91,7 +91,7 @@ on black, black on white, or amber on black.
 F7 is used to reset Z80 processor.
 
 F12 brings up the setup menu.  It has the settings - screen colour,
-character set, what the Caps Lock key does - and the
+character set, what the Caps Lock key does, the terminal emulation - and the
 less frequent actions (swap a disk image, update from the USB drive, reset the
 Z80) in one place, so that there does not have to be a function key for each
 of them.  While the menu is up, the screen of the running program is kept
@@ -103,17 +103,40 @@ The settings are kept in a small text file in the root of the USB drive,
     color=amber          (green, white, paper or amber)
     charset=german       (us or german)
     capslock=ctrl        (ctrl or capslock)
+    terminal=itt3030     (vt100 or itt3030)
 
 The file is rewritten whenever a setting is changed, from the menu or with
 F5 or F6.  It can also be edited on a PC; anything the firmware does not
 understand in it is ignored.  Without the file everything is as it was before
-there were settings: green on black, US ASCII, Caps Lock and Ctrl swapped.
+there were settings: green on black, US ASCII, Caps Lock and Ctrl swapped,
+VT100.
 
 The character set is a national one, chosen in the setup menu.  The console
 is 7-bit ASCII like the terminals of the era, so national characters replace a
 few of the less common symbols, as defined by ISO 646.  The German set
 (DIN 66003) displays `@ [ \ ] { | } ~` as `§ Ä Ö Ü ä ö ü ß`.  Characters
 already on the screen are not redrawn when the character set changes.
+
+The terminal emulation is normally a VT100.  The **ITT 3030** setting adds
+the screen control codes of the ITT 3030's own CP/M BIOS, which programs
+written for that machine use instead: clear screen (`0C`, which leaves the
+cursor at the bottom left), cursor addressing (`ESC 1F row+20h column+20h`,
+`ESC 16 row column`, rows counted from 1 and columns from 0), cursor home
+(`ESC 11`), cursor off and on (`ESC 12`, `ESC 13`), erasing to the end of the
+line or the screen (`ESC 18`, `ESC 17`), repeated characters (`ESC 10 n`,
+`ESC 1D n c`), inverse video (`1C` on, `12` off) and the graphics characters
+`80`-`9F`.  The list, taken from the video driver in the BIOS on the system
+tracks of an ITT 3030 CP/M 2.2 disk, is at the top of the ITT code in
+`fw/firmware/vt100.c`.  The ANSI sequences keep working in this mode.
+
+The graphics characters `80`-`8F` are a 2 x 2 block mosaic (the inverse of
+the quarters given by the low four bits), and `8F`, which comes out as the
+inverse of the solid block, is the thin horizontal rule of most ITT screen
+masks.  Inverse video and the mosaic glyphs need a bitstream that has them
+(built from this source; the firmware asks the bitstream).  With an older
+bitstream the rule is drawn with underscores, the rest of the mosaic with a
+block, and inverse text shows up normal.  The shapes of `90`-`9F` are not
+known; they are shown as a solid block.
 
 F10 brings up a menu to swap a disk image into a mounted drive without a
 power cycle (z80pack mode only).  Pick the drive to replace and the menu lists
@@ -215,7 +238,9 @@ before this feature, so it never mattered; with every instruction one aligned
 word it does not happen, and the same check makes sure of that.
 
 `fw/firmware/test` also has host-side tests for the settings file and the
-setup menu.
+setup menu, and for the console: two screens of a real ITT 3030 BASIC program
+are sent through the ITT 3030 emulation and compared with what they have to
+look like.
 
 `sim/flashupdate` runs that same code on the real `picorv32`, `cache`,
 `spimemio` and DDR bridge RTL against a behavioural model of the flash, and

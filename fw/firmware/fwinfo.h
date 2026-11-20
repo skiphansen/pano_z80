@@ -34,6 +34,13 @@ const struct fw_info *FwInfoFind(const uint8_t *Buf, uint32_t Len);
  * before build IDs existed, or not built with xilinx/build.tcl). */
 uint32_t FpgaBuildId(void);
 
+/* What the running bitstream can do beyond the original design; 0 for a
+ * bitstream that cannot say. */
+#define FPGA_FEATURE_TEXT_ATTR   0x0001u  /* inverse video per character cell
+                                           * (bit 8 of a screen memory word),
+                                           * block mosaic glyphs C0-CF, D0 */
+uint32_t FpgaFeatures(void);
+
 /* Is this a usable build ID?  (0 and 0xFFFFFFFF both mean "not set") */
 #define BUILD_ID_VALID(Id)  ((Id) != 0u && (Id) != 0xFFFFFFFFu)
 
