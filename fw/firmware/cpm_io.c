@@ -41,6 +41,7 @@
 #include "vt100.h"
 #include "misc.h"
 #include "rtc.h"
+#include "messages.h"
 
 // #define DEBUG_LOGGING
 // #define LOG_TO_BOTH
@@ -791,12 +792,13 @@ void LogPutc(char c,void *arg)
 
 void PrintfPutc(char c)
 {
+   // the firmware's messages are UTF-8, see messages.c
    if(c == '\n') {
-      vt100_putc((uint8_t) '\r');
-      vt100_putc((uint8_t) c);
+      vt100_put_utf8((uint8_t) '\r');
+      vt100_put_utf8((uint8_t) c);
    }
    else {
-      vt100_putc((uint8_t) c);
+      vt100_put_utf8((uint8_t) c);
    }
 }
 
@@ -982,7 +984,7 @@ int SwapDisk(void)
       ALOG_R("Continue? (y/N): ");
       c = SwapGetKey();
       ALOG_R("%c\n",c);
-      if(c != 'y' && c != 'Y') {
+      if(!IsYes(c)) {
          ALOG_R("cancelled\n");
          return SWAP_NONE;
       }

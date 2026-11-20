@@ -41,6 +41,7 @@
 #define LOG_DISABLED          0x04
 #define LOG_VERBOSE_DISABLED  0x08
 void LogPutc(char c,void * arg);
+const char *Translate(const char *English);
 
 #if !defined(LOGGING_DISABLED) || defined(VERBOSE_DEBUG_LOGGING) || defined(DEBUG_LOGGING)
    void LogHex(char *LogFlags,void *Data,int Len);
@@ -69,7 +70,8 @@ void LogPutc(char c,void * arg);
 #ifndef LOGGING_DISABLED
    #define _ALOG_FLAGS  (void *)(gLogFlags & ~LOG_DISABLED)
    #define ALOG(format, ...) _LOG(_ALOG_FLAGS,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
-   #define ALOG_R(format, ...) _LOG(_ALOG_FLAGS,format,## __VA_ARGS__)
+   // (in the language that is set: see messages.c)
+   #define ALOG_R(format, ...) _LOG(_ALOG_FLAGS,Translate(format),## __VA_ARGS__)
    // ELOG - error errors
    #define ELOG(format, ...) _LOG(LOG_BOTH,"%s: " format,__FUNCTION__ ,## __VA_ARGS__)
    #define ELOG_HEX(x,y) LogHex(_ALOG_FLAGS,x,y)

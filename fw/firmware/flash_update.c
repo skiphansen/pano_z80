@@ -31,6 +31,7 @@
 #include "log.h"
 #include "spiflash.h"
 #include "fwinfo.h"
+#include "messages.h"
 
 /* Staging buffer in DDR, 1 MB above its base: clear of the firmware's
  * .data/.ramtext/.bss (which start at 0x0C000000 and total a few tens of KB;
@@ -432,7 +433,7 @@ void FlashUpdateMenu(void)
       if(NewFw != 0) {
          ALOG_R("  firmware:  %s, built %s%s\n", NewFw->version, NewFw->built,
                 SameText(NewFw->version, gFwInfo.version) &&
-                SameText(NewFw->built, gFwInfo.built) ? "  (same as installed)" : "");
+                SameText(NewFw->built, gFwInfo.built) ? TR("  (same as installed)") : "");
       }
       else {
          ALOG_R("  firmware:  %lu bytes, no version information\n", (unsigned long)FwLen);
@@ -445,7 +446,7 @@ void FlashUpdateMenu(void)
       if(BUILD_ID_VALID(Bit.UserId)) {
          FormatBuildId(Bit.UserId, When);
          ALOG_R("  bitstream: built %s%s\n", When,
-                Bit.UserId == RunningBit ? "  (same as installed)" : "");
+                Bit.UserId == RunningBit ? TR("  (same as installed)") : "");
       }
       else {
          ALOG_R("  bitstream: built %s %s (no build ID)\n", Bit.Date, Bit.Time);
@@ -487,7 +488,7 @@ void FlashUpdateMenu(void)
    ALOG_R("Do NOT power off during the update.\nProceed? (y/N) ");
    Sel = WaitKey();
    ALOG_R("%c\n", Sel);
-   if(Sel != 'y' && Sel != 'Y') {
+   if(!IsYes(Sel)) {
       ALOG_R("Cancelled.\n");
       return;
    }

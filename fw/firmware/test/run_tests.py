@@ -32,7 +32,7 @@ def rehdr(d):                       # recompute header crc after tampering
 def patch(src, dst, fn):
     d = bytearray(open(src, "rb").read()); d = fn(d); open(dst, "wb").write(bytes(d))
 def run(*args):
-    r = subprocess.run(["./harness"] + list(args), capture_output=True, text=True, errors="replace")
+    r = subprocess.run(["./harness"] + list(args), capture_output=True, text=True, encoding="utf-8", errors="replace")
     return r.returncode, r.stdout + r.stderr
 
 # only the configuration data of the .bit goes into the flash, not its header
@@ -107,6 +107,10 @@ T = [  # name, args, expected exit code, must contain, must NOT contain
  ("flash does not start like a bitstream", ["file=good.bin", "keys=y", "flash0=00090ff00ff00ff0"], 1,
   ["starts with 00 09 0f f0 0f f0 0f f0", "Nothing has been written"], ["[unlink", "[flash:", "Proceed?"]),
  ("good image, confirm Y",  ["file=good.bin", "keys=Y"], 0, [flashline], []),
+ ("in German: j means yes, the texts are German", ["file=good.bin", "keys=j", "lang=1"], 0,
+  ["Jetzt installiert:", "Flash: M25P80 erkannt", "Fortfahren? (j/N) j", flashline], ["Installed now"]),
+ ("in German: y still means yes", ["file=good.bin", "keys=y", "lang=1"], 0, [flashline], []),
+ ("in English: j does not mean yes", ["file=good.bin", "keys=j"], 1, ["Cancelled."], ["[flash:"]),
  ("good image, answer n",   ["file=good.bin", "keys=n"], 1, ["Cancelled."], ["[unlink", "[flash:"]),
  ("good image, ESC",        ["file=good.bin", "keys=\x1b"], 1, ["Cancelled."], ["[unlink", "[flash:"]),
  ("key wait polls USB",     ["file=good.bin", "keys="], 3, ["would wait forever"], ["[unlink", "[flash:"]),

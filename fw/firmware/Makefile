@@ -3,7 +3,7 @@ TOPDIR := ../..
 OBJS = start.o firmware.o isp1760.o i2c.o misc.o ff.o
 OBJS += ffsystem.o diskio.o usb.o usb_storage.o cpm_io.o printf.o usb_kbd.o
 OBJS += vt100.o rtc.o strptime.o gmtime.o mktime.o gets.o c_locale.o stdlib_char.o stdlib_str.o
-OBJS += spiflash.o flash_update.o fwinfo.o setup.o
+OBJS += spiflash.o flash_update.o fwinfo.o setup.o messages.o
 
 CFLAGS = -MD -O1 -march=rv32ic -ffreestanding -nostdlib -Wl,--no-relax
 TOOLCHAIN_PREFIX = riscv32-unknown-elf-
@@ -40,6 +40,10 @@ firmware.elf: $(OBJS) sections.lds
 # that straddles a word boundary (tools/check_ramtext.py explains, and checks).
 spiflash.o: spiflash.c
 	$(TOOLCHAIN_PREFIX)gcc -c $(CFLAGS) -march=rv32i $<
+
+# every translation is part of messages.o
+messages.o: messages.c messages.h $(wildcard lang/*.h)
+	$(TOOLCHAIN_PREFIX)gcc -c $(CFLAGS) $<
 
 # The version and build time shown at power-on and by the USB updater.
 # fwinfo.c is recompiled on every build so that the time is the build time.

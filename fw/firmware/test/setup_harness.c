@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdint.h>
 #include "build/setup_copy.c"
+#include "../messages.c"
 
 uint32_t font_fg_color, font_bg_color;
 unsigned char gCapsLockSwap = 1, gZ80_ResetRequest;
@@ -29,6 +30,12 @@ const char *vt100_charset_name(int c) { return c ? "German (DIN 66003)" : "US AS
 void vt100_set_terminal(int t) { g_terminal = t; }
 int vt100_get_terminal(void) { return g_terminal; }
 const char *vt100_terminal_name(int t) { return t ? "ITT 3030" : "VT100"; }
+static int g_kbd;
+int KbdLayoutCount(void) { return 2; }
+void KbdLayoutSet(int l) { g_kbd = l; }
+int KbdLayoutGet(void) { return g_kbd; }
+const char *KbdLayoutKey(int l) { return l ? "de" : "us"; }
+const char *KbdLayoutName(int l) { return l ? "German" : "US"; }
 void vt100_screen_save(void) { g_saved++; }
 void vt100_screen_restore(void) { g_restored++; }
 void vt100_screen_forget(void) { g_forgot++; }
@@ -65,8 +72,8 @@ FRESULT f_write(FIL *fp, const void *buf, UINT n, UINT *put) {
 FRESULT f_close(FIL *fp) { (void)fp; return FR_OK; }
 
 static void state(void) {
-   printf("[state: color=%d fg=%06x bg=%06x charset=%d caps=%d term=%d | saved=%d restored=%d forgot=%d writes=%d reset=%d keys-left=%d]\n",
-          ScreenColorGet(), font_fg_color, font_bg_color, g_charset, gCapsLockSwap, g_terminal,
+   printf("[state: color=%d fg=%06x bg=%06x charset=%d caps=%d term=%d kbd=%d lang=%s | saved=%d restored=%d forgot=%d writes=%d reset=%d keys-left=%d]\n",
+          ScreenColorGet(), font_fg_color, font_bg_color, g_charset, gCapsLockSwap, g_terminal, g_kbd, LanguageKey(LanguageGet()),
           g_saved, g_restored, g_forgot, g_writes, gZ80_ResetRequest, (int)strlen(g_keys));
    if(g_filelen >= 0) { printf("[file:\n"); fwrite(g_file, 1, (size_t)g_filelen, stdout); printf("]\n"); }
 }

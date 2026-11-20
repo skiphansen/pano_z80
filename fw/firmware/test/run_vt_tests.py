@@ -102,6 +102,11 @@ s, cur, rc = screen(b"\x0c\x1b\x11" + b"\x1c HI \x12" + b"\xf0" + b"\x1b[H\x1b[2
 check("with attributes: screen save / restore keeps them", s[1] == " HI" and s[-1] == "^^^^", (s, cur))
 s, cur, rc = screen(b"\x1b[2J\x1b[H\xc1\x8f|", "attr")
 check("with attributes: VT100 mode still ignores bit 7", s[1].startswith("A") and -1 not in s, (s, cur))
-n = 17
+s, cur, rc = screen("Gr\u00f6\u00dfe zur\u00fcck \u00c4\u00d6\u00dc\u00e4 \u00a7 {|} caf\u00e9".encode("utf-8"), "utf8")
+check("firmware text is UTF-8: umlauts whatever the character set, ? for what the font lacks",
+      s[1] == "Grose zuruck AOUa P {|} caf?", (s, cur))
+s, cur, rc = screen("\u00e4{".encode("utf-8"), "utf8", "german")
+check("firmware text is UTF-8: and ASCII still goes through the character set", s[1] == "aa", (s, cur))
+n = 19
 print("%d/%d passed" % (n - fails, n))
 sys.exit(1 if fails else 0)

@@ -91,8 +91,8 @@ on black, black on white, or amber on black.
 F7 is used to reset Z80 processor.
 
 F12 brings up the setup menu.  It has the settings - screen colour,
-character set, what the Caps Lock key does, the terminal emulation - and the
-less frequent actions (swap a disk image, update from the USB drive, reset the
+character set, what the Caps Lock key does, the terminal emulation, the
+keyboard layout, the language - and the less frequent actions (swap a disk image, update from the USB drive, reset the
 Z80) in one place, so that there does not have to be a function key for each
 of them.  While the menu is up, the screen of the running program is kept
 aside; it is put back when you leave the menu with Enter or Esc.
@@ -104,18 +104,35 @@ The settings are kept in a small text file in the root of the USB drive,
     charset=german       (us or german)
     capslock=ctrl        (ctrl or capslock)
     terminal=itt3030     (vt100 or itt3030)
+    keyboard=de          (us or de)
+    language=de          (en or de)
 
 The file is rewritten whenever a setting is changed, from the menu or with
 F5 or F6.  It can also be edited on a PC; anything the firmware does not
 understand in it is ignored.  Without the file everything is as it was before
 there were settings: green on black, US ASCII, Caps Lock and Ctrl swapped,
-VT100.
+VT100, US keyboard, English.
 
 The character set is a national one, chosen in the setup menu.  The console
 is 7-bit ASCII like the terminals of the era, so national characters replace a
 few of the less common symbols, as defined by ISO 646.  The German set
 (DIN 66003) displays `@ [ \ ] { | } ~` as `§ Ä Ö Ü ä ö ü ß`.  Characters
 already on the screen are not redrawn when the character set changes.
+
+The keyboard layout is that of the keyboard that is plugged in, US or German.
+National letters come out as the codes of the national character set: on the
+German layout the key `ä` sends `{`, which the German character set shows as
+`ä` (and AltGr with `7 8 9 0 ß q +` gives `{ [ ] } \ @ ~`, as printed on the
+keys).  A layout is a table in `fw/firmware/usb_kbd.c`; another one is an
+entry more in `gKbdLayouts[]`.
+
+The language is that of the firmware's own texts: its menus and messages, the
+ones it has always had included.  (What it prints before it has read the
+settings - the lines at power-on - stays English.)  A language is a file of
+pairs of English and translated text, `fw/firmware/lang/de.h` for German, and
+one line in `fw/firmware/messages.c`, where it also says how to add another.
+`fw/firmware/test/run_lang_tests.py` checks a translation against the source
+and lists the messages it does not cover; those appear in English.
 
 The terminal emulation is normally a VT100.  The **ITT 3030** setting adds
 the screen control codes of the ITT 3030's own CP/M BIOS, which programs
@@ -240,9 +257,9 @@ before this feature, so it never mattered; with every instruction one aligned
 word it does not happen, and the same check makes sure of that.
 
 `fw/firmware/test` also has host-side tests for the settings file and the
-setup menu, and for the console: two screens of a real ITT 3030 BASIC program
-are sent through the ITT 3030 emulation and compared with what they have to
-look like.
+setup menu, for the translations, and for the console: two screens of a real
+ITT 3030 BASIC program are sent through the ITT 3030 emulation and compared
+with what they have to look like.
 
 `sim/flashupdate` runs that same code on the real `picorv32`, `cache`,
 `spimemio` and DDR bridge RTL against a behavioural model of the flash, and
