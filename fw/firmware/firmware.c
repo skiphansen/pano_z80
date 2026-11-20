@@ -73,6 +73,7 @@ void main()
    uint8_t LastIoState = 0xff;
    uint32_t IoState;
    uint32_t Timeout = 0;
+   uint32_t StartMs[4];
    bool bWasHalted = false;
    
    dly_tap = 0x03;
@@ -86,8 +87,10 @@ void main()
    ALOG_R("Compiled " __DATE__ " " __TIME__ "\n\n");
 
    gCapsLockSwap = 1;
+   StartMs[0] = ticks_ms();
    usb_init();
    drv_usb_kbd_init();
+   StartMs[1] = ticks_ms();
 
    do {
       // Main loop
@@ -139,7 +142,19 @@ void main()
       f_closedir(&Dir);
    } while(false);
 
+   StartMs[2] = ticks_ms();
    MountCpmDrives();
+   StartMs[3] = ticks_ms();
+   // Where the time between power-on and the prompt went, in tenths of a
+   // second: finding the USB devices, getting the drive and its file system
+   // going, opening the disk images.
+   ALOG_R("Start-up: USB devices %lu.%lu s, USB drive %lu.%lu s, disk images %lu.%lu s\n",
+          (unsigned long) ((StartMs[1] - StartMs[0]) / 1000),
+          (unsigned long) ((StartMs[1] - StartMs[0]) % 1000 / 100),
+          (unsigned long) ((StartMs[2] - StartMs[1]) / 1000),
+          (unsigned long) ((StartMs[2] - StartMs[1]) % 1000 / 100),
+          (unsigned long) ((StartMs[3] - StartMs[2]) / 1000),
+          (unsigned long) ((StartMs[3] - StartMs[2]) % 1000 / 100));
    LoadInitProg();
    z80_con_status = 0;  // No console input yet
 
