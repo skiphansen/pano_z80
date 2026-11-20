@@ -127,7 +127,9 @@ line or the screen (`ESC 18`, `ESC 17`), repeated characters (`ESC 10 n`,
 `ESC 1D n c`), inverse video (`1C` on, `12` off) and the graphics characters
 `80`-`9F`.  The list, taken from the video driver in the BIOS on the system
 tracks of an ITT 3030 CP/M 2.2 disk, is at the top of the ITT code in
-`fw/firmware/vt100.c`.  The ANSI sequences keep working in this mode.
+`fw/firmware/vt100.c`.  The ANSI sequences keep working in this mode.  The
+cursor keys send what those of the ITT sent, the control codes of the WordStar
+cursor diamond (up `05`, down `18`, left `13`, right `04`), and Del sends `1F`.
 
 The graphics characters `80`-`8F` are a 2 x 2 block mosaic (the inverse of
 the quarters given by the low four bits), and `8F`, which comes out as the

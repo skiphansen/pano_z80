@@ -35,6 +35,7 @@
 #include <stdbool.h>
 #include "misc.h"
 #include "usb.h"
+#include "vt100.h"
 
 // #define LOG_TO_SERIAL
 // #define DEBUG_LOGGING
@@ -289,6 +290,8 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
    char EscKey = 0;
 #endif
    static unsigned char RepeatScanCode;
+   // In ITT 3030 terminal mode the cursor keys are those of an ITT 3030
+   bool IttKeys = (vt100_get_terminal() == TERM_ITT3030);
 
 #ifdef VERBOSE_DEBUG_LOGGING
    VLOG("0x%x,0x%x,%d\n",scancode,modifier,pressed);
@@ -314,7 +317,7 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
          EscKey = 'D';
       }
 
-      if(EscKey != 0) {
+      if(EscKey != 0 && !IttKeys) {
          usb_kbd_put_queue(ESC);
          usb_kbd_put_queue(EscKey);
       }
@@ -405,6 +408,29 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
       keycode = '\r';
    }
 #endif
+
+   if(IttKeys) {
+   // The cursor keys of the ITT 3030 send control codes - those of the
+   // WordStar cursor diamond - and its programs test for them.  1F is what
+   // they accept, besides backspace, for deleting a character.
+      switch(scancode) {
+         case ARROW_U:
+            keycode = 0x05;   // ^E
+            break;
+         case ARROW_D:
+            keycode = 0x18;   // ^X
+            break;
+         case ARROW_L:
+            keycode = 0x13;   // ^S
+            break;
+         case ARROW_R:
+            keycode = 0x04;   // ^D
+            break;
+         case DEL:
+            keycode = 0x1f;
+            break;
+      }
+   }
 
    if(ctrl) {
       keycode = scancode - 0x3;
