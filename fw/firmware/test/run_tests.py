@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the F11 update menu (flash_update.c) natively: one good image and a
+"""Exercise the USB update menu (flash_update.c) natively: one good image and a
 series of deliberately damaged ones.  See Makefile."""
 import datetime, os, re, struct, subprocess, sys, zlib
 # usage: run_tests.py <bitstream.bit> <firmware.bin>   (run from fw/firmware/test)

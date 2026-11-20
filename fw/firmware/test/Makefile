@@ -1,4 +1,5 @@
-# Native tests for the F11 USB update menu (../flash_update.c).
+# Native tests for the USB update menu (../flash_update.c) and for the
+# settings file and setup menu (../setup.c).
 #
 # The menu's parsing and validation logic is plain C, so it is compiled for the
 # host - with AddressSanitizer and UBSan - against stub USB / FatFs / flash
@@ -14,11 +15,20 @@ BIT ?= $(TOPDIR)/xilinx/work/pano_top.bit
 FW  ?= ../firmware.bin
 HOSTCC ?= cc
 
-test: build/harness
+test: build/harness build/setup_harness
 	./build/harness crcselftest
 	./build/harness datetest
 	python3 run_tests.py $(BIT) $(FW)
 	./build/harness fuzzbit=$(BIT)
+	python3 run_setup_tests.py
+
+# The settings file and the setup menu (../setup.c), the same way.
+build/setup_harness: setup_harness.c ../setup.c ../setup.h stubs_setup/*.h
+	mkdir -p build
+	cp ../setup.c build/setup_copy.c
+	$(HOSTCC) -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra \
+	    -Wno-unused-parameter -iquote stubs_setup -iquote .. -iquote . \
+	    -o $@ setup_harness.c
 
 build/harness: harness.c ../flash_update.c ../fwinfo.c ../fwinfo.h ../spiflash.c ../spiflash.h stubs/*.h
 	mkdir -p build

@@ -3,7 +3,7 @@ TOPDIR := ../..
 OBJS = start.o firmware.o isp1760.o i2c.o misc.o ff.o
 OBJS += ffsystem.o diskio.o usb.o usb_storage.o cpm_io.o printf.o usb_kbd.o
 OBJS += vt100.o rtc.o strptime.o gmtime.o mktime.o gets.o c_locale.o stdlib_char.o stdlib_str.o
-OBJS += spiflash.o flash_update.o fwinfo.o
+OBJS += spiflash.o flash_update.o fwinfo.o setup.o
 
 CFLAGS = -MD -O1 -march=rv32ic -ffreestanding -nostdlib -Wl,--no-relax
 TOOLCHAIN_PREFIX = riscv32-unknown-elf-

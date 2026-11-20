@@ -34,7 +34,7 @@ reload:
 	$(XC3SPROG) $(XC3SPROG_OPTS) $(BIT_FILE).bit
 
 # Combined bitstream + firmware image for the USB updater: copy PANOUPD.BIN to
-# the root of the USB drive and press F11 on the Pano.
+# the root of the USB drive and choose "Update" in the setup menu (F12).
 UPDATE_IMG := $(TOPDIR)/PANOUPD.BIN
 
 update: $(FW_BIN) $(BIT_FILE).bit

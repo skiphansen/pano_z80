@@ -372,6 +372,67 @@ void _vt100_drawCursor(struct vt100 *t)
    t->VRam[START_OFFSET + Offset] = CURSOR_CHAR;
 }
 
+// A menu (see setup.c) takes over the display for a while.  The screen of the
+// program that was running - its text, the cursor, the scroll region - is
+// kept here meanwhile, and put back when the menu is done.
+static struct {
+   char ScreenBuf[VT100_WIDTH * VT100_HEIGHT];
+   int16_t cursor_x, cursor_y;
+   int16_t saved_cursor_x, saved_cursor_y;
+   int16_t scroll_start_row, scroll_end_row;
+   uint8_t flags;
+   uint8_t Valid;
+} gSavedScreen;
+
+void vt100_screen_save(void)
+{
+   _vt100_removeCursor(&term);
+   memcpy(gSavedScreen.ScreenBuf,term.ScreenBuf,sizeof(term.ScreenBuf));
+   gSavedScreen.cursor_x = term.cursor_x;
+   gSavedScreen.cursor_y = term.cursor_y;
+   gSavedScreen.saved_cursor_x = term.saved_cursor_x;
+   gSavedScreen.saved_cursor_y = term.saved_cursor_y;
+   gSavedScreen.scroll_start_row = term.scroll_start_row;
+   gSavedScreen.scroll_end_row = term.scroll_end_row;
+   gSavedScreen.flags = term.flags.val;
+   gSavedScreen.Valid = 1;
+   // the menu gets a terminal in its initial state
+   _vt100_resetScroll();
+   term.state = _st_idle;
+   term.ret_state = 0;
+   _vt100_drawCursor(&term);
+}
+
+void vt100_screen_restore(void)
+{
+   int i;
+
+   if(!gSavedScreen.Valid) {
+      return;
+   }
+   gSavedScreen.Valid = 0;
+   term.CharUnderCursor = 0;  // whatever the menu left there goes with it
+   memcpy(term.ScreenBuf,gSavedScreen.ScreenBuf,sizeof(term.ScreenBuf));
+   for(i = 0; i < VT100_WIDTH * VT100_HEIGHT; i++) {
+      term.VRam[START_OFFSET + i] = (uint32_t) (uint8_t) term.ScreenBuf[i];
+   }
+   term.cursor_x = gSavedScreen.cursor_x;
+   term.cursor_y = gSavedScreen.cursor_y;
+   term.saved_cursor_x = gSavedScreen.saved_cursor_x;
+   term.saved_cursor_y = gSavedScreen.saved_cursor_y;
+   term.scroll_start_row = gSavedScreen.scroll_start_row;
+   term.scroll_end_row = gSavedScreen.scroll_end_row;
+   term.flags.val = gSavedScreen.flags;
+   term.state = _st_idle;
+   term.ret_state = 0;
+   _vt100_drawCursor(&term);
+}
+
+void vt100_screen_forget(void)
+{
+   gSavedScreen.Valid = 0;
+}
+
 // National character sets.
 //
 // The console only handles 7-bit ASCII, like the terminals of the era. A

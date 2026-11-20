@@ -34,6 +34,7 @@
 #include "vt100.h"
 #include "rtc.h"
 #include "fwinfo.h"
+#include "setup.h"
 
 // #define LOG_TO_SERIAL
 // #define LOG_TO_BOTH
@@ -50,15 +51,13 @@ DWORD gBootImageLen;
 #define F_SCREEN_COLOR        6  // F6
 #define F_RESET_Z80           7  // F7
 #define F_VERBOSE_LOG_TOGGLE  8  // F8
-#define F_CHARSET             9  // F9
 #define F_SWAP_DISK          10  // F10
-#define F_UPDATE             11  // F11
+#define F_SETUP              12  // F12
 unsigned char gFunctionRequest;
 unsigned char gInFunctionKey;   // guard: prevent re-entrant F-key dispatch
 
 void LoadInitProg(void);
 void HandleFunctionKey(int Function);
-void FlashUpdateMenu(void);
 
 void irq_handler(uint32_t pc) 
 {
@@ -87,6 +86,9 @@ void main()
    // Set interrupt mask to zero (enable all interrupts)
    // This is a PicoRV32 custom instruction 
    asm(".word 0x0600000b");
+
+   // Green on black unless the settings on the USB drive say otherwise
+   ScreenColorSet(COLOR_GREEN);
 
    vt100_init();
    ALOG_R("Pano Logic G1, Z80 @ 25 Mhz, PicoRV32 @ 25MHz\n");
@@ -122,6 +124,9 @@ void main()
          }
          break;
       }
+
+      // colour, character set, ... as they were left the last time
+      SettingsLoad();
 
       LOG("Current directory: %s%s\n", root, directory);
 
@@ -278,26 +283,13 @@ void HandleFunctionKey(int Function)
          else {
             gCapsLockSwap = 1;
          }
+         SettingsSave();
          break;
 
       case F_SCREEN_COLOR:
-      // cycle green -> white on black -> black on white -> amber
-         if(font_fg_color == GREEN) {
-            font_fg_color = WHITE;
-            font_bg_color = BLACK;
-         }
-         else if(font_fg_color == WHITE) {
-            font_fg_color = BLACK;
-            font_bg_color = WHITE;
-         }
-         else if(font_fg_color == BLACK) {
-            font_fg_color = AMBER;
-            font_bg_color = BLACK;
-         }
-         else {
-            font_fg_color = GREEN;
-            font_bg_color = BLACK;
-         }
+      // cycle amber -> green -> white on black -> black on white
+         ScreenColorSet((ScreenColorGet() + 1) % COLOR_COUNT);
+         SettingsSave();
          break;
 
       case F_RESET_Z80:
@@ -309,19 +301,13 @@ void HandleFunctionKey(int Function)
          LOG("z80_io_state: %d, z80_io_adr: %d\n",z80_io_state,z80_io_adr);
          break;
 
-      case F_CHARSET:
-      // cycle national character sets
-         vt100_set_charset((vt100_get_charset() + 1) % CHARSET_COUNT);
-         LOG("Character set: %s\n",vt100_charset_name(vt100_get_charset()));
+      case F_SETUP:
+      // settings, and the less frequent actions, in one menu
+         SetupMenu();
          break;
 
       case F_SWAP_DISK:
          SwapDiskMenu();
-         break;
-
-      case F_UPDATE:
-      // update firmware/bitstream from USB
-         FlashUpdateMenu();
          break;
    }
 }

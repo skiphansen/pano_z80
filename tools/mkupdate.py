@@ -2,8 +2,8 @@
 """Build or inspect a Pano Z80 combined USB update image (PANOUPD.BIN).
 
 A PANOUPD.BIN carries the FPGA bitstream and/or the RISC-V firmware behind a
-small header.  Copy it to the root of the USB drive and press F11 on the Pano to
-install it.
+small header.  Copy it to the root of the USB drive and choose "Update" in the
+Pano's setup menu (F12) to install it.
 
 The two parts identify themselves: the firmware contains an info block with its
 version and build date (fw/firmware/fwinfo.h), and a bitstream built with

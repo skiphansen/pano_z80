@@ -90,11 +90,30 @@ on black, black on white, or amber on black.
 
 F7 is used to reset Z80 processor.
 
-F9 is used to cycle the national character set.  The console is 7-bit ASCII
-like the terminals of the era, so national characters replace a few of the
-less common symbols, as defined by ISO 646.  The German set (DIN 66003) 
-displays `@ [ \ ] { | } ~` as `§ Ä Ö Ü ä ö ü ß`.  Characters already on the
-screen are not redrawn when the character set changes.
+F12 brings up the setup menu.  It has the settings - screen colour,
+character set, what the Caps Lock key does - and the
+less frequent actions (swap a disk image, update from the USB drive, reset the
+Z80) in one place, so that there does not have to be a function key for each
+of them.  While the menu is up, the screen of the running program is kept
+aside; it is put back when you leave the menu with Enter or Esc.
+
+The settings are kept in a small text file in the root of the USB drive,
+`PANOZ80.CFG`, and are read from there at power-on:
+
+    color=amber          (green, white, paper or amber)
+    charset=german       (us or german)
+    capslock=ctrl        (ctrl or capslock)
+
+The file is rewritten whenever a setting is changed, from the menu or with
+F5 or F6.  It can also be edited on a PC; anything the firmware does not
+understand in it is ignored.  Without the file everything is as it was before
+there were settings: green on black, US ASCII, Caps Lock and Ctrl swapped.
+
+The character set is a national one, chosen in the setup menu.  The console
+is 7-bit ASCII like the terminals of the era, so national characters replace a
+few of the less common symbols, as defined by ISO 646.  The German set
+(DIN 66003) displays `@ [ \ ] { | } ~` as `§ Ä Ö Ü ä ö ü ß`.  Characters
+already on the screen are not redrawn when the character set changes.
 
 F10 brings up a menu to swap a disk image into a mounted drive without a
 power cycle (z80pack mode only).  Pick the drive to replace and the menu lists
@@ -114,10 +133,11 @@ newer versions, P: (512 MB).  A `DRIVEx.DSK` whose size does not match its
 drive letter is not mounted and a message says why; mounting it anyway would
 only give an empty directory or `Bdos Err On x: Select`.
 
-F11 updates the FPGA bitstream and the RISC-V firmware from the USB drive,
-without a JTAG programmer.  See [Updating from USB](#updating-from-usb-f11).
+The setup menu also updates the FPGA bitstream and the RISC-V firmware from
+the USB drive, without a JTAG programmer.  See
+[Updating from USB](#updating-from-usb).
 
-## Updating from USB (F11)
+## Updating from USB
 
 Once a Pano is running this firmware, future bitstream and firmware updates can
 be installed from the USB drive instead of a JTAG cable.
@@ -133,7 +153,8 @@ tools/mkupdate.py -o PANOUPD.BIN --bit xilinx/work/pano_top.bit \
 tools/mkupdate.py --info PANOUPD.BIN        # verify and describe an image
 ```
 
-Copy `PANOUPD.BIN` to the root of the USB drive and press **F11**.  The updater
+Copy `PANOUPD.BIN` to the root of the USB drive, press **F12** and choose
+**U** (update).  The updater
 
 1. reads the whole file into RAM and checks it: header CRC, a CRC-32 over each
    image, and that the bitstream is a well formed Xilinx `.bit` file for the
@@ -191,9 +212,12 @@ it answers the second half with the first word again.  Nothing ran from DDR
 before this feature, so it never mattered; with every instruction one aligned
 word it does not happen, and the same check makes sure of that.
 
+`fw/firmware/test` also has host-side tests for the settings file and the
+setup menu.
+
 `sim/flashupdate` runs that same code on the real `picorv32`, `cache`,
 `spimemio` and DDR bridge RTL against a behavioural model of the flash, and
-`fw/firmware/test` runs the F11 menu's validation logic natively against good
+`fw/firmware/test` runs the update menu's validation logic natively against good
 and deliberately damaged images.
 
 ## HW Requirements

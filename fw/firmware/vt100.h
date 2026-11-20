@@ -44,6 +44,12 @@ void vt100_init(void);
 void vt100_putc(uint8_t ch);
 void vt100_puts(const char *str);
 void vt100_set_charset(int Charset);
+
+// Keep the screen and the cursor aside while a menu uses the display, and put
+// them back afterwards (or forget them).  One level only.
+void vt100_screen_save(void);
+void vt100_screen_restore(void);
+void vt100_screen_forget(void);
 int vt100_get_charset(void);
 const char *vt100_charset_name(int Charset);
 

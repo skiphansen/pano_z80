@@ -7,7 +7,7 @@
  * validates everything (header CRC, per-image CRCs, and that the bitstream is
  * for this exact FPGA), shows what is installed now next to what the update
  * contains, and on confirmation reprograms the SPI flash using the
- * RAM-resident driver in spiflash.c.  Invoked from F11.
+ * RAM-resident driver in spiflash.c.  Invoked from the setup menu (F12).
  *
  * Build a PANOUPD.BIN with tools/mkupdate.py (see the Makefile `update` target).
  *
