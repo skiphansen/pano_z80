@@ -33,6 +33,7 @@
 #include "cpm_io.h"
 #include "vt100.h"
 #include "rtc.h"
+#include "fwinfo.h"
 
 // #define LOG_TO_SERIAL
 // #define LOG_TO_BOTH
@@ -49,10 +50,13 @@ DWORD gBootImageLen;
 #define F_SCREEN_COLOR        6  // F6
 #define F_RESET_Z80           7  // F7
 #define F_VERBOSE_LOG_TOGGLE  8  // F8
+#define F_UPDATE             11  // F11
 unsigned char gFunctionRequest;
+unsigned char gInFunctionKey;   // guard: prevent re-entrant F-key dispatch
 
 void LoadInitProg(void);
 void HandleFunctionKey(int Function);
+void FlashUpdateMenu(void);
 
 void irq_handler(uint32_t pc) 
 {
@@ -83,7 +87,16 @@ void main()
 
    vt100_init();
    ALOG_R("Pano Logic G1, Z80 @ 25 Mhz, PicoRV32 @ 25MHz\n");
-   ALOG_R("Compiled " __DATE__ " " __TIME__ "\n\n");
+   ALOG_R("Firmware %s, built %s\n",gFwInfo.version,gFwInfo.built);
+   {
+      uint32_t BuildId = FpgaBuildId();
+      char BitBuilt[24];
+      if(BuildId != 0) {
+         FormatBuildId(BuildId,BitBuilt);
+         ALOG_R("Bitstream built %s\n",BitBuilt);
+      }
+   }
+   ALOG_R("\n");
 
    gCapsLockSwap = 1;
    usb_init();
@@ -266,6 +279,11 @@ void HandleFunctionKey(int Function)
       case F_VERBOSE_LOG_TOGGLE:
          LOG("z80_io_state: %d, z80_io_adr: %d\n",z80_io_state,z80_io_adr);
          break;
+
+      case F_UPDATE:
+      // update firmware/bitstream from USB
+         FlashUpdateMenu();
+         break;
    }
 }
 
@@ -293,8 +311,18 @@ void IdlePoll()
       gWriteFlushTimeout = 0;
       FlushWriteCache();
    }
-   if(gFunctionRequest != 0) {
-      HandleFunctionKey(gFunctionRequest);
+   // Clear the request BEFORE dispatching, and guard against re-entry: a
+   // handler that puts up a menu calls IdlePoll() while it waits for a key,
+   // so without this a pending F-key would recursively re-invoke its own
+   // handler until the stack overflows.
+   if(gFunctionRequest != 0 && !gInFunctionKey) {
+      unsigned char Request = gFunctionRequest;
+      gFunctionRequest = 0;
+      gInFunctionKey = 1;
+      HandleFunctionKey(Request);
+      gInFunctionKey = 0;
+      // Drop any function key pressed while a blocking handler (a menu) was
+      // running, rather than firing it as soon as the menu closes.
       gFunctionRequest = 0;
    }
 }
