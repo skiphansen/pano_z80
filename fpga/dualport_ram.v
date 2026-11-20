@@ -1,5 +1,6 @@
 module dualport_ram #(
-    parameter integer WORDS = 2400
+    parameter integer WORDS = 2400,
+    parameter integer WIDTH = 8
 ) (
     clka,
     wea,
@@ -13,12 +14,12 @@ module dualport_ram #(
     input clka;
     input wea;
     input [11 : 0] addra;
-    input [7 : 0] dina;
+    input [WIDTH-1 : 0] dina;
     input clkb;
     input [11 : 0] addrb;
-    output reg [7 : 0] doutb;
+    output reg [WIDTH-1 : 0] doutb;
 
-    reg [7:0] ram [0:WORDS-1];
+    reg [WIDTH-1:0] ram [0:WORDS-1];
     
     always@(posedge clka) begin
         if (wea)

@@ -33,6 +33,13 @@ prog_fw: $(FW_BIN)
 reload:
 	$(XC3SPROG) $(XC3SPROG_OPTS) $(BIT_FILE).bit
 
+# Combined bitstream + firmware image for the USB updater: copy PANOUPD.BIN to
+# the root of the USB drive and choose "Update" in the setup menu (F12).
+UPDATE_IMG := $(TOPDIR)/PANOUPD.BIN
+
+update: $(FW_BIN) $(BIT_FILE).bit
+	python3 $(TOPDIR)/tools/mkupdate.py -o $(UPDATE_IMG) --bit $(BIT_FILE).bit --fw $(FW_BIN)
+
 #override CFLAGS for native compiles
 $(BIN2C) $(BIN2MIF) : CFLAGS =
 
@@ -40,5 +47,5 @@ $(BIN2MIF): $(BIN2MIF).cpp
 
 $(BIN2C) : $(BIN2C).c 
 
-.PHONY: prog_all reload
+.PHONY: prog_all reload update
 

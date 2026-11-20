@@ -21,11 +21,13 @@
 //////////////////////////////////////////////////////////////////////////////////
 module vga_font(
   input wire clk,
-  input wire [6:0] ascii_code,
+  input wire [7:0] ascii_code,
   input wire [3:0] row,
   input wire [2:0] col,
   output wire pixel
 );
+
+wire bram_pixel;
 
 RAMB16_S1 BRAM_PC_VGA_0  (
   .CLK(clk),
@@ -34,7 +36,7 @@ RAMB16_S1 BRAM_PC_VGA_0  (
   .ADDR({ascii_code[6:1], ~ascii_code[0], row, ~col}),
   .SSR(1'b0),
   .DI(1'b0),
-  .DO(pixel)
+  .DO(bram_pixel)
   );
 
 defparam BRAM_PC_VGA_0.INIT_00 = 256'h00000000000000000000000000000000000000007e818199bd8181a5817e0000;
@@ -105,5 +107,112 @@ defparam BRAM_PC_VGA_0.INIT_3C = 256'h00000000c3663c183c66c3000000000000f80c067e
 defparam BRAM_PC_VGA_0.INIT_3D = 256'h00000000fec6603018ccfe0000000000000000000e18181818701818180e0000;
 defparam BRAM_PC_VGA_0.INIT_3E = 256'h000000001818181818001818181800000000000070181818180e181818700000;
 defparam BRAM_PC_VGA_0.INIT_3F = 256'h000000000000000000000000dc7600000000000000fec6c6c66c381000000000;
+
+// Extended glyphs for character codes 0x80-0xFF, at their CP437 positions.
+// Only the glyphs needed by the national character sets in the firmware
+// (fw/firmware/vt100.c) are defined; all other upper-half codes render
+// blank. These live in LUTs rather than a second block RAM because the
+// block RAMs are almost all used by the Z80's 64K of memory.
+//
+// C0-CF are a 2 x 2 block mosaic, the graphics characters of the ITT 3030:
+// bit 0 lights the top left quarter of the cell, bit 1 the top right, bit 2
+// the bottom left and bit 3 the bottom right one.  D0 is a thin horizontal
+// rule near the bottom of the cell.
+wire [1:0] mosaic_half = row[3] ? ascii_code[3:2] : ascii_code[1:0];
+wire [7:0] mosaic_bits = {{4{mosaic_half[0]}}, {4{mosaic_half[1]}}};
+wire [7:0] rule_bits = (row == 4'd13 || row == 4'd14) ? 8'hff : 8'h00;
+
+reg [7:0] ext_bits;
+always @(*) begin
+ if (ascii_code[6:4] == 3'b100)
+  ext_bits = mosaic_bits;
+ else if (ascii_code[6:0] == 7'h50)
+  ext_bits = rule_bits;
+ else
+  case ({ascii_code[6:0], row})
+    // 0x81: u umlaut
+    {7'h01, 4'd2}: ext_bits = 8'hcc;
+    {7'h01, 4'd5}: ext_bits = 8'hcc;
+    {7'h01, 4'd6}: ext_bits = 8'hcc;
+    {7'h01, 4'd7}: ext_bits = 8'hcc;
+    {7'h01, 4'd8}: ext_bits = 8'hcc;
+    {7'h01, 4'd9}: ext_bits = 8'hcc;
+    {7'h01, 4'd10}: ext_bits = 8'hcc;
+    {7'h01, 4'd11}: ext_bits = 8'h76;
+    // 0x84: a umlaut
+    {7'h04, 4'd2}: ext_bits = 8'hcc;
+    {7'h04, 4'd5}: ext_bits = 8'h78;
+    {7'h04, 4'd6}: ext_bits = 8'h0c;
+    {7'h04, 4'd7}: ext_bits = 8'h7c;
+    {7'h04, 4'd8}: ext_bits = 8'hcc;
+    {7'h04, 4'd9}: ext_bits = 8'hcc;
+    {7'h04, 4'd10}: ext_bits = 8'hcc;
+    {7'h04, 4'd11}: ext_bits = 8'h76;
+    // 0x8E: A umlaut
+    {7'h0e, 4'd1}: ext_bits = 8'hc6;
+    {7'h0e, 4'd3}: ext_bits = 8'h10;
+    {7'h0e, 4'd4}: ext_bits = 8'h38;
+    {7'h0e, 4'd5}: ext_bits = 8'h6c;
+    {7'h0e, 4'd6}: ext_bits = 8'hc6;
+    {7'h0e, 4'd7}: ext_bits = 8'hc6;
+    {7'h0e, 4'd8}: ext_bits = 8'hfe;
+    {7'h0e, 4'd9}: ext_bits = 8'hc6;
+    {7'h0e, 4'd10}: ext_bits = 8'hc6;
+    {7'h0e, 4'd11}: ext_bits = 8'hc6;
+    // 0x94: o umlaut
+    {7'h14, 4'd2}: ext_bits = 8'hc6;
+    {7'h14, 4'd5}: ext_bits = 8'h7c;
+    {7'h14, 4'd6}: ext_bits = 8'hc6;
+    {7'h14, 4'd7}: ext_bits = 8'hc6;
+    {7'h14, 4'd8}: ext_bits = 8'hc6;
+    {7'h14, 4'd9}: ext_bits = 8'hc6;
+    {7'h14, 4'd10}: ext_bits = 8'hc6;
+    {7'h14, 4'd11}: ext_bits = 8'h7c;
+    // 0x99: O umlaut
+    {7'h19, 4'd1}: ext_bits = 8'hc6;
+    {7'h19, 4'd3}: ext_bits = 8'h7c;
+    {7'h19, 4'd4}: ext_bits = 8'hc6;
+    {7'h19, 4'd5}: ext_bits = 8'hc6;
+    {7'h19, 4'd6}: ext_bits = 8'hc6;
+    {7'h19, 4'd7}: ext_bits = 8'hc6;
+    {7'h19, 4'd8}: ext_bits = 8'hc6;
+    {7'h19, 4'd9}: ext_bits = 8'hc6;
+    {7'h19, 4'd10}: ext_bits = 8'hc6;
+    {7'h19, 4'd11}: ext_bits = 8'h7c;
+    // 0x9A: U umlaut
+    {7'h1a, 4'd1}: ext_bits = 8'hc6;
+    {7'h1a, 4'd3}: ext_bits = 8'hc6;
+    {7'h1a, 4'd4}: ext_bits = 8'hc6;
+    {7'h1a, 4'd5}: ext_bits = 8'hc6;
+    {7'h1a, 4'd6}: ext_bits = 8'hc6;
+    {7'h1a, 4'd7}: ext_bits = 8'hc6;
+    {7'h1a, 4'd8}: ext_bits = 8'hc6;
+    {7'h1a, 4'd9}: ext_bits = 8'hc6;
+    {7'h1a, 4'd10}: ext_bits = 8'hc6;
+    {7'h1a, 4'd11}: ext_bits = 8'h7c;
+    // 0xE1: sharp s
+    {7'h61, 4'd2}: ext_bits = 8'h78;
+    {7'h61, 4'd3}: ext_bits = 8'hcc;
+    {7'h61, 4'd4}: ext_bits = 8'hcc;
+    {7'h61, 4'd5}: ext_bits = 8'hcc;
+    {7'h61, 4'd6}: ext_bits = 8'hd8;
+    {7'h61, 4'd7}: ext_bits = 8'hcc;
+    {7'h61, 4'd8}: ext_bits = 8'hc6;
+    {7'h61, 4'd9}: ext_bits = 8'hc6;
+    {7'h61, 4'd10}: ext_bits = 8'hc6;
+    {7'h61, 4'd11}: ext_bits = 8'hcc;
+    default: ext_bits = 8'h00;
+  endcase
+end
+
+// Register to match the one-cycle latency of the block RAM.
+reg ext_sel;
+reg ext_pixel;
+always @(posedge clk) begin
+  ext_sel <= ascii_code[7];
+  ext_pixel <= ext_bits[3'd7 - col];
+end
+
+assign pixel = ext_sel ? ext_pixel : bram_pixel;
 
 endmodule

@@ -10,7 +10,14 @@
 
 // `define Z80_RAM_2K
 
-module pano_top(
+module pano_top #(
+    // Identifies this build of the bitstream: the time it was built, in
+    // seconds since 1970 (UTC).  xilinx/build.tcl sets it, and gives bitgen
+    // the same value as the UserID so it also appears in the .bit file header.
+    // The firmware reads it from the GPIO block to tell the user which
+    // bitstream is running.  0 = not set (e.g. built from the ISE GUI).
+    parameter [31:0] BUILD_ID = 32'd0
+) (
     // Global Clock Input
     input wire CLK_OSC,
     
@@ -506,6 +513,10 @@ module pano_top(
         .mem_ready(spimem_ready)
     );
     
+    // Driven below, once mem_valid / addr_in_spicfg are declared
+    wire [3:0]  spicfg_we;
+    wire [31:0] spicfg_rdata;
+
     spimemio spimemio (
         .clk    (clk_rv),
         .resetn (rst_rv),
@@ -532,9 +543,13 @@ module pano_top(
         .flash_io2_di (1'b0),
         .flash_io3_di (1'b0),
 
-        .cfgreg_we(4'b0000),
-        .cfgreg_di(32'h0),
-        .cfgreg_do()
+        // Software SPI flash programming: the config register is exposed to
+        // the CPU at 0x0E020000 so firmware can bit-bang erase/program cycles
+        // (used by the USB firmware/bitstream updater).  spicfg_we is driven
+        // below, after mem_valid / addr_in_spicfg are declared.
+        .cfgreg_we(spicfg_we),
+        .cfgreg_di(mem_wdata),
+        .cfgreg_do(spicfg_rdata)
     );
     
     // ----------------------------------------------------------------------
@@ -572,6 +587,8 @@ module pano_top(
     wire la_addr_in_z80 = (mem_la_addr >= 32'h05000000) && (mem_la_addr < 32'h05040000);
     wire la_addr_in_ddr = (mem_la_addr >= 32'h0C000000) && (mem_la_addr < 32'h0D000000);
     wire la_addr_in_spi = (mem_la_addr >= 32'h0E000000) && (mem_la_addr < 32'h0E020000);
+    // SPI flash config register (software bit-bang programming) - one word at 0x0E020000
+    wire la_addr_in_spicfg = (mem_la_addr == 32'h0E020000);
     
     reg addr_in_ram;
     reg addr_in_vram;
@@ -582,6 +599,7 @@ module pano_top(
     reg addr_in_z80_io;
     reg addr_in_ddr;
     reg addr_in_spi;
+    reg addr_in_spicfg;
     
     always@(posedge clk_rv) begin
         addr_in_ram <= la_addr_in_ram;
@@ -593,8 +611,14 @@ module pano_top(
         addr_in_z80_io <= la_addr_in_z80_io;
         addr_in_ddr <= la_addr_in_ddr;
         addr_in_spi <= la_addr_in_spi;
+        addr_in_spicfg <= la_addr_in_spicfg;
     end
-    
+
+    // Drive the SPI flash config-register write strobe (declared up at the
+    // spimemio instantiation).  Placed here so mem_valid / addr_in_spicfg are
+    // already declared.
+    assign spicfg_we = (addr_in_spicfg && mem_valid) ? mem_wstrb : 4'b0000;
+
     wire ram_valid = (mem_valid) && (!mem_ready) && (addr_in_ram);
     wire vram_valid = (mem_valid) && (!mem_ready) && (addr_in_vram);
     wire gpio_valid = (mem_valid) && (addr_in_gpio);
@@ -604,6 +628,7 @@ module pano_top(
     assign z80_ram_valid = (mem_valid) && (addr_in_z80);
     assign z80_io_valid = (mem_valid) && (addr_in_z80_io);
     assign spi_valid = (mem_valid) && (addr_in_spi);
+    wire spicfg_valid = (mem_valid) && (addr_in_spicfg);
     wire general_valid = (mem_valid) && (!mem_ready) && (!addr_in_ddr) && (!addr_in_uart) && (!addr_in_usb) && (!addr_in_spi);
     
     reg default_ready;
@@ -618,7 +643,7 @@ module pano_top(
     reg mem_valid_last;
     always @(posedge clk_rv) begin
         mem_valid_last <= mem_valid;
-        if (mem_valid && !mem_valid_last && !(ram_valid || spi_valid || vram_valid || gpio_valid || usb_valid || uart_valid || ddr_valid || z80_ram_valid || z80_io_valid))
+        if (mem_valid && !mem_valid_last && !(ram_valid || spi_valid || spicfg_valid || vram_valid || gpio_valid || usb_valid || uart_valid || ddr_valid || z80_ram_valid || z80_io_valid))
             cpu_irq <= 1'b1;
         //else
         //    cpu_irq <= 1'b0;
@@ -710,6 +735,8 @@ module pano_top(
     // 03000014 (5)  - W:  i2c_scl
     // 03000018 (6)  - RW: i2c_sda
     // 0300001c (7)  - W:  usb_rst_n
+    // 03000038 (14) - R:  32'h42494431 ("BID1"): the build ID register exists
+    // 0300003c (15) - R:  BUILD_ID, see the module parameter
     
     reg [31:0] gpio_rdata;
     reg led_green;
@@ -741,6 +768,13 @@ module pano_top(
                     4'd1: gpio_rdata <= {29'd0, led_blue, led_green, led_red};
                     4'd3: gpio_rdata <= {31'd0, z80_rst};
                     4'd6: gpio_rdata <= {31'd0, AUDIO_SDA};
+                    // What this bitstream can do, for the firmware to ask.
+                    // "FT" in the upper half says that the register exists.
+                    //   bit 0: inverse video (bit 8 of a screen memory word)
+                    //          and the block mosaic glyphs C0-CF, D0
+                    4'd13: gpio_rdata <= 32'h46540001;
+                    4'd14: gpio_rdata <= 32'h42494431;
+                    4'd15: gpio_rdata <= BUILD_ID;
                 endcase
              end
          if (!rst_rv) begin
@@ -770,7 +804,8 @@ module pano_top(
         addr_in_z80_io ? {8'b0, z80io_rdata} : (
         addr_in_usb ? usb_rdata : (
         addr_in_spi ? spi_rdata : (
-        32'hFFFFFFFF)))))));
+        addr_in_spicfg ? spicfg_rdata : (
+        32'hFFFFFFFF))))))));
 
     // ----------------------------------------------------------------------
     // VGA Controller
@@ -778,7 +813,7 @@ module pano_top(
     wire vga_vs;
     wire [6:0] dbg_x;
     wire [4:0] dbg_y;
-    wire [6:0] dbg_char;
+    wire [8:0] dbg_char;
     wire dbg_clk;
     wire [23:0] font_fg_color;
     wire [23:0] font_bg_color;
@@ -819,18 +854,21 @@ module pano_top(
     
     wire vram_wea = (vram_valid && (mem_wstrb != 0)) ? 1'b1 : 1'b0;
     
-    wire [7:0] vram_dout;
+    // One word per character cell: the glyph in bits 7:0, bit 8 shows the
+    // cell in inverse video.  (This memory is built from LUTs - the block
+    // RAMs are all taken - so the ninth bit costs a few hundred of those.)
+    wire [8:0] vram_dout;
     wire [11:0] rd_addr = dbg_y * 80 + dbg_x;
-    dualport_ram vram(
+    dualport_ram #(.WIDTH(9)) vram(
         .clka(clk_rv),
         .wea(vram_wea),
         .addra(mem_addr[13:2]),
-        .dina(mem_wdata[7:0]),
+        .dina(mem_wdata[8:0]),
         .clkb(!clk_vga),
         .addrb(rd_addr[11:0]),
         .doutb(vram_dout)
     );
-    assign dbg_char = vram_dout[6:0];
+    assign dbg_char = vram_dout[8:0];
     
  // Z80 <-> RISC V I/O interface
     cpm_io cpm_io(
