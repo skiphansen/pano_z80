@@ -149,6 +149,13 @@ struct us_data;
 typedef int (*trans_cmnd)(ccb *cb, struct us_data *data);
 typedef int (*trans_reset)(struct us_data *data);
 
+/* us_data.flags: the device has answered TEST UNIT READY and no transfer has
+ * failed since.  While it is set the transport does not pause between the
+ * command and the data phase - that pause is only for a device that is still
+ * waking up, and at 5 ms per command it made up most of the time of every
+ * sector read (each one is a TEST UNIT READY plus a READ(10)). */
+#define USB_READY (1u << 0)
+
 struct us_data {
    struct usb_device *pusb_dev;   /* this usb_device */
 
@@ -376,6 +383,9 @@ static int usb_stor_BBB_reset(struct us_data *us)
 {
    int result;
    unsigned int pipe;
+
+   /* something went wrong: be patient with the device again */
+   us->flags &= ~USB_READY;
 
    /*
     * Reset recovery (5.3.4 in Universal Serial Bus Mass Storage Class)
@@ -652,7 +662,8 @@ int usb_stor_BBB_transport(ccb *srb, struct us_data *us)
       usb_stor_BBB_reset(us);
       return USB_STOR_TRANSPORT_FAILED;
    }
-   delay_ms(5);
+   if (!(us->flags & USB_READY))
+      delay_ms(5);
    pipein = usb_rcvbulkpipe(us->pusb_dev, us->ep_in);
    pipeout = usb_sndbulkpipe(us->pusb_dev, us->ep_out);
    /* DATA phase + error handling */
@@ -925,8 +936,11 @@ static int usb_test_unit_ready(ccb *srb, struct us_data *ss)
       srb->cmd[0] = SCSI_TST_U_RDY;
       srb->datalen = 0;
       srb->cmdlen = 12;
-      if (ss->transport(srb, ss) == USB_STOR_TRANSPORT_GOOD)
+      if (ss->transport(srb, ss) == USB_STOR_TRANSPORT_GOOD) {
+         ss->flags |= USB_READY;
          return 0;
+      }
+      ss->flags &= ~USB_READY;
       usb_request_sense(srb, ss);
       delay_ms(100);
    } while (retries--);
