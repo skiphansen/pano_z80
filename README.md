@@ -88,6 +88,88 @@ black on white.
 
 F7 is used to reset Z80 processor.
 
+F11 updates the FPGA bitstream and the RISC-V firmware from the USB drive,
+without a JTAG programmer.  See [Updating from USB](#updating-from-usb-f11).
+
+## Updating from USB (F11)
+
+Once a Pano is running this firmware, future bitstream and firmware updates can
+be installed from the USB drive instead of a JTAG cable.
+
+An update is a single file, `PANOUPD.BIN`, which carries the FPGA bitstream
+and the firmware together with a version string and build date.  Build one
+with `make update` in the top level directory (after building the bitstream
+and the firmware), or directly:
+
+```
+tools/mkupdate.py -o PANOUPD.BIN --bit xilinx/work/pano_top.bit \
+                  --fw fw/firmware/firmware.bin --version "my build"
+tools/mkupdate.py --info PANOUPD.BIN        # verify and describe an image
+```
+
+Copy `PANOUPD.BIN` to the root of the USB drive and press **F11**.  The updater
+
+1. reads the whole file into RAM and checks it: header CRC, a CRC-32 over each
+   image, and that the bitstream is a well formed Xilinx `.bit` file for the
+   Pano's `xc3s1600e`;
+2. shows what is installed now next to what the update contains:
+
+   ```
+   Installed now:
+     firmware:  3f2a91c, built 2026-11-19 21:28 UTC
+     bitstream: built 2026-11-19 21:40 UTC
+   Update 4b7d0e2 (packaged 2026-11-21 09:02):
+     firmware:  4b7d0e2, built 2026-11-21 17:01 UTC
+     bitstream: built 2026-11-19 21:40 UTC  (same as installed)
+   ```
+
+3. reads the SPI flash's ID, and the first bytes of the bitstream stored in
+   it, through the same software SPI path the update uses - if the flash does
+   not answer, or does not hold what the updater expects, nothing is touched;
+4. asks for confirmation, writes out any pending CP/M disk data, deletes
+   `PANOUPD.BIN` from the USB drive, and reprograms the flash.
+
+The firmware identifies itself by a version (`git describe` at build time) and
+its build date, which every firmware image carries in a small info block
+(`fw/firmware/fwinfo.h`).  A bitstream is identified by a build ID - the time
+it was built - which `xilinx/build.tcl` compiles into the design, where the
+firmware can read it, and into the header of the `.bit` file.  A bitstream
+built from the ISE GUI has no build ID and shows up as "unknown" once
+installed.  The same information is printed at power-on.
+
+While it works the on-board LED is **yellow**.  It ends **green** if both
+images were written and verified, or **red** if anything failed.  Either way
+the Pano then waits to be **power-cycled** - the firmware it was running from
+has been replaced.  Writing both images takes about two minutes, three at most.
+
+A part of the flash whose contents already match is left alone, so an update
+that only changes the firmware never erases the bitstream, and vice versa.
+
+**Do not power the Pano off while the LED is yellow.**  A failed or interrupted
+update leaves the board needing a JTAG programmer to recover - exactly the
+situation before this feature existed.
+
+### How it works
+
+The firmware normally executes in place from the same SPI flash it has to
+rewrite, so the programming code (`fw/firmware/spiflash.c`) is copied to RAM
+at startup and runs from there, with interrupts masked, driving the flash
+through the PicoSoC `spimemio` configuration register (mapped at `0x0E020000`)
+in bit-bang mode.  `make` checks the linked image to make sure that code
+cannot reach anything in flash (`tools/check_ramtext.py`).
+
+That code is built without compressed instructions (`-march=rv32i`).  The RAM
+is the DDR memory, and the bridge in front of it (`fpga/mig_picorv_bridge.v`)
+cannot serve the fetch of a 32-bit instruction that straddles a word boundary:
+it answers the second half with the first word again.  Nothing ran from DDR
+before this feature, so it never mattered; with every instruction one aligned
+word it does not happen, and the same check makes sure of that.
+
+`sim/flashupdate` runs that same code on the real `picorv32`, `cache`,
+`spimemio` and DDR bridge RTL against a behavioural model of the flash, and
+`fw/firmware/test` runs the F11 menu's validation logic natively against good
+and deliberately damaged images.
+
 ## HW Requirements
 
 * A first generation Panologic thin client (G1, the one with a VGA port)
@@ -370,6 +452,13 @@ This creates the file `~/pano_z80/fw/firmware/firmware.bin`
 * Create the bitstream `~/pano_z80/xilinx/work/pano_top.bit`
     * File -> Open Project -> ~/pano_z80/xilinx/pano_z80.xise
     * Double click on 'Generate Programming File'
+
+  or, from the command line, which also gives the bitstream a build ID that
+  the USB updater can show:
+
+```
+(cd xilinx; xtclsh build.tcl)
+```
 
 * Create the MSC "prom" file with the bit stream and firmware image
     * Start iMPACT
