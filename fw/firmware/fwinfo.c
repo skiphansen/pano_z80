@@ -73,6 +73,22 @@ uint32_t FpgaBuildId(void)
    return BUILD_ID_VALID(Id) ? Id : 0;
 }
 
+/* The feature register came later than the build ID.  "FT" in its upper half
+ * tells it from the stale data a bitstream without it would return. */
+#ifndef FPGA_FEATURES_REG
+#define FPGA_FEATURES_REG     (*(volatile uint32_t *)0x03000034u)
+#endif
+
+uint32_t FpgaFeatures(void)
+{
+   uint32_t Features;
+
+   if(FPGA_BUILD_MAGIC_REG != FPGA_BUILD_MAGIC)
+      return 0;
+   Features = FPGA_FEATURES_REG;
+   return (Features >> 16) == 0x4654u ? (Features & 0xffffu) : 0;
+}
+
 static char *Put(char *p, uint32_t v, int digits)
 {
    int i;

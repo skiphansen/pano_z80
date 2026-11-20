@@ -91,6 +91,7 @@ void main()
    ScreenColorSet(COLOR_GREEN);
 
    vt100_init();
+   vt100_set_text_attr((FpgaFeatures() & FPGA_FEATURE_TEXT_ATTR) != 0);
    ALOG_R("Pano Logic G1, Z80 @ 25 Mhz, PicoRV32 @ 25MHz\n");
    ALOG_R("Firmware %s, built %s\n",gFwInfo.version,gFwInfo.built);
    {
