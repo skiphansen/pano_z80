@@ -75,6 +75,7 @@
 #define BLACK           0
 #define WHITE           0xffffff
 #define GREEN           0x00ff00
+#define AMBER           0xffb000   // P3 amber phosphor (~602 nm)
 
 #define INIT_IMAGE_FILENAME   "BOOT.IMG"
 

@@ -243,7 +243,7 @@ void HandleFunctionKey(int Function)
          break;
 
       case F_SCREEN_COLOR:
-      // toggle green screen
+      // cycle green -> white on black -> black on white -> amber
          if(font_fg_color == GREEN) {
             font_fg_color = WHITE;
             font_bg_color = BLACK;
@@ -251,6 +251,10 @@ void HandleFunctionKey(int Function)
          else if(font_fg_color == WHITE) {
             font_fg_color = BLACK;
             font_bg_color = WHITE;
+         }
+         else if(font_fg_color == BLACK) {
+            font_fg_color = AMBER;
+            font_bg_color = BLACK;
          }
          else {
             font_fg_color = GREEN;

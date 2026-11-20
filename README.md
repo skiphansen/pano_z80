@@ -12,7 +12,7 @@ Features:
 - Compatible with disk images created for the [z80pack](https://www.autometer.de/unix4fun/z80pack/) project
 - Compatible with disk images created for the [Multicomp](http://searle.wales//Multicomp/cpm/fpgaCPM.html) project
 - ANSI support for keyboard and monitor
-- Function key selection of retro "Green Screen" or normal screen modes
+- Function key selection of retro green or amber screen, or normal screen modes
 - Function key selection of retro or normal control key placement
 - RISC-V I/O co-processor
 - No soldering required!
@@ -83,8 +83,8 @@ time control of the system.
 
 F5 is used to swap the position of the control and caps lock keys.
 
-F6 is used to toggle the display between green on black, white on black, or 
-black on white.  
+F6 is used to cycle the display between green on black (the default), white 
+on black, black on white, or amber on black.  
 
 F7 is used to reset Z80 processor.
 
