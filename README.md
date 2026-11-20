@@ -12,8 +12,10 @@ Features:
 - Compatible with disk images created for the [z80pack](https://www.autometer.de/unix4fun/z80pack/) project
 - Compatible with disk images created for the [Multicomp](http://searle.wales//Multicomp/cpm/fpgaCPM.html) project
 - ANSI support for keyboard and monitor
-- Function key selection of retro "Green Screen" or normal screen modes
+- Function key selection of retro green or amber screen, or normal screen modes
+- Function key selection of national character sets (US ASCII, German DIN 66003)
 - Function key selection of retro or normal control key placement
+- Runtime swapping of disk images from a function key
 - RISC-V I/O co-processor
 - No soldering required!
 
@@ -83,10 +85,167 @@ time control of the system.
 
 F5 is used to swap the position of the control and caps lock keys.
 
-F6 is used to toggle the display between green on black, white on black, or 
-black on white.  
+F6 is used to cycle the display between green on black (the default), white 
+on black, black on white, or amber on black.  
 
 F7 is used to reset Z80 processor.
+
+F12 brings up the setup menu.  It has the settings - screen colour,
+character set, what the Caps Lock key does, the terminal emulation - and the
+less frequent actions (swap a disk image, update from the USB drive, reset the
+Z80) in one place, so that there does not have to be a function key for each
+of them.  While the menu is up, the screen of the running program is kept
+aside; it is put back when you leave the menu with Enter or Esc.
+
+The settings are kept in a small text file in the root of the USB drive,
+`PANOZ80.CFG`, and are read from there at power-on:
+
+    color=amber          (green, white, paper or amber)
+    charset=german       (us or german)
+    capslock=ctrl        (ctrl or capslock)
+    terminal=itt3030     (vt100 or itt3030)
+
+The file is rewritten whenever a setting is changed, from the menu or with
+F5 or F6.  It can also be edited on a PC; anything the firmware does not
+understand in it is ignored.  Without the file everything is as it was before
+there were settings: green on black, US ASCII, Caps Lock and Ctrl swapped,
+VT100.
+
+The character set is a national one, chosen in the setup menu.  The console
+is 7-bit ASCII like the terminals of the era, so national characters replace a
+few of the less common symbols, as defined by ISO 646.  The German set
+(DIN 66003) displays `@ [ \ ] { | } ~` as `§ Ä Ö Ü ä ö ü ß`.  Characters
+already on the screen are not redrawn when the character set changes.
+
+The terminal emulation is normally a VT100.  The **ITT 3030** setting adds
+the screen control codes of the ITT 3030's own CP/M BIOS, which programs
+written for that machine use instead: clear screen (`0C`, which leaves the
+cursor at the bottom left), cursor addressing (`ESC 1F row+20h column+20h`,
+`ESC 16 row column`, rows counted from 1 and columns from 0), cursor home
+(`ESC 11`), cursor off and on (`ESC 12`, `ESC 13`), erasing to the end of the
+line or the screen (`ESC 18`, `ESC 17`), repeated characters (`ESC 10 n`,
+`ESC 1D n c`), inverse video (`1C` on, `12` off) and the graphics characters
+`80`-`9F`.  The list, taken from the video driver in the BIOS on the system
+tracks of an ITT 3030 CP/M 2.2 disk, is at the top of the ITT code in
+`fw/firmware/vt100.c`.  The ANSI sequences keep working in this mode.  The
+cursor keys send what those of the ITT sent, the control codes of the WordStar
+cursor diamond (up `05`, down `18`, left `13`, right `04`), and Del sends `1F`.
+
+The graphics characters `80`-`8F` are a 2 x 2 block mosaic (the inverse of
+the quarters given by the low four bits), and `8F`, which comes out as the
+inverse of the solid block, is the thin horizontal rule of most ITT screen
+masks.  Inverse video and the mosaic glyphs need a bitstream that has them
+(built from this source; the firmware asks the bitstream).  With an older
+bitstream the rule is drawn with underscores, the rest of the mosaic with a
+block, and inverse text shows up normal.  The shapes of `90`-`9F` are not
+known; they are shown as a solid block.
+
+F10 brings up a menu to swap a disk image into a mounted drive without a
+power cycle (z80pack mode only).  Pick the drive to replace and the menu lists
+every other `*.DSK` image on the USB drive of the same type as that drive (the
+disk geometry of each drive letter is fixed in the CBIOS, so a floppy image can
+only replace a floppy and a hard disk image a hard disk).  Only images named
+`DRIVEx.DSK` are mounted automatically at power-on, so give images that are
+only meant to be swapped in any other name - `GAMES.DSK`, `WORK2.DSK`, ...
+Swapping a data drive holds it read-only until CP/M re-logs the new disk; the
+firmware sends a Ctrl-C to warm-boot CP/M for you, so run the swap from the
+CP/M prompt (A>).  Swapping the system drive A: reboots CP/M onto the new
+disk, which must be bootable.
+
+In z80pack mode the stock CBIOS only knows drives A: to D: (8 inch floppies,
+256256 byte images), I: and J: (4 MB hard disks, 4177920 byte images) and, in
+newer versions, P: (512 MB).  A `DRIVEx.DSK` whose size does not match its
+drive letter is not mounted and a message says why; mounting it anyway would
+only give an empty directory or `Bdos Err On x: Select`.
+
+The setup menu also updates the FPGA bitstream and the RISC-V firmware from
+the USB drive, without a JTAG programmer.  See
+[Updating from USB](#updating-from-usb).
+
+## Updating from USB
+
+Once a Pano is running this firmware, future bitstream and firmware updates can
+be installed from the USB drive instead of a JTAG cable.
+
+An update is a single file, `PANOUPD.BIN`, which carries the FPGA bitstream
+and the firmware together with a version string and build date.  Build one
+with `make update` in the top level directory (after building the bitstream
+and the firmware), or directly:
+
+```
+tools/mkupdate.py -o PANOUPD.BIN --bit xilinx/work/pano_top.bit \
+                  --fw fw/firmware/firmware.bin --version "my build"
+tools/mkupdate.py --info PANOUPD.BIN        # verify and describe an image
+```
+
+Copy `PANOUPD.BIN` to the root of the USB drive, press **F12** and choose
+**U** (update).  The updater
+
+1. reads the whole file into RAM and checks it: header CRC, a CRC-32 over each
+   image, and that the bitstream is a well formed Xilinx `.bit` file for the
+   Pano's `xc3s1600e`;
+2. shows what is installed now next to what the update contains:
+
+   ```
+   Installed now:
+     firmware:  3f2a91c, built 2026-11-19 21:28 UTC
+     bitstream: built 2026-11-19 21:40 UTC
+   Update 4b7d0e2 (packaged 2026-11-21 09:02):
+     firmware:  4b7d0e2, built 2026-11-21 17:01 UTC
+     bitstream: built 2026-11-19 21:40 UTC  (same as installed)
+   ```
+
+3. reads the SPI flash's ID, and the first bytes of the bitstream stored in
+   it, through the same software SPI path the update uses - if the flash does
+   not answer, or does not hold what the updater expects, nothing is touched;
+4. asks for confirmation, writes out any pending CP/M disk data, deletes
+   `PANOUPD.BIN` from the USB drive, and reprograms the flash.
+
+The firmware identifies itself by a version (`git describe` at build time) and
+its build date, which every firmware image carries in a small info block
+(`fw/firmware/fwinfo.h`).  A bitstream is identified by a build ID - the time
+it was built - which `xilinx/build.tcl` compiles into the design, where the
+firmware can read it, and into the header of the `.bit` file.  A bitstream
+built from the ISE GUI has no build ID and shows up as "unknown" once
+installed.  The same information is printed at power-on.
+
+While it works the on-board LED is **yellow**.  It ends **green** if both
+images were written and verified, or **red** if anything failed.  Either way
+the Pano then waits to be **power-cycled** - the firmware it was running from
+has been replaced.  Writing both images takes about two minutes, three at most.
+
+A part of the flash whose contents already match is left alone, so an update
+that only changes the firmware never erases the bitstream, and vice versa.
+
+**Do not power the Pano off while the LED is yellow.**  A failed or interrupted
+update leaves the board needing a JTAG programmer to recover - exactly the
+situation before this feature existed.
+
+### How it works
+
+The firmware normally executes in place from the same SPI flash it has to
+rewrite, so the programming code (`fw/firmware/spiflash.c`) is copied to RAM
+at startup and runs from there, with interrupts masked, driving the flash
+through the PicoSoC `spimemio` configuration register (mapped at `0x0E020000`)
+in bit-bang mode.  `make` checks the linked image to make sure that code
+cannot reach anything in flash (`tools/check_ramtext.py`).
+
+That code is built without compressed instructions (`-march=rv32i`).  The RAM
+is the DDR memory, and the bridge in front of it (`fpga/mig_picorv_bridge.v`)
+cannot serve the fetch of a 32-bit instruction that straddles a word boundary:
+it answers the second half with the first word again.  Nothing ran from DDR
+before this feature, so it never mattered; with every instruction one aligned
+word it does not happen, and the same check makes sure of that.
+
+`fw/firmware/test` also has host-side tests for the settings file and the
+setup menu, and for the console: two screens of a real ITT 3030 BASIC program
+are sent through the ITT 3030 emulation and compared with what they have to
+look like.
+
+`sim/flashupdate` runs that same code on the real `picorv32`, `cache`,
+`spimemio` and DDR bridge RTL against a behavioural model of the flash, and
+`fw/firmware/test` runs the update menu's validation logic natively against good
+and deliberately damaged images.
 
 ## HW Requirements
 
@@ -370,6 +529,13 @@ This creates the file `~/pano_z80/fw/firmware/firmware.bin`
 * Create the bitstream `~/pano_z80/xilinx/work/pano_top.bit`
     * File -> Open Project -> ~/pano_z80/xilinx/pano_z80.xise
     * Double click on 'Generate Programming File'
+
+  or, from the command line, which also gives the bitstream a build ID that
+  the USB updater can show:
+
+```
+(cd xilinx; xtclsh build.tcl)
+```
 
 * Create the MSC "prom" file with the bit stream and firmware image
     * Start iMPACT

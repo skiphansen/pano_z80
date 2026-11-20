@@ -34,7 +34,7 @@ module vga_mixer(
     // Debugger Char Input
     output wire [6:0] dbg_x,
     output wire [4:0] dbg_y,
-    input wire [6:0] dbg_char,
+    input wire [8:0] dbg_char,     // glyph, bit 8: inverse video
     output wire dbg_sync,
     input wire [24:0] font_fg_color,
     input wire [24:0] font_bg_color,
@@ -79,7 +79,7 @@ module vga_mixer(
     wire gb_grid; // If it's on grid line
 
     //VGA font
-    wire [6:0] font_ascii;
+    wire [7:0] font_ascii;
     wire [3:0] font_row;
     wire [2:0] font_col;
     wire font_pixel;
@@ -88,12 +88,18 @@ module vga_mixer(
     wire signal_in_text_range = ((vga_y <= 20) || (vga_y >= 460));
     assign dbg_x[6:0] = vga_x[9:3];
     assign dbg_y[4:0] = vga_y[8:4];
-    assign font_ascii[6:0] = dbg_char[6:0];
+    assign font_ascii[7:0] = dbg_char[7:0];
     assign font_row[3:0] = vga_y[3:0];
     assign font_col[2:0] = vga_x[2:0];
-    wire [7:0] text_r = (font_pixel) ? (font_fg_color[23:16]) : (font_bg_color[23:16]);
-    wire [7:0] text_g = (font_pixel) ? (font_fg_color[15:8]) : (font_bg_color[15:8]);
-    wire [7:0] text_b = (font_pixel) ? (font_fg_color[7:0]) : (font_bg_color[7:0]);
+    // The font ROM delivers the pixel one clock after it is given the glyph;
+    // the inverse bit of the cell has to wait as long.
+    reg font_inverse;
+    always @(posedge clk)
+        font_inverse <= dbg_char[8];
+    wire text_pixel = font_pixel ^ font_inverse;
+    wire [7:0] text_r = (text_pixel) ? (font_fg_color[23:16]) : (font_bg_color[23:16]);
+    wire [7:0] text_g = (text_pixel) ? (font_fg_color[15:8]) : (font_bg_color[15:8]);
+    wire [7:0] text_b = (text_pixel) ? (font_fg_color[7:0]) : (font_bg_color[7:0]);
     assign dbg_sync = vga_vs;
     assign bg_r[7:0] = (signal_in_text_range) ? (text_r) : (GB_BACK[23:16]);
     assign bg_g[7:0] = (signal_in_text_range) ? (text_g) : (GB_BACK[15:8]);

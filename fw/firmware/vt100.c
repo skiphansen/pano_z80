@@ -24,6 +24,7 @@
     
 */
 #include <stdint.h>
+#include <stdbool.h>
 #include "string.h"
 #include "vt100.h"
 #include "printf.h"
@@ -97,8 +98,21 @@ static struct vt100 {
 // we many need to keep this anyway to support screen swapping between
 // multiple virtual screens
    char ScreenBuf[VT100_WIDTH * VT100_HEIGHT];
+// and, the same way, which cells are in inverse video (bit 8 in the screen
+// memory of a bitstream that has it, ignored by one that has not)
+   uint8_t AttrBuf[VT100_WIDTH * VT100_HEIGHT];
    char CharUnderCursor;
+   uint8_t cursor_off;     // the program has switched the cursor off
 } term;
+
+#define ATTR_INVERSE    0x100    // in a screen memory word
+
+// what goes into the screen memory for a cell
+static uint32_t _vt100_cell(struct vt100 *t, int Offset)
+{
+   return (uint32_t) (uint8_t) t->ScreenBuf[Offset] |
+          (t->AttrBuf[Offset] ? ATTR_INVERSE : 0);
+}
 
 
 STATE(_st_idle, term, ev, arg);
@@ -145,6 +159,9 @@ void _vt100_clearLines(struct vt100 *t, uint16_t start_line, uint16_t end_line)
    p = (uint32_t *) &t->VRam[START_OFFSET + Start];
    cp = &t->ScreenBuf[Start];
    LOG("Start: %d, Len: %d\n",Start,Len);
+   if(Start >= 0 && Len > 0 && Start + Len <= VT100_WIDTH * VT100_HEIGHT) {
+      memset(&t->AttrBuf[Start],0,Len);
+   }
 
    while(Len-- > 0) {
       *p++ = ' ';
@@ -159,8 +176,8 @@ void _vt100_clearLines(struct vt100 *t, uint16_t start_line, uint16_t end_line)
 // clear line from cursor right/left
 void _vt100_clearLine(struct vt100 *t)
 {
-   int Len;
-   int Start;
+   int Len = 0;
+   int Start = 0;
    uint32_t *p;
    char *cp;
 
@@ -182,6 +199,9 @@ void _vt100_clearLine(struct vt100 *t)
    }
    p = (uint32_t *) &t->VRam[START_OFFSET + Start];
    cp = &t->ScreenBuf[Start];
+   if(Len > 0 && Start + Len <= VT100_WIDTH * VT100_HEIGHT) {
+      memset(&t->AttrBuf[Start],0,Len);
+   }
 
    while(Len-- > 0) {
       *p++ = ' ';
@@ -247,12 +267,17 @@ void _vt100_scroll(struct vt100 *t, int16_t lines)
          }
       }
 
-      pTo = &t->VRam[START_OFFSET + OffsetTop];
-      cp = &t->ScreenBuf[OffsetTop];
-      i = Len;
+      // the attributes move along with the characters
+      for(i = OffsetTop + (VT100_WIDTH * lines);
+          i < VT100_WIDTH * VT100_HEIGHT; i++) {
+         t->AttrBuf[i - (VT100_WIDTH * lines)] = t->AttrBuf[i];
+      }
 
-      while(Len-- > 0) {
-         *pTo++ = *cp++;
+      pTo = &t->VRam[START_OFFSET + OffsetTop];
+      i = OffsetTop;
+
+      while(Len-- > 0 && i < VT100_WIDTH * VT100_HEIGHT) {
+         *pTo++ = _vt100_cell(t,i++);
       }
       _vt100_clearLines(t,t->scroll_end_row-(lines-1)-1,t->scroll_end_row-1);
    }
@@ -354,8 +379,8 @@ void _vt100_removeCursor(struct vt100 *t)
 
    if(Char != 0) {
       int Offset = (t->cursor_y * VT100_WIDTH) + t->cursor_x;
-      t->VRam[START_OFFSET + Offset] = (uint32_t) Char;
       t->ScreenBuf[Offset] = Char;
+      t->VRam[START_OFFSET + Offset] = _vt100_cell(t,Offset);
       t->CharUnderCursor = 0;
       if(&t->ScreenBuf[Offset] >= &t->ScreenBuf[VT100_WIDTH * VT100_HEIGHT]) {
          ELOG("Past end of ScreenBuf\n");
@@ -368,17 +393,164 @@ void _vt100_drawCursor(struct vt100 *t)
 {
    int Offset = (t->cursor_y * VT100_WIDTH) + t->cursor_x;
 
+   if(t->cursor_off) {
+      return;
+   }
    t->CharUnderCursor = t->ScreenBuf[Offset];
    t->VRam[START_OFFSET + Offset] = CURSOR_CHAR;
 }
 
+// A menu (see setup.c) takes over the display for a while.  The screen of the
+// program that was running - its text, the cursor, the scroll region - is
+// kept here meanwhile, and put back when the menu is done.
+static struct {
+   char ScreenBuf[VT100_WIDTH * VT100_HEIGHT];
+   uint8_t AttrBuf[VT100_WIDTH * VT100_HEIGHT];
+   int16_t cursor_x, cursor_y;
+   int16_t saved_cursor_x, saved_cursor_y;
+   int16_t scroll_start_row, scroll_end_row;
+   uint8_t flags;
+   uint8_t cursor_off;
+   uint8_t Valid;
+} gSavedScreen;
+
+static void IttAbortSequence(void);
+
+void vt100_screen_save(void)
+{
+   _vt100_removeCursor(&term);
+   IttAbortSequence();
+   memcpy(gSavedScreen.ScreenBuf,term.ScreenBuf,sizeof(term.ScreenBuf));
+   memcpy(gSavedScreen.AttrBuf,term.AttrBuf,sizeof(term.AttrBuf));
+   gSavedScreen.cursor_x = term.cursor_x;
+   gSavedScreen.cursor_y = term.cursor_y;
+   gSavedScreen.saved_cursor_x = term.saved_cursor_x;
+   gSavedScreen.saved_cursor_y = term.saved_cursor_y;
+   gSavedScreen.scroll_start_row = term.scroll_start_row;
+   gSavedScreen.scroll_end_row = term.scroll_end_row;
+   gSavedScreen.flags = term.flags.val;
+   gSavedScreen.cursor_off = term.cursor_off;
+   gSavedScreen.Valid = 1;
+   // the menu gets a terminal in its initial state
+   term.cursor_off = 0;
+   _vt100_resetScroll();
+   term.state = _st_idle;
+   term.ret_state = 0;
+   _vt100_drawCursor(&term);
+}
+
+void vt100_screen_restore(void)
+{
+   int i;
+
+   if(!gSavedScreen.Valid) {
+      return;
+   }
+   gSavedScreen.Valid = 0;
+   term.CharUnderCursor = 0;  // whatever the menu left there goes with it
+   memcpy(term.ScreenBuf,gSavedScreen.ScreenBuf,sizeof(term.ScreenBuf));
+   memcpy(term.AttrBuf,gSavedScreen.AttrBuf,sizeof(term.AttrBuf));
+   for(i = 0; i < VT100_WIDTH * VT100_HEIGHT; i++) {
+      term.VRam[START_OFFSET + i] = _vt100_cell(&term,i);
+   }
+   term.cursor_x = gSavedScreen.cursor_x;
+   term.cursor_y = gSavedScreen.cursor_y;
+   term.saved_cursor_x = gSavedScreen.saved_cursor_x;
+   term.saved_cursor_y = gSavedScreen.saved_cursor_y;
+   term.scroll_start_row = gSavedScreen.scroll_start_row;
+   term.scroll_end_row = gSavedScreen.scroll_end_row;
+   term.flags.val = gSavedScreen.flags;
+   term.cursor_off = gSavedScreen.cursor_off;
+   term.state = _st_idle;
+   term.ret_state = 0;
+   IttAbortSequence();
+   _vt100_drawCursor(&term);
+}
+
+void vt100_screen_forget(void)
+{
+   gSavedScreen.Valid = 0;
+}
+
+// National character sets.
+//
+// The console only handles 7-bit ASCII, like the terminals of the era. A
+// national variant of ISO 646 replaces a few of the less common symbols with
+// local letters, e.g. German (DIN 66003) shows '[' as 'Ä' and '~' as 'ß'.
+// Each entry maps an ASCII code to a glyph in the font ROM. Glyphs >= 0x80
+// are the extended glyphs in fpga/vga_font.v, at their CP437 positions.
+static const uint8_t gGermanMap[][2] = {
+   {'@',  0x15},  // §
+   {'[',  0x8e},  // Ä
+   {'\\', 0x99},  // Ö
+   {']',  0x9a},  // Ü
+   {'{',  0x84},  // ä
+   {'|',  0x94},  // ö
+   {'}',  0x81},  // ü
+   {'~',  0xe1},  // ß
+   {0, 0}
+};
+
+static const struct {
+   const char *Name;
+   const uint8_t (*Map)[2];   // {ascii, glyph} pairs ending with {0, 0}
+} gCharsets[CHARSET_COUNT] = {
+   [CHARSET_US]     = {"US ASCII", NULL},
+   [CHARSET_GERMAN] = {"German (DIN 66003)", gGermanMap},
+};
+
+static int gCharset;
+static uint8_t gGlyphMap[128];
+
+void vt100_set_charset(int Charset)
+{
+   const uint8_t (*p)[2];
+   int i;
+
+   if(Charset < 0 || Charset >= CHARSET_COUNT) {
+      Charset = CHARSET_US;
+   }
+   gCharset = Charset;
+
+   for(i = 0; i < 128; i++) {
+      gGlyphMap[i] = (uint8_t) i;
+   }
+   for(p = gCharsets[Charset].Map; p != NULL && (*p)[0] != 0; p++) {
+      gGlyphMap[(*p)[0]] = (*p)[1];
+   }
+}
+
+int vt100_get_charset(void)
+{
+   return gCharset;
+}
+
+const char *vt100_charset_name(int Charset)
+{
+   if(Charset < 0 || Charset >= CHARSET_COUNT) {
+      return "?";
+   }
+   return gCharsets[Charset].Name;
+}
+
+static void _vt100_putGlyph(struct vt100 *t, uint8_t ch, bool Inverse);
+
 // sends the character to the display and updates cursor position
 void _vt100_putc(struct vt100 *t, uint8_t ch)
 {
+   // Map to a glyph for the current character set. Bit 7 is ignored, as it
+   // always has been on this console (WordStar, for one, sets it).
+   _vt100_putGlyph(t, gGlyphMap[ch & 0x7f], false);
+}
+
+// puts a glyph of the font on the display and updates cursor position
+static void _vt100_putGlyph(struct vt100 *t, uint8_t ch, bool Inverse)
+{
    // calculate current cursor position in the display ram
    int Offset = (t->cursor_y * VT100_WIDTH) + t->cursor_x;
-   t->VRam[START_OFFSET + Offset] = (uint32_t) ch;
    t->ScreenBuf[Offset] = (char) ch;
+   t->AttrBuf[Offset] = Inverse ? 1 : 0;
+   t->VRam[START_OFFSET + Offset] = _vt100_cell(t,Offset);
    t->CharUnderCursor = 0;
 
    if(&t->ScreenBuf[Offset] >= &t->ScreenBuf[VT100_WIDTH * VT100_HEIGHT]) {
@@ -949,10 +1121,376 @@ STATE(_st_idle, term, ev, arg)
    }
 }
 
+// ITT 3030 terminal mode.
+//
+// The ITT 3030's CP/M does not have a VT100 or ADM-3A style console: its BIOS
+// has screen control codes of its own, and the BASIC programs written for it
+// use them throughout.  This is that code set, as the video driver in the
+// BIOS on the system tracks of an ITT 3030 CP/M 2.2 disk implements it:
+//
+//    07        bell                      0C   clear screen; the cursor goes
+//    08        cursor left                    to the BOTTOM left
+//    0A        line feed                 0D   carriage return
+//    12        inverse video off         1C   inverse video on
+//    11, 13    40 x 12 / 80 x 24 screen; both clear it and reset everything
+//
+//    ESC 10 n     print n blanks         ESC 11       cursor home (top left)
+//    ESC 12       cursor off             ESC 13       cursor on
+//    ESC 14       scroll up one line     ESC 15 w h   set a window
+//    ESC 16 r c   cursor to row r (1 = top), column c (0 = left)
+//    ESC 17       erase to the end of the screen
+//    ESC 18       erase to the end of the line
+//    ESC 19       erase to the end of the line, go to the next line
+//    ESC 1A       cursor right           ESC 1C       cursor up
+//    ESC 1D n c   print character c n times
+//    ESC 1E a     set the attribute (bit 7: inverse)
+//    ESC 1F r c   as ESC 16, with 20 hex added to both r and c
+//
+// Bit 7 of a character is the inverse video bit of the ITT's video memory,
+// so A0-FF are the characters 20-7F in inverse.  80-9F are the inverse of
+// the first 32 glyphs of its character generator, which programs used as
+// graphics.  The shapes are in a character ROM we do not have, but a chess
+// program for the ITT builds its pieces from them, black and white ones as
+// exact complements, and that gives 00-0F away: a 2 x 2 block mosaic, bit 0
+// the top left quarter, bit 1 top right, bit 2 bottom left, bit 3 bottom
+// right.  So 80 is a solid block, and 8F - the inverse of the solid block -
+// only the thin gap the glyph leaves in its cell: the horizontal rule of
+// almost every screen mask.
+//
+// What is left out: the 40 x 12 mode and windows (accepted and ignored), and
+// the glyphs 10-1F, of which nothing is known (inverse they show as a block,
+// plain not at all).
+//
+// Inverse video and the mosaic need a bitstream that has them
+// (FPGA_FEATURE_TEXT_ATTR).  With an older one the rule is drawn with
+// underscores, anything else of the mosaic with a block, and inverse text
+// shows up normal.
+//
+// Everything else, the ANSI sequences included, works as in VT100 mode, so
+// the firmware's own messages and menus look the same in both.
+#define GLYPH_MOSAIC       0xc0     // + the lit quarters, see fpga/vga_font.v
+#define GLYPH_RULE         0xd0
+#define ITT_GLYPH_RULE     '_'      // stand-ins for a display without them
+#define ITT_GLYPH_BLOCK    0x08
+
+static uint8_t gHasTextAttr;
+
+void vt100_set_text_attr(int HasTextAttr)
+{
+   gHasTextAttr = HasTextAttr ? 1 : 0;
+}
+
+static int gTerminal;
+static struct {
+   uint8_t Esc;            // ESC seen, next character decides
+   uint8_t Cmd;            // sequence waiting for parameters, 0 = none
+   uint8_t Need;           // parameters still to come
+   uint8_t Param;          // first parameter of a two parameter sequence
+   uint8_t Attr;           // 0x80: inverse video
+} gItt;
+
+static void IttAbortSequence(void)
+{
+   gItt.Esc = 0;
+   gItt.Cmd = 0;
+   gItt.Need = 0;
+}
+
+// a character (with the ITT's inverse video bit) at the cursor
+static void IttPrint(struct vt100 *t, uint8_t ch)
+{
+   uint8_t Code = ch & 0x7f;
+   bool Inverse = ((ch | gItt.Attr) & 0x80) != 0;
+
+   if(Code >= 0x20) {
+      _vt100_putGlyph(t, gGlyphMap[Code], Inverse && gHasTextAttr);
+   }
+   else {
+   // The mosaic: which quarters of the cell are lit?
+      uint8_t Lit = (Code < 0x10) ? (Code & 0x0f) : 0;
+      bool Rule = Inverse && Code == 0x0f;
+
+      if(Inverse) {
+         Lit ^= 0x0f;
+      }
+      if(gHasTextAttr) {
+         _vt100_putGlyph(t, Rule ? GLYPH_RULE : (GLYPH_MOSAIC | Lit), false);
+      }
+      else {
+         _vt100_putGlyph(t, Rule ? ITT_GLYPH_RULE :
+                            Lit != 0 ? ITT_GLYPH_BLOCK : ' ', false);
+      }
+   }
+}
+
+static void IttFill(struct vt100 *t, int From, int To)
+{
+   int i;
+
+   for(i = From; i < To; i++) {
+      t->ScreenBuf[i] = ' ';
+      t->AttrBuf[i] = 0;
+      t->VRam[START_OFFSET + i] = ' ';
+   }
+}
+
+// Row 1 is the top line, column 0 the left edge.  The ITT computes a video
+// memory address from them and lets it wrap around.
+static void IttSetCursor(struct vt100 *t, uint8_t Row, uint8_t Col)
+{
+   if(Row == 0) {
+      Row = 1;
+   }
+   t->cursor_y = (Row - 1) % VT100_HEIGHT;
+   t->cursor_x = Col < VT100_WIDTH ? Col : VT100_WIDTH - 1;
+}
+
+static void IttClearScreen(struct vt100 *t)
+{
+   IttFill(t, 0, VT100_WIDTH * VT100_HEIGHT);
+   _vt100_resetScroll();
+   t->cursor_x = 0;
+   t->cursor_y = VT100_HEIGHT - 1;
+}
+
+// A sequence has all its parameters: C is the last one
+static void IttCommand(struct vt100 *t, uint8_t Cmd, uint8_t First, uint8_t C)
+{
+   int n;
+
+   switch(Cmd) {
+      case 0x10:  // n blanks
+         for(n = C; n > 0; n--) {
+            IttPrint(t, ' ');
+         }
+         break;
+
+      case 0x15:  // window: not supported
+         break;
+
+      case 0x16:  // cursor to row, column
+         IttSetCursor(t, First, C);
+         break;
+
+      case 0x1d:  // character C, First times
+         for(n = First; n > 0; n--) {
+            IttPrint(t, C);
+         }
+         break;
+
+      case 0x1e:  // attribute
+         gItt.Attr = C & 0x80;
+         break;
+
+      case 0x1f:  // cursor to row + 20h, column + 20h
+         IttSetCursor(t, (uint8_t) (First - 0x20), (uint8_t) (C - 0x20));
+         break;
+
+      default:
+         break;
+   }
+}
+
+// ESC and one of 10..1F
+static void IttEscape(struct vt100 *t, uint8_t c)
+{
+   int Offset = (t->cursor_y * VT100_WIDTH) + t->cursor_x;
+   int LineEnd = (t->cursor_y + 1) * VT100_WIDTH;
+
+   switch(c) {
+      case 0x10:
+      case 0x1e:
+         gItt.Cmd = c;
+         gItt.Need = 1;
+         break;
+
+      case 0x15:
+      case 0x16:
+      case 0x1d:
+      case 0x1f:
+         gItt.Cmd = c;
+         gItt.Need = 2;
+         break;
+
+      case 0x11:  // home
+         t->cursor_x = 0;
+         t->cursor_y = 0;
+         break;
+
+      case 0x12:  // cursor off
+         t->cursor_off = 1;
+         break;
+
+      case 0x13:  // cursor on
+         t->cursor_off = 0;
+         break;
+
+      case 0x14:  // scroll up
+         _vt100_scroll(t, 1);
+         break;
+
+      case 0x17:  // erase to the end of the screen
+         IttFill(t, Offset, VT100_WIDTH * VT100_HEIGHT);
+         break;
+
+      case 0x18:  // erase to the end of the line
+         IttFill(t, Offset, LineEnd);
+         break;
+
+      case 0x19:  // erase to the end of the line, next line
+         IttFill(t, Offset, LineEnd);
+         t->cursor_x = 0;
+         _vt100_move(t, 0, 1);
+         break;
+
+      case 0x1a:  // cursor right
+         _vt100_move(t, 1, 0);
+         break;
+
+      case 0x1c:  // cursor up, not beyond the top line
+         if(t->cursor_y > 0) {
+            t->cursor_y--;
+         }
+         break;
+
+      default:    // 1B and the unassigned ones: nothing
+         break;
+   }
+}
+
+// Returns true if the character has been dealt with here, false if it is
+// for the VT100 state machine.
+static bool IttPutc(struct vt100 *t, uint8_t c)
+{
+   if(t->state != _st_idle) {
+   // in the middle of an ANSI sequence
+      return false;
+   }
+
+   if(gItt.Need != 0) {
+   // a parameter
+      _vt100_removeCursor(t);
+      if(--gItt.Need == 0) {
+         uint8_t Cmd = gItt.Cmd;
+         gItt.Cmd = 0;
+         IttCommand(t, Cmd, gItt.Param, c);
+      }
+      else {
+         gItt.Param = c;
+      }
+      _vt100_drawCursor(t);
+      return true;
+   }
+
+   if(gItt.Esc) {
+      gItt.Esc = 0;
+      if(c >= 0x10 && c <= 0x1f) {
+         _vt100_removeCursor(t);
+         IttEscape(t, c);
+         _vt100_drawCursor(t);
+         return true;
+      }
+   // not one of ours: let the VT100 have the ESC and this character
+      t->state(t, EV_CHAR, KEY_ESC);
+      return false;
+   }
+
+   if(c >= 0x20) {
+      _vt100_removeCursor(t);
+      IttPrint(t, c);
+      _vt100_drawCursor(t);
+      return true;
+   }
+
+   switch(c) {
+      case KEY_ESC:
+         gItt.Esc = 1;
+         return true;
+
+      case '\b':
+      // cursor left, from the left edge to the end of the line above
+         _vt100_removeCursor(t);
+         if(t->cursor_x > 0) {
+            t->cursor_x--;
+         }
+         else if(t->cursor_y > 0) {
+            t->cursor_y--;
+            t->cursor_x = VT100_WIDTH - 1;
+         }
+         _vt100_drawCursor(t);
+         return true;
+
+      case 0x0c:  // clear screen
+         _vt100_removeCursor(t);
+         IttClearScreen(t);
+         _vt100_drawCursor(t);
+         return true;
+
+      case 0x11:  // 40 x 12 screen: there is none, but it clears and resets
+      case 0x13:  // 80 x 24 screen
+         _vt100_removeCursor(t);
+         gItt.Attr = 0;
+         t->cursor_off = 0;
+         IttClearScreen(t);
+         _vt100_drawCursor(t);
+         return true;
+
+      case 0x12:  // inverse video off
+         gItt.Attr = 0;
+         return true;
+
+      case 0x1c:  // inverse video on
+         gItt.Attr = 0x80;
+         return true;
+
+      case '\n':
+      case '\r':
+      case '\t':        // (a glyph on the ITT, but CP/M expands tabs anyway)
+      case KEY_BELL:
+         return false;  // as on the VT100
+
+      default:
+      // any other control code is a glyph of the mosaic on the ITT
+         _vt100_removeCursor(t);
+         IttPrint(t, c);
+         _vt100_drawCursor(t);
+         return true;
+   }
+}
+
+void vt100_set_terminal(int Terminal)
+{
+   if(Terminal < 0 || Terminal >= TERM_COUNT) {
+      Terminal = TERM_VT100;
+   }
+   gTerminal = Terminal;
+   IttAbortSequence();
+   gItt.Attr = 0;
+   // The ITT continues on the next line when a line is full, and programs
+   // rely on it; the VT100 stays in the last column unless told otherwise.
+   term.flags.cursor_wrap = (Terminal == TERM_ITT3030) ? 1 : 0;
+   if(term.cursor_off) {
+      term.cursor_off = 0;
+      _vt100_drawCursor(&term);
+   }
+}
+
+int vt100_get_terminal(void)
+{
+   return gTerminal;
+}
+
+const char *vt100_terminal_name(int Terminal)
+{
+   return Terminal == TERM_ITT3030 ? "ITT 3030" : "VT100";
+}
+
 void vt100_init()
 {
    _vt100_reset(); 
+   vt100_set_charset(CHARSET_US);
    memset(term.ScreenBuf,' ',VT100_WIDTH * VT100_HEIGHT);
+   memset(term.AttrBuf,0,VT100_WIDTH * VT100_HEIGHT);
    memset((void *)VRAM_ADR,' ',SCREEN_X * SCREEN_Y * sizeof(uint32_t));
 }
 
@@ -983,6 +1521,9 @@ void vt100_putc(uint8_t c)
       LOG_R("\n");
    }
 #endif
+   if(gTerminal == TERM_ITT3030 && IttPutc(&term, c)) {
+      return;
+   }
    term.state(&term, EV_CHAR, 0x0000 | c);
 }
 

@@ -33,6 +33,8 @@
 #include "cpm_io.h"
 #include "vt100.h"
 #include "rtc.h"
+#include "fwinfo.h"
+#include "setup.h"
 
 // #define LOG_TO_SERIAL
 // #define LOG_TO_BOTH
@@ -49,7 +51,10 @@ DWORD gBootImageLen;
 #define F_SCREEN_COLOR        6  // F6
 #define F_RESET_Z80           7  // F7
 #define F_VERBOSE_LOG_TOGGLE  8  // F8
+#define F_SWAP_DISK          10  // F10
+#define F_SETUP              12  // F12
 unsigned char gFunctionRequest;
+unsigned char gInFunctionKey;   // guard: prevent re-entrant F-key dispatch
 
 void LoadInitProg(void);
 void HandleFunctionKey(int Function);
@@ -73,6 +78,7 @@ void main()
    uint8_t LastIoState = 0xff;
    uint32_t IoState;
    uint32_t Timeout = 0;
+   uint32_t StartMs[4];
    bool bWasHalted = false;
    
    dly_tap = 0x03;
@@ -81,21 +87,47 @@ void main()
    // This is a PicoRV32 custom instruction 
    asm(".word 0x0600000b");
 
+   // Green on black unless the settings on the USB drive say otherwise
+   ScreenColorSet(COLOR_GREEN);
+
    vt100_init();
+   vt100_set_text_attr((FpgaFeatures() & FPGA_FEATURE_TEXT_ATTR) != 0);
    ALOG_R("Pano Logic G1, Z80 @ 25 Mhz, PicoRV32 @ 25MHz\n");
-   ALOG_R("Compiled " __DATE__ " " __TIME__ "\n\n");
+   ALOG_R("Firmware %s, built %s\n",gFwInfo.version,gFwInfo.built);
+   {
+      uint32_t BuildId = FpgaBuildId();
+      char BitBuilt[24];
+      if(BuildId != 0) {
+         FormatBuildId(BuildId,BitBuilt);
+         ALOG_R("Bitstream built %s\n",BitBuilt);
+      }
+   }
+   ALOG_R("\n");
 
    gCapsLockSwap = 1;
+   StartMs[0] = ticks_ms();
    usb_init();
    drv_usb_kbd_init();
+   StartMs[1] = ticks_ms();
 
    do {
       // Main loop
       res = f_mount(&FatFs, "", 1);
       if(res != FR_OK) {
-         ELOG("Unable to mount filesystem: %d\n", (int)res);
+         if(res == FR_NOT_READY) {
+            ALOG_R("No USB storage detected.\n");
+         }
+         else if(res == FR_NO_FILESYSTEM) {
+            ALOG_R("USB drive has no FAT filesystem.\n");
+         }
+         else {
+            ELOG("Unable to mount filesystem: %d\n", (int)res);
+         }
          break;
       }
+
+      // colour, character set, ... as they were left the last time
+      SettingsLoad();
 
       LOG("Current directory: %s%s\n", root, directory);
 
@@ -131,7 +163,19 @@ void main()
       f_closedir(&Dir);
    } while(false);
 
+   StartMs[2] = ticks_ms();
    MountCpmDrives();
+   StartMs[3] = ticks_ms();
+   // Where the time between power-on and the prompt went, in tenths of a
+   // second: finding the USB devices, getting the drive and its file system
+   // going, opening the disk images.
+   ALOG_R("Start-up: USB devices %lu.%lu s, USB drive %lu.%lu s, disk images %lu.%lu s\n",
+          (unsigned long) ((StartMs[1] - StartMs[0]) / 1000),
+          (unsigned long) ((StartMs[1] - StartMs[0]) % 1000 / 100),
+          (unsigned long) ((StartMs[2] - StartMs[1]) / 1000),
+          (unsigned long) ((StartMs[2] - StartMs[1]) % 1000 / 100),
+          (unsigned long) ((StartMs[3] - StartMs[2]) / 1000),
+          (unsigned long) ((StartMs[3] - StartMs[2]) % 1000 / 100));
    LoadInitProg();
    z80_con_status = 0;  // No console input yet
 
@@ -240,22 +284,13 @@ void HandleFunctionKey(int Function)
          else {
             gCapsLockSwap = 1;
          }
+         SettingsSave();
          break;
 
       case F_SCREEN_COLOR:
-      // toggle green screen
-         if(font_fg_color == GREEN) {
-            font_fg_color = WHITE;
-            font_bg_color = BLACK;
-         }
-         else if(font_fg_color == WHITE) {
-            font_fg_color = BLACK;
-            font_bg_color = WHITE;
-         }
-         else {
-            font_fg_color = GREEN;
-            font_bg_color = BLACK;
-         }
+      // cycle amber -> green -> white on black -> black on white
+         ScreenColorSet((ScreenColorGet() + 1) % COLOR_COUNT);
+         SettingsSave();
          break;
 
       case F_RESET_Z80:
@@ -265,6 +300,15 @@ void HandleFunctionKey(int Function)
 
       case F_VERBOSE_LOG_TOGGLE:
          LOG("z80_io_state: %d, z80_io_adr: %d\n",z80_io_state,z80_io_adr);
+         break;
+
+      case F_SETUP:
+      // settings, and the less frequent actions, in one menu
+         SetupMenu();
+         break;
+
+      case F_SWAP_DISK:
+         SwapDiskMenu();
          break;
    }
 }
@@ -293,8 +337,18 @@ void IdlePoll()
       gWriteFlushTimeout = 0;
       FlushWriteCache();
    }
-   if(gFunctionRequest != 0) {
-      HandleFunctionKey(gFunctionRequest);
+   // Clear the request BEFORE dispatching, and guard against re-entry: a
+   // handler that puts up a menu calls IdlePoll() while it waits for a key,
+   // so without this a pending F-key would recursively re-invoke its own
+   // handler until the stack overflows.
+   if(gFunctionRequest != 0 && !gInFunctionKey) {
+      unsigned char Request = gFunctionRequest;
+      gFunctionRequest = 0;
+      gInFunctionKey = 1;
+      HandleFunctionKey(Request);
+      gInFunctionKey = 0;
+      // Drop any function key pressed while a blocking handler (a menu) was
+      // running, rather than firing it as soon as the menu closes.
       gFunctionRequest = 0;
    }
 }

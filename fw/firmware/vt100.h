@@ -33,9 +33,38 @@ extern "C" {
 #define VT100_HEIGHT 24
 #define START_OFFSET (3 * VT100_WIDTH)
 
+// National character sets (ISO 646 variants)
+enum {
+   CHARSET_US = 0,
+   CHARSET_GERMAN,
+   CHARSET_COUNT
+};
+
+// Terminal emulations
+enum {
+   TERM_VT100 = 0,
+   TERM_ITT3030,     // VT100 plus the ITT 3030's own screen control codes
+   TERM_COUNT
+};
+
 void vt100_init(void);
 void vt100_putc(uint8_t ch);
+void vt100_set_terminal(int Terminal);
+// Tell the console that the display has inverse video and the block mosaic
+// glyphs (FPGA_FEATURE_TEXT_ATTR, see fwinfo.h).
+void vt100_set_text_attr(int HasTextAttr);
+int vt100_get_terminal(void);
+const char *vt100_terminal_name(int Terminal);
 void vt100_puts(const char *str);
+void vt100_set_charset(int Charset);
+
+// Keep the screen and the cursor aside while a menu uses the display, and put
+// them back afterwards (or forget them).  One level only.
+void vt100_screen_save(void);
+void vt100_screen_restore(void);
+void vt100_screen_forget(void);
+int vt100_get_charset(void);
+const char *vt100_charset_name(int Charset);
 
 #ifdef __cplusplus
 }
