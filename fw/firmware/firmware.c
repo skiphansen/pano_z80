@@ -49,7 +49,9 @@ DWORD gBootImageLen;
 #define F_SCREEN_COLOR        6  // F6
 #define F_RESET_Z80           7  // F7
 #define F_VERBOSE_LOG_TOGGLE  8  // F8
+#define F_SWAP_DISK          10  // F10
 unsigned char gFunctionRequest;
+unsigned char gInFunctionKey;   // guard: prevent re-entrant F-key dispatch
 
 void LoadInitProg(void);
 void HandleFunctionKey(int Function);
@@ -266,6 +268,10 @@ void HandleFunctionKey(int Function)
       case F_VERBOSE_LOG_TOGGLE:
          LOG("z80_io_state: %d, z80_io_adr: %d\n",z80_io_state,z80_io_adr);
          break;
+
+      case F_SWAP_DISK:
+         SwapDiskMenu();
+         break;
    }
 }
 
@@ -293,8 +299,18 @@ void IdlePoll()
       gWriteFlushTimeout = 0;
       FlushWriteCache();
    }
-   if(gFunctionRequest != 0) {
-      HandleFunctionKey(gFunctionRequest);
+   // Clear the request BEFORE dispatching, and guard against re-entry: a
+   // handler that puts up a menu calls IdlePoll() while it waits for a key,
+   // so without this a pending F-key would recursively re-invoke its own
+   // handler until the stack overflows.
+   if(gFunctionRequest != 0 && !gInFunctionKey) {
+      unsigned char Request = gFunctionRequest;
+      gFunctionRequest = 0;
+      gInFunctionKey = 1;
+      HandleFunctionKey(Request);
+      gInFunctionKey = 0;
+      // Drop any function key pressed while a blocking handler (a menu) was
+      // running, rather than firing it as soon as the menu closes.
       gFunctionRequest = 0;
    }
 }
