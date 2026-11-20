@@ -113,8 +113,22 @@ defparam BRAM_PC_VGA_0.INIT_3F = 256'h000000000000000000000000dc7600000000000000
 // (fw/firmware/vt100.c) are defined; all other upper-half codes render
 // blank. These live in LUTs rather than a second block RAM because the
 // block RAMs are almost all used by the Z80's 64K of memory.
+//
+// C0-CF are a 2 x 2 block mosaic, the graphics characters of the ITT 3030:
+// bit 0 lights the top left quarter of the cell, bit 1 the top right, bit 2
+// the bottom left and bit 3 the bottom right one.  D0 is a thin horizontal
+// rule near the bottom of the cell.
+wire [1:0] mosaic_half = row[3] ? ascii_code[3:2] : ascii_code[1:0];
+wire [7:0] mosaic_bits = {{4{mosaic_half[0]}}, {4{mosaic_half[1]}}};
+wire [7:0] rule_bits = (row == 4'd13 || row == 4'd14) ? 8'hff : 8'h00;
+
 reg [7:0] ext_bits;
 always @(*) begin
+ if (ascii_code[6:4] == 3'b100)
+  ext_bits = mosaic_bits;
+ else if (ascii_code[6:0] == 7'h50)
+  ext_bits = rule_bits;
+ else
   case ({ascii_code[6:0], row})
     // 0x81: u umlaut
     {7'h01, 4'd2}: ext_bits = 8'hcc;
