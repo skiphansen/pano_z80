@@ -444,6 +444,13 @@ void HandleIoOut(uint8_t IoPort,uint8_t Data)
       case 50: // client socket #1 status
       case 51: // client socket #1 data
       default:
+         if(IoPort == 0x32 && vt100_get_terminal() == TERM_ITT3030) {
+         // On the ITT 3030 this port is the beeper, and programs make
+         // sound by switching it on and off themselves, thousands of
+         // times.  There is no sound here; a message for each of those
+         // would bury the screen and bring the program to a crawl.
+            break;
+         }
          ELOG("Output of 0x%x to port 0x%x ignored\n",Data,IoPort);
          break;
    }
