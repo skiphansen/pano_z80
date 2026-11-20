@@ -768,6 +768,11 @@ module pano_top #(
                     4'd1: gpio_rdata <= {29'd0, led_blue, led_green, led_red};
                     4'd3: gpio_rdata <= {31'd0, z80_rst};
                     4'd6: gpio_rdata <= {31'd0, AUDIO_SDA};
+                    // What this bitstream can do, for the firmware to ask.
+                    // "FT" in the upper half says that the register exists.
+                    //   bit 0: inverse video (bit 8 of a screen memory word)
+                    //          and the block mosaic glyphs C0-CF, D0
+                    4'd13: gpio_rdata <= 32'h46540001;
                     4'd14: gpio_rdata <= 32'h42494431;
                     4'd15: gpio_rdata <= BUILD_ID;
                 endcase
@@ -808,7 +813,7 @@ module pano_top #(
     wire vga_vs;
     wire [6:0] dbg_x;
     wire [4:0] dbg_y;
-    wire [7:0] dbg_char;
+    wire [8:0] dbg_char;
     wire dbg_clk;
     wire [23:0] font_fg_color;
     wire [23:0] font_bg_color;
@@ -849,18 +854,21 @@ module pano_top #(
     
     wire vram_wea = (vram_valid && (mem_wstrb != 0)) ? 1'b1 : 1'b0;
     
-    wire [7:0] vram_dout;
+    // One word per character cell: the glyph in bits 7:0, bit 8 shows the
+    // cell in inverse video.  (This memory is built from LUTs - the block
+    // RAMs are all taken - so the ninth bit costs a few hundred of those.)
+    wire [8:0] vram_dout;
     wire [11:0] rd_addr = dbg_y * 80 + dbg_x;
-    dualport_ram vram(
+    dualport_ram #(.WIDTH(9)) vram(
         .clka(clk_rv),
         .wea(vram_wea),
         .addra(mem_addr[13:2]),
-        .dina(mem_wdata[7:0]),
+        .dina(mem_wdata[8:0]),
         .clkb(!clk_vga),
         .addrb(rd_addr[11:0]),
         .doutb(vram_dout)
     );
-    assign dbg_char = vram_dout[7:0];
+    assign dbg_char = vram_dout[8:0];
     
  // Z80 <-> RISC V I/O interface
     cpm_io cpm_io(
