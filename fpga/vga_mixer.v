@@ -34,7 +34,7 @@ module vga_mixer(
     // Debugger Char Input
     output wire [6:0] dbg_x,
     output wire [4:0] dbg_y,
-    input wire [6:0] dbg_char,
+    input wire [7:0] dbg_char,
     output wire dbg_sync,
     input wire [24:0] font_fg_color,
     input wire [24:0] font_bg_color,
@@ -79,7 +79,7 @@ module vga_mixer(
     wire gb_grid; // If it's on grid line
 
     //VGA font
-    wire [6:0] font_ascii;
+    wire [7:0] font_ascii;
     wire [3:0] font_row;
     wire [2:0] font_col;
     wire font_pixel;
@@ -88,7 +88,7 @@ module vga_mixer(
     wire signal_in_text_range = ((vga_y <= 20) || (vga_y >= 460));
     assign dbg_x[6:0] = vga_x[9:3];
     assign dbg_y[4:0] = vga_y[8:4];
-    assign font_ascii[6:0] = dbg_char[6:0];
+    assign font_ascii[7:0] = dbg_char[7:0];
     assign font_row[3:0] = vga_y[3:0];
     assign font_col[2:0] = vga_x[2:0];
     wire [7:0] text_r = (font_pixel) ? (font_fg_color[23:16]) : (font_bg_color[23:16]);

@@ -372,9 +372,135 @@ void _vt100_drawCursor(struct vt100 *t)
    t->VRam[START_OFFSET + Offset] = CURSOR_CHAR;
 }
 
+// A menu (see setup.c) takes over the display for a while.  The screen of the
+// program that was running - its text, the cursor, the scroll region - is
+// kept here meanwhile, and put back when the menu is done.
+static struct {
+   char ScreenBuf[VT100_WIDTH * VT100_HEIGHT];
+   int16_t cursor_x, cursor_y;
+   int16_t saved_cursor_x, saved_cursor_y;
+   int16_t scroll_start_row, scroll_end_row;
+   uint8_t flags;
+   uint8_t Valid;
+} gSavedScreen;
+
+void vt100_screen_save(void)
+{
+   _vt100_removeCursor(&term);
+   memcpy(gSavedScreen.ScreenBuf,term.ScreenBuf,sizeof(term.ScreenBuf));
+   gSavedScreen.cursor_x = term.cursor_x;
+   gSavedScreen.cursor_y = term.cursor_y;
+   gSavedScreen.saved_cursor_x = term.saved_cursor_x;
+   gSavedScreen.saved_cursor_y = term.saved_cursor_y;
+   gSavedScreen.scroll_start_row = term.scroll_start_row;
+   gSavedScreen.scroll_end_row = term.scroll_end_row;
+   gSavedScreen.flags = term.flags.val;
+   gSavedScreen.Valid = 1;
+   // the menu gets a terminal in its initial state
+   _vt100_resetScroll();
+   term.state = _st_idle;
+   term.ret_state = 0;
+   _vt100_drawCursor(&term);
+}
+
+void vt100_screen_restore(void)
+{
+   int i;
+
+   if(!gSavedScreen.Valid) {
+      return;
+   }
+   gSavedScreen.Valid = 0;
+   term.CharUnderCursor = 0;  // whatever the menu left there goes with it
+   memcpy(term.ScreenBuf,gSavedScreen.ScreenBuf,sizeof(term.ScreenBuf));
+   for(i = 0; i < VT100_WIDTH * VT100_HEIGHT; i++) {
+      term.VRam[START_OFFSET + i] = (uint32_t) (uint8_t) term.ScreenBuf[i];
+   }
+   term.cursor_x = gSavedScreen.cursor_x;
+   term.cursor_y = gSavedScreen.cursor_y;
+   term.saved_cursor_x = gSavedScreen.saved_cursor_x;
+   term.saved_cursor_y = gSavedScreen.saved_cursor_y;
+   term.scroll_start_row = gSavedScreen.scroll_start_row;
+   term.scroll_end_row = gSavedScreen.scroll_end_row;
+   term.flags.val = gSavedScreen.flags;
+   term.state = _st_idle;
+   term.ret_state = 0;
+   _vt100_drawCursor(&term);
+}
+
+void vt100_screen_forget(void)
+{
+   gSavedScreen.Valid = 0;
+}
+
+// National character sets.
+//
+// The console only handles 7-bit ASCII, like the terminals of the era. A
+// national variant of ISO 646 replaces a few of the less common symbols with
+// local letters, e.g. German (DIN 66003) shows '[' as 'Ä' and '~' as 'ß'.
+// Each entry maps an ASCII code to a glyph in the font ROM. Glyphs >= 0x80
+// are the extended glyphs in fpga/vga_font.v, at their CP437 positions.
+static const uint8_t gGermanMap[][2] = {
+   {'@',  0x15},  // §
+   {'[',  0x8e},  // Ä
+   {'\\', 0x99},  // Ö
+   {']',  0x9a},  // Ü
+   {'{',  0x84},  // ä
+   {'|',  0x94},  // ö
+   {'}',  0x81},  // ü
+   {'~',  0xe1},  // ß
+   {0, 0}
+};
+
+static const struct {
+   const char *Name;
+   const uint8_t (*Map)[2];   // {ascii, glyph} pairs ending with {0, 0}
+} gCharsets[CHARSET_COUNT] = {
+   [CHARSET_US]     = {"US ASCII", NULL},
+   [CHARSET_GERMAN] = {"German (DIN 66003)", gGermanMap},
+};
+
+static int gCharset;
+static uint8_t gGlyphMap[128];
+
+void vt100_set_charset(int Charset)
+{
+   const uint8_t (*p)[2];
+   int i;
+
+   if(Charset < 0 || Charset >= CHARSET_COUNT) {
+      Charset = CHARSET_US;
+   }
+   gCharset = Charset;
+
+   for(i = 0; i < 128; i++) {
+      gGlyphMap[i] = (uint8_t) i;
+   }
+   for(p = gCharsets[Charset].Map; p != NULL && (*p)[0] != 0; p++) {
+      gGlyphMap[(*p)[0]] = (*p)[1];
+   }
+}
+
+int vt100_get_charset(void)
+{
+   return gCharset;
+}
+
+const char *vt100_charset_name(int Charset)
+{
+   if(Charset < 0 || Charset >= CHARSET_COUNT) {
+      return "?";
+   }
+   return gCharsets[Charset].Name;
+}
+
 // sends the character to the display and updates cursor position
 void _vt100_putc(struct vt100 *t, uint8_t ch)
 {
+   // Map to a glyph for the current character set. Bit 7 is ignored, as it
+   // always has been on this console (WordStar, for one, sets it).
+   ch = gGlyphMap[ch & 0x7f];
+
    // calculate current cursor position in the display ram
    int Offset = (t->cursor_y * VT100_WIDTH) + t->cursor_x;
    t->VRam[START_OFFSET + Offset] = (uint32_t) ch;
@@ -952,6 +1078,7 @@ STATE(_st_idle, term, ev, arg)
 void vt100_init()
 {
    _vt100_reset(); 
+   vt100_set_charset(CHARSET_US);
    memset(term.ScreenBuf,' ',VT100_WIDTH * VT100_HEIGHT);
    memset((void *)VRAM_ADR,' ',SCREEN_X * SCREEN_Y * sizeof(uint32_t));
 }

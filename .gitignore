@@ -2,3 +2,5 @@ xilinx/iseconfig/
 xilinx/work/
 tools/bin2mif/bin2mif
 
+fw/firmware/firmware.img
+PANOUPD.BIN

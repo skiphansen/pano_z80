@@ -75,6 +75,7 @@
 #define BLACK           0
 #define WHITE           0xffffff
 #define GREEN           0x00ff00
+#define AMBER           0xffb000   // P3 amber phosphor (~602 nm)
 
 #define INIT_IMAGE_FILENAME   "BOOT.IMG"
 
@@ -95,6 +96,13 @@ extern MapMode gMountMode;
 extern unsigned char gZ80_ResetRequest;
 
 int MountCpmDrives();
+/* What SwapDisk() did */
+enum {
+   SWAP_NONE = 0,    /* cancelled, or it did not work: nothing changed */
+   SWAP_RELOGIN,     /* data drive swapped; CP/M has to log it in again */
+   SWAP_REBOOT       /* A: swapped; the Z80 reset is requested */
+};
+int SwapDisk(void);
 int LoadImage(const char *Filename,FSIZE_t Len);
 void HandleIoIn(uint8_t IoPort);
 void HandleIoOut(uint8_t IoPort,uint8_t Data);

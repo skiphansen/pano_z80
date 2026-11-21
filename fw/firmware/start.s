@@ -67,6 +67,19 @@ addi a1, a1, 4
 blt a1, a2, loop_init_data
 end_init_data:
 
+# copy .ramtext section (RAM-resident flash routines) from FLASH to RAM
+la a0, _sramtext_load
+la a1, _sramtext
+la a2, _eramtext
+bge a1, a2, end_init_ramtext
+loop_init_ramtext:
+lw a3, 0(a0)
+sw a3, 0(a1)
+addi a0, a0, 4
+addi a1, a1, 4
+blt a1, a2, loop_init_ramtext
+end_init_ramtext:
+
 # zero-init bss section
 la a0, _sbss
 la a1, _ebss

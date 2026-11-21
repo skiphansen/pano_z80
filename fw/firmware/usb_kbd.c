@@ -173,6 +173,13 @@ static void usb_kbd_put_queue(char data)
    return;
 }
 
+/* public: inject a character into the keyboard input queue.  Used by the
+ * firmware itself, e.g. to send a ^C to warm-boot CP/M after a disk swap. */
+void usb_kbd_inject(char data)
+{
+   usb_kbd_put_queue(data);
+}
+
 /* test if a character is in the queue */
 int usb_kbd_testc(void)
 {
