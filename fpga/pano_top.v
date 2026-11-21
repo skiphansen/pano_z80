@@ -240,11 +240,12 @@ module pano_top #(
     wire z80_BUSAK_n;
     wire z80_Ready;
     wire io_ready;
-    
+    wire z80_cen;          // clock enable, sets the Z80's speed (cpm_io.v)
+
     T80sed T80sed(
         .RESET_n(!z80_rst),
         .CLK_n(clk_z80),
-        .CLKEN(1'b1),
+        .CLKEN(z80_cen),
         .WAIT_n(z80_Ready),
         .INT_n(1'b1),
         .NMI_n(1'b1),
@@ -772,7 +773,9 @@ module pano_top #(
                     // "FT" in the upper half says that the register exists.
                     //   bit 0: inverse video (bit 8 of a screen memory word)
                     //          and the block mosaic glyphs C0-CF, D0
-                    4'd13: gpio_rdata <= 32'h46540001;
+                    //   bit 1: sound (the beeper on port 32h, the codec's
+                    //          I2S lines) and the Z80 speed register
+                    4'd13: gpio_rdata <= 32'h46540003;
                     4'd14: gpio_rdata <= 32'h42494431;
                     4'd15: gpio_rdata <= BUILD_ID;
                 endcase
@@ -871,6 +874,7 @@ module pano_top #(
     assign dbg_char = vram_dout[8:0];
     
  // Z80 <-> RISC V I/O interface
+    wire beep;
     cpm_io cpm_io(
         .clk(clk_rv),
         .reset(!rst_rv),
@@ -882,6 +886,7 @@ module pano_top #(
         .z80do(z80do),
         .z80_io_ready(io_ready),
         .z80hlt(!z80_HALT_n),
+        .z80_reset(z80_rst),
 
     // RISC V interface
         .io_valid(z80_io_valid),
@@ -892,9 +897,25 @@ module pano_top #(
 
      // vga_mixer interface
         .font_fg_color(font_fg_color),
-        .font_bg_color(font_bg_color)
+        .font_bg_color(font_bg_color),
+
+     // sound and speed
+        .beep(beep),
+        .z80_cen(z80_cen)
         );
     assign z80_Ready = !(!z80_IORQ_n && !io_ready);
+
+    // ----------------------------------------------------------------------
+    // Sound: the ITT 3030 beeper on the WM8750 codec
+    audio_beeper audio_beeper(
+        .clk(clk_rv),
+        .reset(!rst_rv),
+        .on(beep),
+        .mclk(AUDIO_MCLK),
+        .bclk(AUDIO_BCLK),
+        .lrck(AUDIO_DACLRCK),
+        .dacdat(AUDIO_DACDATA)
+    );
         
 // synthesis translate_off
     always @(posedge clk_rv) begin

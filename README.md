@@ -264,7 +264,8 @@ word it does not happen, and the same check makes sure of that.
 `fw/firmware/test` also has host-side tests for the settings file and the
 setup menu, for the translations, and for the console: two screens of a real
 ITT 3030 BASIC program are sent through the ITT 3030 emulation and compared
-with what they have to look like.
+with what they have to look like.  `sim/audio` simulates the sound and speed
+logic: the codec's I2S stream, port 32h and the Z80 clock enable.
 
 `sim/flashupdate` runs that same code on the real `picorv32`, `cache`,
 `spimemio` and DDR bridge RTL against a behavioural model of the flash, and
