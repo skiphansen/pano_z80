@@ -14,6 +14,8 @@
 #include <stdint.h>
 #include "cpm_io.h"
 uint32_t host_vram[SCREEN_X * SCREEN_Y];
+static int bells;
+void Bell(void) { bells++; }               /* sound.c: BEL rings it */
 #undef isdigit
 #include "build/vt100_copy.c"
 
@@ -58,6 +60,7 @@ int main(int argc, char **argv) {
          inv[x] = 0; printf("  |%s\n", inv);
       }
    }
+   printf("[bells %d]\n", bells);
    printf("[cursor row %d col %d %s]\n", term.cursor_y + 1, term.cursor_x, term.cursor_off ? "off" : "on");
    return 0;
 }

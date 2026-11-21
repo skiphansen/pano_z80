@@ -14,13 +14,15 @@
  *    keyboard=de
  *    language=de
  *    rtc=off
+ *    sound=on
+ *    z80speed=4
  *
  * The file is read once at power-on and rewritten whenever a setting is
  * changed, here or with F5 / F6.  Lines the firmware does not understand are
  * ignored (and are not kept when the file is rewritten).  Without a file the
  * defaults apply, and those are what this firmware did before it had
  * settings: green on black, US ASCII, Caps Lock and Ctrl swapped, VT100, US
- * keyboard, English, RTC on.
+ * keyboard, English, RTC on, sound on, the Z80 at full speed.
  *
  * F12 brings up the setup menu, which changes these settings and gives access
  * to the less frequent actions (swap a disk, update from USB, reset the Z80)
@@ -41,6 +43,7 @@
 #include "messages.h"
 #include "log.h"
 #include "setup.h"
+#include "sound.h"
 
 #define SETTINGS_NAME   "PANOZ80.CFG"
 #define SETTINGS_MAX    512            /* more than the file ever needs */
@@ -191,6 +194,29 @@ static void ApplyLine(char *Line)
          gRtcOn = 0;
       }
    }
+   else if(WordIs(Key, "sound")) {
+      if(WordIs(Value, "on")) {
+         SoundSet(true);
+      }
+      else if(WordIs(Value, "off")) {
+         SoundSet(false);
+      }
+   }
+   else if(WordIs(Key, "z80speed")) {
+      /* "full", or the clock in MHz */
+      if(WordIs(Value, "full")) {
+         Z80SpeedSet(Z80_MHZ_FULL);
+      }
+      else if(Value[0] >= '1' && Value[0] <= '9') {
+         int Mhz = 0;
+         for(p = Value; *p >= '0' && *p <= '9' && Mhz <= Z80_MHZ_MAX; p++) {
+            Mhz = Mhz * 10 + (*p - '0');
+         }
+         if(*p == 0 && Mhz <= Z80_MHZ_MAX) {
+            Z80SpeedSet(Mhz);
+         }
+      }
+   }
    else if(WordIs(Key, "capslock")) {
       if(WordIs(Value, "ctrl")) {
          gCapsLockSwap = 1;
@@ -240,9 +266,16 @@ int SettingsSave(void)
    FIL File;
    UINT Written = 0;
    char Text[SETTINGS_MAX];
+   char Speed[8];
    int Len;
    FRESULT Err;
 
+   if(Z80SpeedGet() == Z80_MHZ_FULL) {
+      strcpy(Speed, "full");
+   }
+   else {
+      snprintf(Speed, sizeof(Speed), "%d", Z80SpeedGet());
+   }
    Len = snprintf(Text, sizeof(Text),
                   "# Pano Z80 settings - change them with the setup menu (F12)\r\n"
                   "color=%s\r\n"
@@ -251,14 +284,18 @@ int SettingsSave(void)
                   "terminal=%s\r\n"
                   "keyboard=%s\r\n"
                   "language=%s\r\n"
-                  "rtc=%s\r\n",
+                  "rtc=%s\r\n"
+                  "sound=%s\r\n"
+                  "z80speed=%s\r\n",
                   gColors[gColor].Key,
                   gCharsetKeys[vt100_get_charset()],
                   gCapsLockSwap ? "ctrl" : "capslock",
                   gTerminalKeys[vt100_get_terminal()],
                   KbdLayoutKey(KbdLayoutGet()),
                   LanguageKey(LanguageGet()),
-                  gRtcOn ? "on" : "off");
+                  gRtcOn ? "on" : "off",
+                  SoundGet() ? "on" : "off",
+                  Speed);
    if(Len <= 0 || Len >= (int) sizeof(Text)) {
       return -1;
    }
@@ -357,6 +394,18 @@ static void DrawMenu(void)
    ALOG_R("  6  Language             %s\n", LanguageName(LanguageGet()));
    ALOG_R("  7  RTC                  %s\n",
           gRtcOn ? TR("on (asks for date and time at power-on)") : TR("off"));
+   if(SoundAvailable()) {
+      ALOG_R("  8  Sound                %s\n", SoundGet() ? TR("on") : TR("off"));
+      if(Z80SpeedGet() == Z80_MHZ_FULL) {
+         ALOG_R("  9  Z80 speed            %s\n", TR("full speed (25 MHz)"));
+      }
+      else if(Z80SpeedGet() == Z80_MHZ_ITT3030) {
+         ALOG_R("  9  Z80 speed            %s\n", TR("4 MHz, like the ITT 3030"));
+      }
+      else {
+         ALOG_R("  9  Z80 speed            %d MHz\n", Z80SpeedGet());
+      }
+   }
    ALOG_R("\n");
    ALOG_R("  D  Swap a disk image\n");
    ALOG_R("  U  Update firmware and bitstream from the USB drive\n");
@@ -415,6 +464,20 @@ void SetupMenu(void)
          case '7':
             gRtcOn = gRtcOn ? 0 : 1;
             Changed = true;
+            break;
+
+         case '8':
+            if(SoundAvailable()) {
+               SoundSet(!SoundGet());
+               Changed = true;
+            }
+            break;
+
+         case '9':
+            if(SoundAvailable()) {
+               Z80SpeedSet(Z80SpeedGet() == Z80_MHZ_FULL ? Z80_MHZ_ITT3030 : Z80_MHZ_FULL);
+               Changed = true;
+            }
             break;
 
          case 'd':

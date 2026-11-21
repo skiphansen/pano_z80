@@ -39,6 +39,8 @@ uint32_t FpgaBuildId(void);
 #define FPGA_FEATURE_TEXT_ATTR   0x0001u  /* inverse video per character cell
                                            * (bit 8 of a screen memory word),
                                            * block mosaic glyphs C0-CF, D0 */
+#define FPGA_FEATURE_SOUND       0x0002u  /* the beeper (port 32h) on the audio
+                                           * codec, and the Z80 speed register */
 uint32_t FpgaFeatures(void);
 
 /* Is this a usable build ID?  (0 and 0xFFFFFFFF both mean "not set") */

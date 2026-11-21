@@ -31,6 +31,7 @@
 #include "printf.h"
 #include "ff.h"
 #include "cpm_io.h"
+#include "sound.h"
 
 // #define ECHO_CONSOLE_2_SERIAL
 
@@ -1144,8 +1145,7 @@ STATE(_st_idle, term, ev, arg)
                      break;
                   }
                case KEY_BELL: { // bell is sent by bash for ex. when doing tab completion
-                     // sound the speaker bell?
-                     // skip
+                     Bell();
                      break; 
                   }
                case KEY_ESC: // escape

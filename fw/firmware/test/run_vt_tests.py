@@ -107,6 +107,11 @@ check("firmware text is UTF-8: umlauts whatever the character set, ? for what th
       s[1] == "Grose zuruck AOUa P {|} caf?", (s, cur))
 s, cur, rc = screen("\u00e4{".encode("utf-8"), "utf8", "german")
 check("firmware text is UTF-8: and ASCII still goes through the character set", s[1] == "aa", (s, cur))
-n = 19
+r = subprocess.run(["./build/vt_harness"], input=b"a\x07b", capture_output=True)
+v = subprocess.run(["./build/vt_harness", "itt"], input=b"\x0ca\x07\x07b", capture_output=True)
+check("BEL rings the bell, in both terminal modes, and prints nothing",
+      b"[bells 1]" in r.stdout and b"01|ab\n" in r.stdout and b"[bells 2]" in v.stdout and b"24|ab\n" in v.stdout,
+      (r.stdout[-80:], v.stdout[-80:]))
+n = 20
 print("%d/%d passed" % (n - fails, n))
 sys.exit(1 if fails else 0)

@@ -4,7 +4,8 @@
  *   setup_harness load "<file text>"          apply a settings file, print state
  *   setup_harness menu "<keys>" ["<file>"]    run the menu with these keys
  *   setup_harness swap "<keys>" [relogin|reboot]  the disk swap key (F10)
- *   (menu takes relogin|reboot in place of the file, too: what a swap did)
+ *   (menu takes relogin|reboot in place of the file, too: what a swap did;
+ *    nosound: a bitstream without sound)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +32,12 @@ void vt100_set_terminal(int t) { g_terminal = t; }
 int vt100_get_terminal(void) { return g_terminal; }
 const char *vt100_terminal_name(int t) { return t ? "ITT 3030" : "VT100"; }
 static int g_kbd;
+static int g_sound_avail = 1, g_sound = 1, g_speed;
+bool SoundAvailable(void) { return g_sound_avail; }
+void SoundSet(bool on) { g_sound = on; }
+bool SoundGet(void) { return g_sound; }
+void Z80SpeedSet(int mhz) { g_speed = mhz; }
+int Z80SpeedGet(void) { return g_speed; }
 int KbdLayoutCount(void) { return 2; }
 void KbdLayoutSet(int l) { g_kbd = l; }
 int KbdLayoutGet(void) { return g_kbd; }
@@ -72,8 +79,8 @@ FRESULT f_write(FIL *fp, const void *buf, UINT n, UINT *put) {
 FRESULT f_close(FIL *fp) { (void)fp; return FR_OK; }
 
 static void state(void) {
-   printf("[state: color=%d fg=%06x bg=%06x charset=%d caps=%d term=%d kbd=%d lang=%s rtc=%d | saved=%d restored=%d forgot=%d writes=%d reset=%d keys-left=%d]\n",
-          ScreenColorGet(), font_fg_color, font_bg_color, g_charset, gCapsLockSwap, g_terminal, g_kbd, LanguageKey(LanguageGet()), gRtcOn,
+   printf("[state: color=%d fg=%06x bg=%06x charset=%d caps=%d term=%d kbd=%d lang=%s rtc=%d sound=%d speed=%d | saved=%d restored=%d forgot=%d writes=%d reset=%d keys-left=%d]\n",
+          ScreenColorGet(), font_fg_color, font_bg_color, g_charset, gCapsLockSwap, g_terminal, g_kbd, LanguageKey(LanguageGet()), gRtcOn, g_sound, g_speed,
           g_saved, g_restored, g_forgot, g_writes, gZ80_ResetRequest, (int)strlen(g_keys));
    if(g_filelen >= 0) { printf("[file:\n"); fwrite(g_file, 1, (size_t)g_filelen, stdout); printf("]\n"); }
 }
@@ -94,6 +101,7 @@ int main(int argc, char **argv) {
       if(argc >= 4 && !strcmp(argv[3], "failwrite")) g_failwrite = 1;
       else if(argc >= 4 && !strcmp(argv[3], "relogin")) g_swap_result = SWAP_RELOGIN;
       else if(argc >= 4 && !strcmp(argv[3], "reboot")) g_swap_result = SWAP_REBOOT;
+      else if(argc >= 4 && !strcmp(argv[3], "nosound")) g_sound_avail = 0;
       else if(argc >= 4) { setfile(argv[3]); SettingsLoad(); }
       if(!strcmp(argv[1], "swap")) SwapDiskMenu(); else SetupMenu();
       state(); return 0;

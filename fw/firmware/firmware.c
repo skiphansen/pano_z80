@@ -35,6 +35,7 @@
 #include "rtc.h"
 #include "fwinfo.h"
 #include "setup.h"
+#include "sound.h"
 
 // #define LOG_TO_SERIAL
 // #define LOG_TO_BOTH
@@ -92,6 +93,7 @@ void main()
 
    vt100_init();
    vt100_set_text_attr((FpgaFeatures() & FPGA_FEATURE_TEXT_ATTR) != 0);
+   SoundInit();
    ALOG_R("Pano Logic G1, Z80 @ 25 Mhz, PicoRV32 @ 25MHz\n");
    ALOG_R("Firmware %s, built %s\n",gFwInfo.version,gFwInfo.built);
    {
@@ -332,6 +334,7 @@ void LoadInitProg()
 void IdlePoll()
 {
    rtc_poll();
+   SoundPoll();
    usb_event_poll();
    if(gWriteFlushTimeout != 0 && ticks_ms() >= gWriteFlushTimeout) {
       gWriteFlushTimeout = 0;

@@ -92,7 +92,8 @@ F7 is used to reset Z80 processor.
 
 F12 brings up the setup menu.  It has the settings - screen colour,
 character set, what the Caps Lock key does, the terminal emulation, the
-keyboard layout, the language - and the less frequent actions (swap a disk image, update from the USB drive, reset the
+keyboard layout, the language, the real time clock, sound and the Z80's
+speed - and the less frequent actions (swap a disk image, update from the USB drive, reset the
 Z80) in one place, so that there does not have to be a function key for each
 of them.  While the menu is up, the screen of the running program is kept
 aside; it is put back when you leave the menu with Enter or Esc.
@@ -107,16 +108,36 @@ The settings are kept in a small text file in the root of the USB drive,
     keyboard=de          (us or de)
     language=de          (en or de)
     rtc=off              (on or off)
+    sound=on             (on or off)
+    z80speed=4           (full, or the Z80's clock in MHz, 1 to 24)
 
 The file is rewritten whenever a setting is changed, from the menu or with
 F5 or F6.  It can also be edited on a PC; anything the firmware does not
 understand in it is ignored.  Without the file everything is as it was before
 there were settings: green on black, US ASCII, Caps Lock and Ctrl swapped,
-VT100, US keyboard, English, RTC on.
+VT100, US keyboard, English, RTC on, sound on, the Z80 at full speed.
 
 The real time clock has no battery, so with the RTC on the firmware asks for
 the date and time at every power-on.  Turn it off if nothing you run reads the
 clock: then it does not ask.
+
+Sound comes out of the Pano's speaker, or of headphones when they are plugged
+in.  There is one sound source, the
+ITT 3030's beeper on bit 0 of I/O port 32h.  Programs use it in two ways: the
+BIOS bell switches it on for a moment, and tunes toggle it at the frequency of
+the note.  So while the bit keeps changing, the speaker follows it (a tune
+plays at its own pitch), and once it has stayed on for 10 ms it beeps at
+3250 Hz (the frequency MAME uses for the ITT 3030's beeper; the real one may
+differ).  The bitstream handles the port itself, so that a program timing its
+tones with loops gets them when it expects them.  The firmware sounds the same
+beeper for the BEL character (Ctrl-G) in either terminal emulation.  The
+setup menu turns sound off.
+
+Programs written for the ITT 3030 time their tones and delays with loops made
+for its 4 MHz Z80; on the Pano's 25 MHz Z80 a tune plays six times too fast
+and too high.  The setup menu sets the Z80 to 4 MHz for them (the speed and
+sound items need a bitstream that has them; with an older one they are not
+shown).
 
 The character set is a national one, chosen in the setup menu.  The console
 is 7-bit ASCII like the terminals of the era, so national characters replace a
