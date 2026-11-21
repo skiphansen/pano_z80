@@ -28,4 +28,8 @@ int SettingsSave(void);
  * the way it was. */
 void SetupMenu(void);
 
+/* The disk swap dialog (F10) on a screen of its own, which is put back
+ * afterwards - except when A: was swapped and the Z80 is reset. */
+void SwapDiskMenu(void);
+
 #endif

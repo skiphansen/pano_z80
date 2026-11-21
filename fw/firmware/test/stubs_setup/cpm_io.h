@@ -5,4 +5,6 @@ extern uint32_t font_fg_color, font_bg_color;
 #define GREEN 0x00ff00
 #define AMBER 0xffb000
 void IdlePoll(void);
-void SwapDiskMenu(void);
+enum { SWAP_NONE = 0, SWAP_RELOGIN, SWAP_REBOOT };
+int SwapDisk(void);
+extern unsigned char gZ80_ResetRequest;

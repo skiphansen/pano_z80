@@ -125,7 +125,9 @@ only meant to be swapped in any other name - `GAMES.DSK`, `WORK2.DSK`, ...
 Swapping a data drive holds it read-only until CP/M re-logs the new disk; the
 firmware sends a Ctrl-C to warm-boot CP/M for you, so run the swap from the
 CP/M prompt (A>).  Swapping the system drive A: reboots CP/M onto the new
-disk, which must be bootable.
+disk, which must be bootable.  The menu has a screen of its own; when it is
+done the screen is put back the way it was (after swapping A: CP/M starts on a
+clear screen instead).
 
 In z80pack mode the stock CBIOS only knows drives A: to D: (8 inch floppies,
 256256 byte images), I: and J: (4 MB hard disks, 4177920 byte images) and, in

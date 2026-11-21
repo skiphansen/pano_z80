@@ -3,6 +3,8 @@
  *
  *   setup_harness load "<file text>"          apply a settings file, print state
  *   setup_harness menu "<keys>" ["<file>"]    run the menu with these keys
+ *   setup_harness swap "<keys>" [relogin|reboot]  the disk swap key (F10)
+ *   (menu takes relogin|reboot in place of the file, too: what a swap did)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,7 +21,7 @@ static char g_file[2048]; static int g_filelen = -1, g_writes, g_failwrite;
  * between them.  A '+' in the script glues the next key to the previous one,
  * which is how the characters of a cursor key sequence arrive. */
 static const char *g_keys = ""; static uint32_t g_ms, g_next_key_ms; static int g_polls;
-static int g_swap_queues_key;
+static int g_swap_result;
 
 void vt100_set_charset(int c) { g_charset = c; }
 int vt100_get_charset(void) { return g_charset; }
@@ -35,7 +37,13 @@ char usb_kbd_getc(void) {
    if(*g_keys == '+') g_keys++; else g_next_key_ms = g_ms + 200;
    return c;
 }
-void SwapDiskMenu(void) { printf("[swap menu]\n"); if(g_swap_queues_key) { g_keys = "\003"; g_next_key_ms = 0; } }
+/* the swap dialog does what the test says: nothing, a data drive, or A: */
+int SwapDisk(void) {
+   printf("[swap dialog]\n");
+   if(g_swap_result == SWAP_REBOOT) gZ80_ResetRequest = 1;
+   return g_swap_result;
+}
+void usb_kbd_inject(char c) { printf("[queued %02x, screen restored %d times]\n", c, g_restored); }
 void FlashUpdateMenu(void) { printf("[update menu]\n"); }
 
 FRESULT f_open(FIL *fp, const char *path, int mode) {
@@ -69,14 +77,16 @@ static void setfile(const char *t) {         /* \n, \r and \z (0x1a) escapes */
 int main(int argc, char **argv) {
    ScreenColorSet(COLOR_GREEN);            /* what main() does at power-on */
    if(argc >= 3 && !strcmp(argv[1], "load")) { setfile(argv[2]); SettingsLoad(); g_filelen = -1; state(); return 0; }
-   if(argc >= 3 && !strcmp(argv[1], "menu")) {
+   if(argc >= 3 && (!strcmp(argv[1], "menu") || !strcmp(argv[1], "swap"))) {
       static char keys[256]; int n = 0; const char *t;
       for(t = argv[2]; *t; t++) keys[n++] = (*t == '\\' && t[1]) ? (++t, *t == 'e' ? 0x1b : *t == 'r' ? '\r' : *t) : *t;
       g_keys = keys;
       if(argc >= 4 && !strcmp(argv[3], "failwrite")) g_failwrite = 1;
-      else if(argc >= 4 && !strcmp(argv[3], "swapkey")) g_swap_queues_key = 1;
+      else if(argc >= 4 && !strcmp(argv[3], "relogin")) g_swap_result = SWAP_RELOGIN;
+      else if(argc >= 4 && !strcmp(argv[3], "reboot")) g_swap_result = SWAP_REBOOT;
       else if(argc >= 4) { setfile(argv[3]); SettingsLoad(); }
-      SetupMenu(); state(); return 0;
+      if(!strcmp(argv[1], "swap")) SwapDiskMenu(); else SetupMenu();
+      state(); return 0;
    }
    return 2;
 }

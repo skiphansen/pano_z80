@@ -814,9 +814,11 @@ void LogHex(char *LogFlags,void *Data,int Len)
 }
 #endif
 
-// Runtime disk swap, invoked from the F10 function key.  Replaces the image
-// backing a mounted drive without a power cycle.  Data drives (B: .. P:) are
-// made read-only until CP/M re-logs the new disk (see fdco_out); the system
+// Runtime disk swap: the dialog behind F10 and the setup menu (see
+// SwapDiskMenu in setup.c, which gives it a screen of its own).  Replaces the
+// image backing a mounted drive without a power cycle.  Data drives (B: .. P:)
+// are made read-only until CP/M re-logs the new disk (see fdco_out); the
+// caller gets that going with a Ctrl-C once the screen is back.  The system
 // drive A: is swapped by rebooting onto the new disk.
 //
 // Any *.DSK file on the USB drive that is not currently mounted and is the
@@ -833,7 +835,7 @@ static char SwapGetKey(void)
    return usb_kbd_getc();
 }
 
-void SwapDiskMenu(void)
+int SwapDisk(void)
 {
    DIR Dir;
    FILINFO Info;
@@ -853,7 +855,7 @@ void SwapDiskMenu(void)
 
    if(gMountMode != MAP_Z80PACK) {
       ALOG_R("\nDisk swap is only supported in z80pack mode.\n");
-      return;
+      return SWAP_NONE;
    }
 
    ALOG_R("\n--- Swap disk (F10) ---\nMounted drives:\n");
@@ -869,7 +871,7 @@ void SwapDiskMenu(void)
    c = SwapGetKey();
    if(c == 0x1b) {
       ALOG_R("cancelled\n");
-      return;
+      return SWAP_NONE;
    }
    if(c >= 'a' && c <= 'z') {
       c -= 0x20;
@@ -879,7 +881,7 @@ void SwapDiskMenu(void)
    if(Slot < 0 || Slot >= MAX_LOGICAL_DRIVES || gDisks[Slot].fp == NULL ||
       gDisks[Slot].bMultiCompDrive) {
       ALOG_R("%c: is not a mounted drive\n",c);
-      return;
+      return SWAP_NONE;
    }
    pDisk = &gDisks[Slot];
    Type = pDisk->Type;
@@ -889,7 +891,7 @@ void SwapDiskMenu(void)
    // the CBIOS.)
    if((Err = f_opendir(&Dir,"")) != FR_OK) {
       ELOG("f_opendir failed: %d\n",Err);
-      return;
+      return SWAP_NONE;
    }
    for( ; ; ) {
       Err = f_readdir(&Dir,&Info);
@@ -928,7 +930,7 @@ void SwapDiskMenu(void)
    if(NumAvail == 0) {
       ALOG_R("No other %s images (*.DSK, %lu bytes) on the USB drive.\n",
              FormatLookup[Type].Desc,(unsigned long)FormatLookup[Type].FileSize);
-      return;
+      return SWAP_NONE;
    }
    ALOG_R("\n%s images available for %c:\n",FormatLookup[Type].Desc,'A' + Slot);
    for(i = 0; i < NumAvail; i++) {
@@ -946,7 +948,7 @@ void SwapDiskMenu(void)
       c = SwapGetKey();
       if(c == 0x1b) {
          ALOG_R("cancelled\n");
-         return;
+         return SWAP_NONE;
       }
       if(c == '\r' || c == '\n') {
          break;
@@ -960,12 +962,12 @@ void SwapDiskMenu(void)
    ALOG_R("\n");
    if(Digits == 0) {
       ALOG_R("cancelled\n");
-      return;
+      return SWAP_NONE;
    }
    Choice -= 1;
    if(Choice < 0 || Choice >= NumAvail) {
       ALOG_R("invalid choice\n");
-      return;
+      return SWAP_NONE;
    }
 
    if(Slot == 0) {
@@ -975,7 +977,7 @@ void SwapDiskMenu(void)
       ALOG_R("%c\n",c);
       if(c != 'y' && c != 'Y') {
          ALOG_R("cancelled\n");
-         return;
+         return SWAP_NONE;
       }
    }
 
@@ -996,20 +998,20 @@ void SwapDiskMenu(void)
       else {
          ALOG_R("%c: left unchanged (%s)\n",'A' + Slot,OldName);
       }
-      return;
+      return SWAP_NONE;
    }
    strcpy(pDisk->ImageName,Avail[Choice]);
 
    if(Slot == 0) {
       ALOG_R("A: swapped to %s - rebooting\n",Avail[Choice]);
       gZ80_ResetRequest = 1;
+      return SWAP_REBOOT;
    }
-   else {
-      pDisk->bNeedRelogin = true;
-      ALOG_R("%c: swapped to %s (warm-booting to re-log; press ^C if a program is running)\n",
-             'A' + Slot,Avail[Choice]);
-      usb_kbd_inject(0x03);   // ^C: at the CP/M prompt this warm-boots and re-logs
-   }
+
+   pDisk->bNeedRelogin = true;
+   ALOG_R("%c: swapped to %s (warm-booting to re-log; press ^C if a program is running)\n",
+          'A' + Slot,Avail[Choice]);
+   return SWAP_RELOGIN;
 }
 
 void FlushWriteCache()

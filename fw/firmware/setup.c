@@ -247,6 +247,45 @@ static bool EscapeAlone(void)
    return Alone;
 }
 
+/* The disk swap dialog on a cleared screen.  Its last lines say what came of
+ * it, so they stay until a key is pressed - unless A: was swapped, then the
+ * Z80 is reset and the screen cleared anyway. */
+static int SwapDialog(void)
+{
+   int Result;
+
+   ALOG_R(ANSI_HOME ANSI_CLS);
+   Result = SwapDisk();
+   if(Result != SWAP_REBOOT) {
+      ALOG_R("\nPress a key.");
+      (void) WaitKey();
+      EscapeAlone();
+   }
+   return Result;
+}
+
+/* Back to the screen the menu was called from, after the dialog did Result */
+static void LeaveMenu(int Result)
+{
+   if(Result == SWAP_REBOOT) {
+      vt100_screen_forget();
+      return;
+   }
+   vt100_screen_restore();
+   if(Result == SWAP_RELOGIN) {
+      /* At the CP/M prompt a Ctrl-C warm-boots, which logs the new disk in.
+       * Queued now so that the key that closed the dialog is not taken for
+       * it, and CP/M echoes it on its own screen. */
+      usb_kbd_inject(0x03);
+   }
+}
+
+void SwapDiskMenu(void)
+{
+   vt100_screen_save();
+   LeaveMenu(SwapDialog());
+}
+
 static void DrawMenu(void)
 {
    ALOG_R(ANSI_HOME ANSI_CLS);
@@ -272,6 +311,7 @@ void SetupMenu(void)
    bool Changed = false;
    bool Restore = true;
    bool Done = false;
+   int Swap = SWAP_NONE;
    int Err;
    char Key;
 
@@ -298,21 +338,11 @@ void SetupMenu(void)
 
          case 'd':
          case 'D':
-            /* The swap menu ends by making CP/M log the disks in again (it
-             * queues a Ctrl-C, or resets the Z80 for drive A:), so the old
-             * screen is of no use after it, and its last message should
-             * stay readable: leave without putting the screen back. */
-            ALOG_R(ANSI_HOME ANSI_CLS);
-            SwapDiskMenu();
-            if(usb_kbd_testc() || gZ80_ResetRequest) {
-               Restore = false;
+            /* After a swap CP/M has to log the disks in again, so leave the
+             * menu; with nothing swapped, come back to it. */
+            Swap = SwapDialog();
+            if(Swap != SWAP_NONE) {
                Done = true;
-            }
-            else {
-               /* nothing was swapped */
-               ALOG_R("\nPress a key.");
-               (void) WaitKey();
-               EscapeAlone();
             }
             break;
 
@@ -359,10 +389,10 @@ void SetupMenu(void)
       EscapeAlone();
    }
 
-   if(Restore) {
-      vt100_screen_restore();
+   if(!Restore) {
+      vt100_screen_forget();
    }
    else {
-      vt100_screen_forget();
+      LeaveMenu(Swap);
    }
 }
