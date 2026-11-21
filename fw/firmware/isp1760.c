@@ -340,14 +340,26 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
             #endif
         }
         
-        // Wait for the setup to be completed
+        // Wait for the PTD to complete.
+        //
+        // Interrupt and control endpoints keep the short fixed window (an idle
+        // keyboard poll has to return quickly).  A BULK PTD that is not done
+        // yet is not an error, though: the chip is still retrying a device
+        // that is NAKing - busy, or answering PING with NAK on a high-speed
+        // OUT - so keep waiting until the caller's transfer timeout runs out.
+        // Giving up after ~10 ms made any mass-storage device that needs
+        // longer than that to accept a command or produce data fail with a
+        // bogus "CRC error" (status 0x20), with no retry.
         uint32_t donemap;
         uint32_t check_count = 0;
         do {
             delay_us(5);
             check_count++;
             donemap = isp_read_dword(reg_ptd_donemap);
-        } while (!(donemap & 0x1) && (check_count < SETUP_TIMEOUT_MS*200));
+        } while (!(donemap & 0x1) &&
+                 ((check_count < SETUP_TIMEOUT_MS*200) ||
+                  ((ep_type == EP_BULK) &&
+                   ((ticks_ms() - start_ticks) < (uint32_t)NakTimeout))));
 
         // Readback PTD header
         if (donemap & 0x1) {
@@ -391,7 +403,9 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
         }
         else {
             LOG_R("STO");
-            result = ISP_SETUP_TIMEOUT;
+            // For bulk we waited the whole transfer timeout for a device that
+            // kept NAKing: report it as what it is, a NAK timeout.
+            result = (ep_type == EP_BULK) ? ISP_NACK_TIMEOUT : ISP_SETUP_TIMEOUT;
         }
 
         // No matter what happens, end this PTD
@@ -402,7 +416,12 @@ isp_result_t isp_transfer(ptd_type_t ptd_type, usb_speed_t speed,
     // If current direction is input, read payload back
     if (direction == DIRECTION_IN) {
         if (result == ISP_SUCCESS) {
-            *length = actual_transfer_length & 0x0FFF;
+            // NrBytesTransferred is 15 bits for high-speed PTDs and 12 bits
+            // for split (full/low-speed) ones.  This used to mask with 0x0FFF
+            // unconditionally, so a high-speed transfer of 4 KB or more
+            // (multi-sector mass-storage reads) reported the wrong length.
+            *length = actual_transfer_length &
+                      ((speed == SPEED_HIGH) ? 0x7FFF : 0x0FFF);
             if ((actual_transfer_length != 0) && 
                     (actual_transfer_length <= max_length)) {
                 isp_read_memory(payload_address, (uint32_t *)buffer, 
@@ -603,6 +622,12 @@ static int isp_submit(
    /*printf("dev=%u, usbsts=%04x, p[1]=%04x\n",
            dev->devnum, isp_read_dword(ISP_USBSTS), isp_read_dword(ISP_PORTSC1));*/
 
+   /* NOTE: this returns 0 whenever the transfer was processed at all, even if
+    * it failed - the real outcome is in dev->status, and every caller must
+    * check that (usb_bulk_msg and usb_control_msg do).  Do not "fix" this to
+    * return -1 on error: isp_poll_no_irq() relies on a 0 return to run the
+    * keyboard handler on every poll, including polls the keyboard NAKs, which
+    * is what drives key auto-repeat. */
    return(dev->status != USB_ST_NOT_PROC) ? 0 : -1;
 }
 

@@ -35,6 +35,8 @@
 #include <stdbool.h>
 #include "misc.h"
 #include "usb.h"
+#include "vt100.h"
+#include "messages.h"
 
 // #define LOG_TO_SERIAL
 // #define DEBUG_LOGGING
@@ -131,14 +133,90 @@ unsigned char gCapsLockSwap = 0;
 
 static unsigned char leds __attribute__ ((aligned (0x4)));
 
-static unsigned char usb_kbd_numkey[] = {
-   '1', '2', '3', '4', '5', '6', '7', '8', '9', '0','\r',0x1b,'\b','\t',' ', '-',
-   '=', '[', ']','\\', '#', ';', '\'', '`', ',', '.', '/'
+/*
+ * Keyboard layouts.
+ *
+ * A layout says what the keys with the scan codes 0x1e to 0x38 - the digits
+ * and the punctuation - produce plain and shifted, what the extra key of an
+ * ISO keyboard next to the left shift key (0x64) does, whether Y and Z are
+ * the other way round, and which keys AltGr turns into what.  The letters
+ * are the same everywhere.
+ *
+ * The console is 7-bit ASCII, so a national letter comes out as the code that
+ * the country's ISO 646 character set (see vt100.c) uses for it: on the
+ * German layout the key "ä" sends '{', which the German character set shows
+ * as ä.
+ *
+ * To add a layout, add an entry to gKbdLayouts[]; the setup menu and the
+ * settings file take their choices from it.
+ */
+#define KBD_ISO_KEY   0x64
+
+struct kbd_layout {
+   const char *Key;                 /* in the settings file */
+   const char *Name;                /* in the setup menu */
+   unsigned char Plain[28];         /* scan codes 0x1e ... 0x38 */
+   unsigned char Shifted[28];
+   unsigned char Iso[3];            /* the ISO key: plain, shifted, AltGr */
+   unsigned char SwapYZ;
+   unsigned char AltGr[8][2];       /* {scan code, character}, ends with 0 */
 };
-static unsigned char usb_kbd_numkey_shifted[] = {
-   '!', '@', '#', '$', '%', '^', '&', '*', '(', ')','\r',0x1b,'\b','\t',' ', '_',
-   '+', '{', '}', '|', '~', ':', '"', '~', '<', '>', '?'
+
+static const struct kbd_layout gKbdLayouts[] = {
+   {  "us", "US",
+      {  '1', '2', '3', '4', '5', '6', '7', '8', '9', '0','\r',0x1b,'\b','\t',' ', '-',
+         '=', '[', ']','\\', '#', ';', '\'', '`', ',', '.', '/' },
+      {  '!', '@', '#', '$', '%', '^', '&', '*', '(', ')','\r',0x1b,'\b','\t',' ', '_',
+         '+', '{', '}', '|', '~', ':', '"', '~', '<', '>', '?' },
+      {  '\\', '|', 0 },
+      0,
+      { {0, 0} }
+   },
+   {  "de", TR_N("German"),
+      /*                                                           sz (~)
+       *  acute  ue (})  +    #    #   oe (|)  ae ({)   ^    ,    .    -    */
+      {  '1', '2', '3', '4', '5', '6', '7', '8', '9', '0','\r',0x1b,'\b','\t',' ', '~',
+         '\'', '}', '+', '#', '#', '|', '{', '^', ',', '.', '-' },
+      /*       paragraph (@)                                        ?
+       *  `    UE (])   *    '    '   OE (\)  AE ([)  deg   ;    :    _    */
+      {  '!', '"', '@', '$', '%', '&', '/', '(', ')', '=','\r',0x1b,'\b','\t',' ', '?',
+         '`', ']', '*', '\'', '\'', '\\', '[', '^', ';', ':', '_' },
+      {  '<', '>', '|' },
+      1,
+      /* AltGr with q 7 8 9 0 sz + : the characters the umlauts took away */
+      { {0x14, '@'}, {0x24, '{'}, {0x25, '['}, {0x26, ']'}, {0x27, '}'},
+        {0x2d, '\\'}, {0x30, '~'}, {0, 0} }
+   },
 };
+
+#define KBD_LAYOUTS ((int) (sizeof(gKbdLayouts) / sizeof(gKbdLayouts[0])))
+
+static int gKbdLayout;
+
+int KbdLayoutCount(void)
+{
+   return KBD_LAYOUTS;
+}
+
+void KbdLayoutSet(int Layout)
+{
+   gKbdLayout = (Layout < 0 || Layout >= KBD_LAYOUTS) ? 0 : Layout;
+}
+
+int KbdLayoutGet(void)
+{
+   return gKbdLayout;
+}
+
+const char *KbdLayoutKey(int Layout)
+{
+   return gKbdLayouts[Layout < 0 || Layout >= KBD_LAYOUTS ? 0 : Layout].Key;
+}
+
+const char *KbdLayoutName(int Layout)
+{
+   return gKbdLayouts[Layout < 0 || Layout >= KBD_LAYOUTS ? 0 : Layout].Name;
+}
 
 void FunctionKeyCB(unsigned char Function);
 
@@ -171,6 +249,13 @@ static void usb_kbd_put_queue(char data)
    }
    usb_kbd_buffer[usb_in_pointer]=data;
    return;
+}
+
+/* public: inject a character into the keyboard input queue.  Used by the
+ * firmware itself, e.g. to send a ^C to warm-boot CP/M after a disk swap. */
+void usb_kbd_inject(char data)
+{
+   usb_kbd_put_queue(data);
 }
 
 /* test if a character is in the queue */
@@ -282,6 +367,11 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
    char EscKey = 0;
 #endif
    static unsigned char RepeatScanCode;
+   // In ITT 3030 terminal mode the cursor keys are those of an ITT 3030
+   bool IttKeys = (vt100_get_terminal() == TERM_ITT3030);
+   const struct kbd_layout *Layout = &gKbdLayouts[gKbdLayout];
+   bool Shift = (modifier & ((1 << LEFT_SHIFT) | (1 << RIGHT_SHIFT))) != 0;
+   int i;
 
 #ifdef VERBOSE_DEBUG_LOGGING
    VLOG("0x%x,0x%x,%d\n",scancode,modifier,pressed);
@@ -307,7 +397,7 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
          EscKey = 'D';
       }
 
-      if(EscKey != 0) {
+      if(EscKey != 0 && !IttKeys) {
          usb_kbd_put_queue(ESC);
          usb_kbd_put_queue(EscKey);
       }
@@ -323,6 +413,9 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
    keycode=0;
    if((scancode>3) && (scancode<=0x1d)) { /* alpha numeric values */
       keycode=scancode-4 + 0x61;
+      if(Layout->SwapYZ && keycode >= 'y') {
+         keycode = (keycode == 'y') ? 'z' : 'y';
+      }
       if(caps_lock)
          keycode&=~CAPITAL_MASK; /* switch to capital Letters */
       if(((modifier&(1<<LEFT_SHIFT))!=0)||((modifier&(1<<RIGHT_SHIFT))!=0)) {
@@ -335,10 +428,13 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
 
 
    if((scancode>0x1d) && (scancode<0x3A)) {
-      if(((modifier&(1<<LEFT_SHIFT))!=0)||((modifier&(1<<RIGHT_SHIFT))!=0))  /* shifted */
-         keycode=usb_kbd_numkey_shifted[scancode-0x1e];
+      if(Shift)
+         keycode=Layout->Shifted[scancode-0x1e];
       else /* non shifted */
-         keycode=usb_kbd_numkey[scancode-0x1e];
+         keycode=Layout->Plain[scancode-0x1e];
+   }
+   else if(scancode == KBD_ISO_KEY) {
+      keycode = Layout->Iso[Shift ? 1 : 0];
    }
    else if(scancode > F4 && scancode <= F12) {
    // F5 -> F12
@@ -399,8 +495,47 @@ static int usb_kbd_translate(unsigned char scancode,unsigned char modifier,int p
    }
 #endif
 
+   if(modifier & (1 << RIGHT_ALT)) {
+   // AltGr
+      if(scancode == KBD_ISO_KEY && Layout->Iso[2] != 0) {
+         keycode = Layout->Iso[2];
+      }
+      for(i = 0; Layout->AltGr[i][0] != 0; i++) {
+         if(Layout->AltGr[i][0] == scancode) {
+            keycode = Layout->AltGr[i][1];
+         }
+      }
+   }
+
+   if(IttKeys) {
+   // The cursor keys of the ITT 3030 send control codes - those of the
+   // WordStar cursor diamond - and its programs test for them.  1F is what
+   // they accept, besides backspace, for deleting a character.
+      switch(scancode) {
+         case ARROW_U:
+            keycode = 0x05;   // ^E
+            break;
+         case ARROW_D:
+            keycode = 0x18;   // ^X
+            break;
+         case ARROW_L:
+            keycode = 0x13;   // ^S
+            break;
+         case ARROW_R:
+            keycode = 0x04;   // ^D
+            break;
+         case DEL:
+            keycode = 0x1f;
+            break;
+      }
+   }
+
    if(ctrl) {
       keycode = scancode - 0x3;
+      if(Layout->SwapYZ && (scancode == 0x1c || scancode == 0x1d)) {
+      // Ctrl-Y and Ctrl-Z go by what is printed on the keys
+         keycode = (scancode == 0x1c) ? 0x1a : 0x19;
+      }
    }
 
    if(pressed==1) {

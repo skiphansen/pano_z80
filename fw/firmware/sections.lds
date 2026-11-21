@@ -51,6 +51,22 @@ SECTIONS {
         _edata = .;        /* define a global symbol at data end; used by startup code in order to initialise the .data section in RAM */
     } >RAM
 
+    /* RAM-resident code (.ramtext).
+       The SPI-flash erase/program routines must execute from RAM, never from
+       flash, because the flash cannot serve instruction fetches while it is
+       being erased or programmed.  Like .data, this is stored in FLASH and
+       copied to RAM by the startup code before main() runs. */
+    .ramtext : AT ( _sidata + SIZEOF(.data) )
+    {
+        . = ALIGN(4);
+        _sramtext = .;
+        *(.ramtext)
+        *(.ramtext*)
+        . = ALIGN(4);
+        _eramtext = .;
+    } >RAM
+    _sramtext_load = LOADADDR(.ramtext);
+
     /* Uninitialized data section */
     .bss :
     {

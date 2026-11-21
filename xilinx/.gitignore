@@ -11,3 +11,6 @@
 !*.bit
 !*.mcs
 
+!build.tcl
+pano_z80_build.xise
+pano_z80_docker.xise

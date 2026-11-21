@@ -261,7 +261,15 @@ extern unsigned char gCapsLockSwap;
 int drv_usb_kbd_init(void);
 int usb_kbd_deregister(void);
 int usb_kbd_testc(void);
+
+/* Keyboard layouts, see usb_kbd.c */
+int KbdLayoutCount(void);
+void KbdLayoutSet(int Layout);
+int KbdLayoutGet(void);
+const char *KbdLayoutKey(int Layout);     /* in the settings file: "us", "de" */
+const char *KbdLayoutName(int Layout);
 char usb_kbd_getc(void);
+void usb_kbd_inject(char data);
 
 // USB Game pad
 int drv_usb_gp_init(void);

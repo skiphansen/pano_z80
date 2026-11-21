@@ -41,8 +41,34 @@ uint32_t ticks_us() {
     return ticks() / CYCLE_PER_US;
 }
 
+// Milliseconds since power-on.
+//
+// The cycle counter has 32 bits and wraps every 172 seconds at 25 MHz, so
+// this must not be computed from it directly: every "ticks_ms() < Timeout"
+// in the firmware would go wrong for a timeout that falls beyond the wrap,
+// and the one in the main loop then never ends - the Z80 keeps running, but
+// the keyboard is not polled any more.  Count the cycles that have passed
+// since the last call instead.  That is right as long as this is called more
+// often than once in 172 seconds, which the main loop and every wait loop do,
+// and the result only wraps after 49 days.
 uint32_t ticks_ms() {
-    return ticks() / CYCLE_PER_US / 1000;
+    static uint32_t Last;
+    static uint32_t Ms;
+    static uint32_t Rest;    // cycles that do not make a millisecond yet
+    uint32_t Now = ticks();
+    uint32_t Delta = Now - Last;
+
+    Last = Now;
+    while (Delta >= CYCLE_PER_US * 1000) {
+        Delta -= CYCLE_PER_US * 1000;
+        Ms++;
+    }
+    Rest += Delta;
+    if (Rest >= CYCLE_PER_US * 1000) {
+        Rest -= CYCLE_PER_US * 1000;
+        Ms++;
+    }
+    return Ms;
 }
 
 void delay_us(uint32_t us) {

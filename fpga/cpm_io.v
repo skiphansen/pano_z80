@@ -47,6 +47,9 @@
 // 0x2c (11)      -- - Z80 I/O Status         RISC V  ---       3 
 // 0x30 (12)      -- - Font foreground color  RISC V  RISC V    
 // 0x34 (13)      -- - Font background color  RISC V  RISC V    
+// 0x38 (14)      -- - Sound control          RISC V  RISC V    5
+// 0x3c (15)      -- - Z80 speed              RISC V  RISC V    6
+// --             32h- Beeper (ITT 3030)      ---     Z80       7
 // Notes:
 //  1 - Z80 held in wait until RISC V write the data to complete the Z80 I/O 
 //      to the "Z80 In Data" register.
@@ -54,6 +57,11 @@
 //      Z80 In Data register
 //  3 - FSM state, written by hardware
 //  4 - Handled by generic I/O hander
+//  5 - bit 0: sound on, bit 1: bell (the firmware's beep, for BEL)
+//  6 - Z80 clock in MHz, 0 = full speed (25 MHz); see z80_cen below
+//  7 - bit 0 switches the beeper on and off, as on the ITT 3030.  Handled
+//      here rather than by the RISC V so that a program timing its tones
+//      with loops gets them at the time it expects.
 
 module cpm_io(
     input wire clk,
@@ -67,6 +75,7 @@ module cpm_io(
     input wire [7:0] z80do,
     output reg z80_io_ready,
     input wire z80hlt,
+    input wire z80_reset,
 
 // RISC V interface
     input wire io_valid,
@@ -76,8 +85,17 @@ module cpm_io(
     output reg [23:0] rv_rdata,
 // vga_mixer interface
     output reg [23:0] font_fg_color,
-    output reg [23:0] font_bg_color
+    output reg [23:0] font_bg_color,
+// sound and speed
+    output wire beep,             // the beeper should sound
+    output reg z80_cen            // Z80 clock enable (clk is the Z80's clock)
     );
+
+    reg [4:0] z80_mhz;
+
+    reg beeper;                   // port 32h bit 0
+    reg [1:0] sound_ctrl;         // bit 0: sound on, bit 1: bell
+    assign beep = sound_ctrl[0] && (beeper || sound_ctrl[1]);
 
     reg [7:0] disk_drive;
     reg [7:0] disk_track;
@@ -112,6 +130,9 @@ module cpm_io(
             z80di <= 8'd0;
             font_fg_color <= GREEN;
             font_bg_color <= BLACK;
+            beeper <= 1'b0;
+            sound_ctrl <= 2'd0;
+            z80_mhz <= 5'd0;
         end
         else begin
             if (io_valid) begin
@@ -134,6 +155,8 @@ module cpm_io(
                         end
                         4'd12: font_fg_color <= rv_wdata;
                         4'd13: font_bg_color <= rv_wdata;
+                        4'd14: sound_ctrl <= rv_wdata[1:0];
+                        4'd15: z80_mhz <= rv_wdata[4:0];
                     endcase
                  end
                  else begin
@@ -156,6 +179,8 @@ module cpm_io(
                         4'd11: rv_rdata <= {z80hlt, 21'd0, io_port_status};
                         4'd12: rv_rdata <= font_fg_color;
                         4'd13: rv_rdata <= font_bg_color;
+                        4'd14: rv_rdata <= {22'd0, sound_ctrl};
+                        4'd15: rv_rdata <= {19'd0, z80_mhz};
                         default: rv_rdata <= 24'd0;
                     endcase
                  end
@@ -225,6 +250,10 @@ module cpm_io(
                         disk_sector_msb <= z80do;
                         io_port_status <= IO_STAT_READY;
                      end
+                     8'h32: begin
+                        beeper <= z80do[0];
+                        io_port_status <= IO_STAT_READY;
+                     end
                      default: if (io_port_status == IO_STAT_IDLE) begin
                          // synthesis translate_off
                          $display("Z80 output 0x%02x to port 0x%02x",z80do,z80adr);
@@ -243,6 +272,33 @@ module cpm_io(
                  z80_io_ready <= 1;
              else
                  z80_io_ready <= 0;
+             if (z80_reset)
+                 beeper <= 1'b0;   // a reset silences it, as it would the ITT
+        end
+    end
+
+    // Z80 speed.  The Z80 is clocked at 25 MHz, the clock of this module; to
+    // run it slower (programs that time things with loops, written for a
+    // 4 MHz machine), only some of its clocks are enabled: each clock adds
+    // z80_mhz to an accumulator, and a clock is enabled each time it passes
+    // 25.  So z80_mhz = 4 enables 4 of every 25 clocks, 4.000 MHz on average.
+    // 0, or 25 and more, enables every clock.  The memory and I/O handshakes
+    // are level based and simply last longer.
+    reg [4:0] z80_cen_acc;
+    wire z80_full_speed = z80_mhz == 5'd0 || z80_mhz >= 5'd25;
+    wire [5:0] z80_cen_sum = z80_cen_acc + z80_mhz;
+    always @(posedge clk) begin
+        if (reset || z80_full_speed) begin
+            z80_cen_acc <= 5'd0;
+            z80_cen <= 1'b1;
+        end
+        else if (z80_cen_sum >= 6'd25) begin
+            z80_cen_acc <= z80_cen_sum - 6'd25;
+            z80_cen <= 1'b1;
+        end
+        else begin
+            z80_cen_acc <= z80_cen_sum[4:0];
+            z80_cen <= 1'b0;
         end
     end
 endmodule
